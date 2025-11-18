@@ -74,8 +74,135 @@ export default function HomeScreen() {
           <ThemedText type="defaultSemiBold">app-example</ThemedText>.
         </ThemedText>
       </ThemedView>
+
+      <ThemedView style={styles.stepContainer}>
+        <ThemedText type="subtitle">Custom fonts</ThemedText>
+
+        <ThemedText>Montserrat</ThemedText>
+        <ThemedText style={[styles.fontSample, font('Montserrat', '300')]}>Montserrat Light 300</ThemedText>
+        <ThemedText style={[styles.fontSample, font('Montserrat', '400')]}>Montserrat Regular 400</ThemedText>
+        <ThemedText style={[styles.fontSample, font('Montserrat', '500')]}>Montserrat Medium 500</ThemedText>
+        <ThemedText style={[styles.fontSample, font('Montserrat', '600')]}>Montserrat SemiBold 600</ThemedText>
+        <ThemedText style={[styles.fontSample, font('Montserrat', '700')]}>Montserrat Bold 700</ThemedText>
+        <ThemedText style={[styles.fontSample, font('Montserrat', '400', true)]}>Montserrat Italic 400</ThemedText>
+
+        <ThemedText>Space Grotesk</ThemedText>
+        <ThemedText style={[styles.fontSample, font('SpaceGrotesk', '300')]}>Space Grotesk Light 300</ThemedText>
+        <ThemedText style={[styles.fontSample, font('SpaceGrotesk', '400')]}>Space Grotesk Regular 400</ThemedText>
+        <ThemedText style={[styles.fontSample, font('SpaceGrotesk', '500')]}>Space Grotesk Medium 500</ThemedText>
+        <ThemedText style={[styles.fontSample, font('SpaceGrotesk', '600')]}>Space Grotesk SemiBold 600</ThemedText>
+        <ThemedText style={[styles.fontSample, font('SpaceGrotesk', '700')]}>Space Grotesk Bold 700</ThemedText>
+
+        <ThemedText>Verdana</ThemedText>
+        <ThemedText style={[styles.fontSample, font('Verdana', '400')]}>Verdana Regular 400</ThemedText>
+        <ThemedText style={[styles.fontSample, font('Verdana', '400', true)]}>Verdana Italic</ThemedText>
+        <ThemedText style={[styles.fontSample, font('Verdana', '700')]}>Verdana Bold 700</ThemedText>
+        <ThemedText style={[styles.fontSample, font('Verdana', '700', true)]}>Verdana Bold Italic</ThemedText>
+      </ThemedView>
+
     </ParallaxScrollView>
   );
+}
+
+function weightName(weight: string) {
+  switch (weight) {
+    case '100':
+      return 'Thin';
+    case '200':
+      return 'ExtraLight';
+    case '300':
+      return 'Light';
+    case '400':
+      return 'Regular';
+    case '500':
+      return 'Medium';
+    case '600':
+      return 'SemiBold';
+    case '700':
+      return 'Bold';
+    case '800':
+      return 'ExtraBold';
+    case '900':
+      return 'Black';
+    default:
+      return 'Regular';
+  }
+}
+
+function iosFace(
+  family: 'Montserrat' | 'SpaceGrotesk' | 'Verdana',
+  weight: string,
+  italic = false,
+) {
+  if (family === 'Verdana') {
+    if (weight === '700' && italic) return 'Verdana-BoldItalic';
+    if (weight === '700') return 'Verdana-Bold';
+    if (italic) return 'Verdana-Italic';
+    return 'Verdana';
+  }
+
+  if (family === 'Montserrat') {
+    if (italic) {
+      switch (weight) {
+        case '300':
+          return 'Montserrat-LightItalic';
+        case '500':
+          return 'Montserrat-MediumItalic';
+        case '600':
+          return 'Montserrat-SemiBoldItalic';
+        case '700':
+          return 'Montserrat-BoldItalic';
+        case '400':
+        default:
+          return 'Montserrat-Italic';
+      }
+    }
+    switch (weight) {
+      case '300':
+        return 'Montserrat-Light';
+      case '500':
+        return 'Montserrat-Medium';
+      case '600':
+        return 'Montserrat-SemiBold';
+      case '700':
+        return 'Montserrat-Bold';
+      case '400':
+      default:
+        return 'Montserrat-Regular';
+    }
+  }
+
+  if (family === 'SpaceGrotesk') {
+    switch (weight) {
+      case '300':
+        return 'SpaceGrotesk-Light';
+      case '500':
+        return 'SpaceGrotesk-Medium';
+      case '600':
+        return 'SpaceGrotesk-SemiBold';
+      case '700':
+        return 'SpaceGrotesk-Bold';
+      case '400':
+      default:
+        return 'SpaceGrotesk-Regular';
+    }
+  }
+
+  // Fallback
+  const name = weightName(weight);
+  const suffix = italic ? 'Italic' : '';
+  return `${family}-${name}${suffix}`;
+}
+
+function font(
+  family: 'Montserrat' | 'SpaceGrotesk' | 'Verdana',
+  weight: string = '400',
+  italic: boolean = false,
+) {
+  if (Platform.OS === 'android') {
+    return { fontFamily: family, fontWeight: weight as any, fontStyle: italic ? 'italic' : 'normal' };
+  }
+  return { fontFamily: iosFace(family, weight, italic) };
 }
 
 const styles = StyleSheet.create({
@@ -94,5 +221,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     position: 'absolute',
+  },
+  fontSample: {
+    fontSize: 18,
+    lineHeight: 28,
   },
 });
