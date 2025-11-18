@@ -6,6 +6,7 @@ import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Link } from 'expo-router';
+import { font } from '../../src/lib/fonts';
 
 export default function HomeScreen() {
   return (
@@ -102,107 +103,6 @@ export default function HomeScreen() {
 
     </ParallaxScrollView>
   );
-}
-
-function weightName(weight: string) {
-  switch (weight) {
-    case '100':
-      return 'Thin';
-    case '200':
-      return 'ExtraLight';
-    case '300':
-      return 'Light';
-    case '400':
-      return 'Regular';
-    case '500':
-      return 'Medium';
-    case '600':
-      return 'SemiBold';
-    case '700':
-      return 'Bold';
-    case '800':
-      return 'ExtraBold';
-    case '900':
-      return 'Black';
-    default:
-      return 'Regular';
-  }
-}
-
-function iosFace(
-  family: 'Montserrat' | 'SpaceGrotesk' | 'Verdana',
-  weight: string,
-  italic = false,
-) {
-  if (family === 'Verdana') {
-    if (weight === '700' && italic) return 'Verdana-BoldItalic';
-    if (weight === '700') return 'Verdana-Bold';
-    if (italic) return 'Verdana-Italic';
-    return 'Verdana';
-  }
-
-  if (family === 'Montserrat') {
-    if (italic) {
-      switch (weight) {
-        case '300':
-          return 'Montserrat-LightItalic';
-        case '500':
-          return 'Montserrat-MediumItalic';
-        case '600':
-          return 'Montserrat-SemiBoldItalic';
-        case '700':
-          return 'Montserrat-BoldItalic';
-        case '400':
-        default:
-          return 'Montserrat-Italic';
-      }
-    }
-    switch (weight) {
-      case '300':
-        return 'Montserrat-Light';
-      case '500':
-        return 'Montserrat-Medium';
-      case '600':
-        return 'Montserrat-SemiBold';
-      case '700':
-        return 'Montserrat-Bold';
-      case '400':
-      default:
-        return 'Montserrat-Regular';
-    }
-  }
-
-  if (family === 'SpaceGrotesk') {
-    switch (weight) {
-      case '300':
-        return 'SpaceGrotesk-Light';
-      case '500':
-        return 'SpaceGrotesk-Medium';
-      case '600':
-        return 'SpaceGrotesk-SemiBold';
-      case '700':
-        return 'SpaceGrotesk-Bold';
-      case '400':
-      default:
-        return 'SpaceGrotesk-Regular';
-    }
-  }
-
-  // Fallback
-  const name = weightName(weight);
-  const suffix = italic ? 'Italic' : '';
-  return `${family}-${name}${suffix}`;
-}
-
-function font(
-  family: 'Montserrat' | 'SpaceGrotesk' | 'Verdana',
-  weight: string = '400',
-  italic: boolean = false,
-) {
-  if (Platform.OS === 'android') {
-    return { fontFamily: family, fontWeight: weight as any, fontStyle: italic ? 'italic' : 'normal' };
-  }
-  return { fontFamily: iosFace(family, weight, italic) };
 }
 
 const styles = StyleSheet.create({

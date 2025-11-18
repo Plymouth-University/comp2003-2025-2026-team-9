@@ -10,9 +10,6 @@ export const unstable_settings = {
   anchor: '(tabs)',
 };
 
-export default function Layout() {
-  return <Stack screenOptions={{ headerShown: false }} />}
-
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [fontsLoaded] = useFonts({
@@ -31,12 +28,16 @@ export default function RootLayout() {
     'SpaceGrotesk-Regular': require('@/assets/fonts/Space-Grotesk-Regular/otf/SpaceGrotesk-Regular.otf'),
     'SpaceGrotesk-Medium': require('@/assets/fonts/Space-Grotesk-Regular/otf/SpaceGrotesk-Medium.otf'),
     'SpaceGrotesk-SemiBold': require('@/assets/fonts/Space-Grotesk-Regular/otf/SpaceGrotesk-SemiBold.otf'),
-    'SpaceGrotesk-Bold': require('@/assets/fonts/Space-Grotesk-Regular/otf/SpaceGrotesk-Bold.otf'),
+'SpaceGrotesk-Bold': require('@/assets/fonts/Space-Grotesk-Regular/otf/SpaceGrotesk-Bold.otf'),
 
     'Verdana': require('@/assets/fonts/Verdana/Verdana.ttf'),
     'Verdana-Italic': require('@/assets/fonts/Verdana/Verdana-Italic.ttf'),
     'Verdana-Bold': require('@/assets/fonts/Verdana/Verdana-Bold.ttf'),
     'Verdana-BoldItalic': require('@/assets/fonts/Verdana/Verdana-BoldItalic.ttf'),
+
+    // Glacial Indifference
+    'GlacialIndifference-Regular': require('@/assets/fonts/glacial-indifference/GlacialIndifference-Regular.otf'),
+    'GlacialIndifference-Bold': require('@/assets/fonts/glacial-indifference/GlacialIndifference-Bold.otf'),
   });
 
   if (!fontsLoaded) return null;
