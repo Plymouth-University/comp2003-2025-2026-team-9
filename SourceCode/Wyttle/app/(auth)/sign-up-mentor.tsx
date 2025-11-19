@@ -84,106 +84,113 @@ export default function SignUpMentor() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <BackButton />
-      <View style={styles.header}>
-        <Logo size={96} style={styles.logo} />
-        <ThemedText style={[styles.appName, font('SpaceGrotesk', '400')]}>WYTTLE</ThemedText>
-        <ThemedText
-          style={[styles.subText, { color: '#968c6c' }, font('GlacialIndifference', '800')]}
-        >
-          Mentor sign up
-        </ThemedText>
-      </View>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+> 
+        <BackButton />
 
-      <View style={styles.form}>
-        <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>FULL NAME</ThemedText>
-        <TextInput
-          placeholder="Full name"
-          autoCapitalize="words"
-          style={styles.input}
-          onChangeText={setFullName}
-          value={fullName}
+        <View style={styles.header}>
+          <Logo size={96} style={styles.logo} />
+          <ThemedText style={[styles.appName, font('SpaceGrotesk', '400')]}>WYTTLE</ThemedText>
+          <ThemedText
+            style={[styles.subText, { color: '#968c6c' }, font('GlacialIndifference', '800')]}
+          >
+            Mentor sign up
+          </ThemedText>
+        </View>
+
+        <View style={styles.form}>
+          <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>FULL NAME</ThemedText>
+          <TextInput
+            placeholder="Full name"
+            autoCapitalize="words"
+            style={styles.input}
+            onChangeText={setFullName}
+            value={fullName}
+          />
+
+          <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>EMAIL</ThemedText>
+          <TextInput
+            placeholder="Email"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            style={styles.input}
+            onChangeText={setEmail}
+            value={email}
+          />
+
+          <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>PASSWORD</ThemedText>
+          <TextInput
+            placeholder="Password"
+            secureTextEntry
+            style={styles.input}
+            onChangeText={setPassword}
+            value={password}
+          />
+
+          <ThemedText
+            style={[styles.labelText, font('GlacialIndifference', '400')]}
+          >
+            CONFIRM PASSWORD
+          </ThemedText>
+          <TextInput
+            placeholder="Confirm password"
+            secureTextEntry
+            style={styles.input}
+            onChangeText={setConfirmPassword}
+            value={confirmPassword}
+          />
+
+          <ThemedText
+            style={[styles.labelText, font('GlacialIndifference', '400')]}
+          >
+            AREA OF EXPERTISE
+          </ThemedText>
+          <TextInput
+            placeholder="e.g. Product design, career coaching"
+            style={styles.input}
+            onChangeText={setExpertise}
+            value={expertise}
+          />
+
+          <ThemedText
+            style={[styles.labelText, font('GlacialIndifference', '400')]}
+          >
+            YEARS OF EXPERIENCE (OPTIONAL)
+          </ThemedText>
+          <TextInput
+            placeholder="e.g. 5"
+            keyboardType="number-pad"
+            style={styles.input}
+            onChangeText={setExperienceYears}
+            value={experienceYears}
+          />
+
+          <View style={styles.spacer} />
+          <TouchableOpacity
+            style={[styles.primaryButton, { backgroundColor: '#968c6c' }]}
+            onPress={onSignUp}
+          >
+            <Text style={styles.primaryButtonText}>Create mentor account</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Want to sign up as a mentee instead?</Text>
+          <TouchableOpacity onPress={() => router.replace('/(auth)/sign-up-mentee')}>
+            <Text style={styles.footerLink}>Sign up as a mentee</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Toast
+          visible={!!msg}
+          message={msg ?? ''}
+          variant="error"
+          onDismiss={() => setMsg(null)}
         />
-
-        <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>EMAIL</ThemedText>
-        <TextInput
-          placeholder="Email"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          style={styles.input}
-          onChangeText={setEmail}
-          value={email}
-        />
-
-        <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>PASSWORD</ThemedText>
-        <TextInput
-          placeholder="Password"
-          secureTextEntry
-          style={styles.input}
-          onChangeText={setPassword}
-          value={password}
-        />
-
-        <ThemedText
-          style={[styles.labelText, font('GlacialIndifference', '400')]}
-        >
-          CONFIRM PASSWORD
-        </ThemedText>
-        <TextInput
-          placeholder="Confirm password"
-          secureTextEntry
-          style={styles.input}
-          onChangeText={setConfirmPassword}
-          value={confirmPassword}
-        />
-
-        <ThemedText
-          style={[styles.labelText, font('GlacialIndifference', '400')]}
-        >
-          AREA OF EXPERTISE
-        </ThemedText>
-        <TextInput
-          placeholder="e.g. Product design, career coaching"
-          style={styles.input}
-          onChangeText={setExpertise}
-          value={expertise}
-        />
-
-        <ThemedText
-          style={[styles.labelText, font('GlacialIndifference', '400')]}
-        >
-          YEARS OF EXPERIENCE (OPTIONAL)
-        </ThemedText>
-        <TextInput
-          placeholder="e.g. 5"
-          keyboardType="number-pad"
-          style={styles.input}
-          onChangeText={setExperienceYears}
-          value={experienceYears}
-        />
-
-        <View style={styles.spacer} />
-        <TouchableOpacity
-          style={[styles.primaryButton, { backgroundColor: '#968c6c' }]}
-          onPress={onSignUp}
-        >
-          <Text style={styles.primaryButtonText}>Create mentor account</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Want to sign up as a mentee instead?</Text>
-        <TouchableOpacity onPress={() => router.replace('/(auth)/sign-up-mentee')}>
-          <Text style={styles.footerLink}>Sign up as a mentee</Text>
-        </TouchableOpacity>
-      </View>
-
-      <Toast
-        visible={!!msg}
-        message={msg ?? ''}
-        variant="error"
-        onDismiss={() => setMsg(null)}
-      />
+      </ScrollView>
     </View>
   );
 }
@@ -191,6 +198,9 @@ export default function SignUpMentor() {
 const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   header: {
     alignItems: 'center',
@@ -240,7 +250,8 @@ const styles = StyleSheet.create({
   },
   footer: {
     marginTop: 24,
-    flexDirection: 'row',
+    paddingHorizontal: 24,
+    flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 4,
@@ -248,10 +259,12 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 14,
     color: '#8f8e8e',
+    textAlign: 'center',
   },
   footerLink: {
     fontSize: 14,
     fontWeight: '600',
     color: '#333f5c',
+    textAlign: 'center',
   },
 });

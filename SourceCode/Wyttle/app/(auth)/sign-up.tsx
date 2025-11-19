@@ -19,36 +19,36 @@ export default function SignUpRoleChooser() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}> 
       <BackButton />
 
       <View style={styles.header}>
-        <Logo size={96} style={styles.logo} />
-        <ThemedText style={[styles.appName, font('SpaceGrotesk', '400')]}>WYTTLE</ThemedText>
-        <ThemedText
-          style={[styles.subText, { color: '#968c6c' }, font('GlacialIndifference', '800')]}
-        >
-          Create your account
-        </ThemedText>
-      </View>
+          <Logo size={96} style={styles.logo} />
+          <ThemedText style={[styles.appName, font('SpaceGrotesk', '400')]}>WYTTLE</ThemedText>
+          <ThemedText
+            style={[styles.subText, { color: '#968c6c' }, font('GlacialIndifference', '800')]}
+          >
+            Create your account
+          </ThemedText>
+        </View>
       <View style={styles.spacer} />
       <View style={styles.content}>
-        <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>I am a</ThemedText>
+          <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>I am a</ThemedText>
 
-        <TouchableOpacity
-          style={[styles.primaryButton, { backgroundColor: '#333f5c' }]}
-          onPress={() => onSelectRole('mentee')}
-        >
-          <Text style={styles.primaryButtonText}>Mentee</Text>
-        </TouchableOpacity>
-        <View style={styles.spacer} />
-        <TouchableOpacity
-          style={[styles.primaryButton, { backgroundColor: '#968c6c' }]}
-          onPress={() => onSelectRole('mentor')}
-        >
-          <Text style={styles.primaryButtonText}>Mentor</Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[styles.primaryButton, { backgroundColor: '#333f5c' }]}
+            onPress={() => onSelectRole('mentee')}
+          >
+            <Text style={styles.primaryButtonText}>Mentee</Text>
+          </TouchableOpacity>
+          <View style={styles.spacer} />
+          <TouchableOpacity
+            style={[styles.primaryButton, { backgroundColor: '#968c6c' }]}
+            onPress={() => onSelectRole('mentor')}
+          >
+            <Text style={styles.primaryButtonText}>Mentor</Text>
+          </TouchableOpacity>
+        </View>
 
       <View style={styles.footer}>
         <Text style={[styles.footerText, { color: theme.text }]}>Already have an account?</Text>

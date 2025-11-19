@@ -1,7 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View, ScrollView } from 'react-native';
 
 import { supabase } from '../../src/lib/supabase';
 import { commonStyles } from '../../src/styles/common';
@@ -81,19 +80,15 @@ export default function SignUpMentee() {
 
 
   return (
-    <KeyboardAvoidingView
-    style={[styles.container, { backgroundColor: theme.background }]}
-    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0} //Tweak as needed
-    >
+    <View style={[styles.container, { backgroundColor: theme.background }]}> 
       <ScrollView
-        contentContainerStyle={styles.container}
+        contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-      
-      <BackButton />
-      <View style={styles.header}>
+        <BackButton />
+
+        <View style={styles.header}>
         <Logo size={96} style={styles.logo} />
         <ThemedText style={[styles.appName, font('SpaceGrotesk', '400')]}>WYTTLE</ThemedText>
         <ThemedText
@@ -175,20 +170,23 @@ export default function SignUpMentee() {
         </TouchableOpacity>
       </View>
 
-      <Toast
-        visible={!!msg}
-        message={msg ?? ''}
-        variant="error"
-        onDismiss={() => setMsg(null)}
-      />
+        <Toast
+          visible={!!msg}
+          message={msg ?? ''}
+          variant="error"
+          onDismiss={() => setMsg(null)}
+        />
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   header: {
     alignItems: 'center',
@@ -241,7 +239,8 @@ const styles = StyleSheet.create({
   },
   footer: {
     marginTop: 24,
-    flexDirection: 'row',
+    paddingHorizontal: 24,
+    flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 4,
@@ -249,10 +248,12 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 14,
     color: '#8f8e8e',
+    textAlign: 'center',
   },
   footerLink: {
     fontSize: 14,
     fontWeight: '600',
     color: '#968c6c',
+    textAlign: 'center',
   },
 });

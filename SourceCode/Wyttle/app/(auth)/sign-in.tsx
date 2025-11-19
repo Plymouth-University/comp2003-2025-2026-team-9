@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View, ScrollView } from 'react-native';
 import { supabase } from '../../src/lib/supabase';
 import { commonStyles } from '../../src/styles/common';
 
@@ -67,55 +67,62 @@ export default function SignIn() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <BackButton />
-      <View style={styles.header}>
-        <Logo size={96} style={styles.logo} />
-        <ThemedText style={[styles.appName, font('SpaceGrotesk', '400')]}>WYTTLE</ThemedText>
-        <ThemedText
-          style={[styles.subText, { color: '#968c6c' }, font('GlacialIndifference', '800')]}
-        >
-          {isMentor ? 'Mentor' : roleParam === 'mentee' ? '' : 'Sign in'}
-        </ThemedText>
-      </View>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+> 
+        <BackButton />
 
-      <View style={styles.form}>
-        <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>EMAIL</ThemedText>
-        <TextInput
-          placeholder="Email"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          style={styles.input}
-          onChangeText={setEmail}
-          value={email}
-        />
+        <View style={styles.header}>
+          <Logo size={96} style={styles.logo} />
+          <ThemedText style={[styles.appName, font('SpaceGrotesk', '400')]}>WYTTLE</ThemedText>
+          <ThemedText
+            style={[styles.subText, { color: '#968c6c' }, font('GlacialIndifference', '800')]}
+          >
+            {isMentor ? 'Mentor' : roleParam === 'mentee' ? '' : 'Sign in'}
+          </ThemedText>
+        </View>
 
-        <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>PASSWORD</ThemedText>
-        <TextInput
-          placeholder="Password"
-          secureTextEntry
-          style={styles.input}
-          onChangeText={setPassword}
-          value={password}
-        />
+        <View style={styles.form}>
+          <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>EMAIL</ThemedText>
+          <TextInput
+            placeholder="Email"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            style={styles.input}
+            onChangeText={setEmail}
+            value={email}
+          />
 
-        <View style={styles.spacer} />
-        <TouchableOpacity
-          style={[styles.primaryButton, { backgroundColor: '#968c6c' }]}
-          onPress={onSignIn}
-        >
-          <Text style={styles.primaryButtonText}>
-            {isMentor ? 'Sign in as mentor' : roleParam === 'mentee' ? 'Sign in as mentee' : 'Sign in'}
-          </Text>
-        </TouchableOpacity>
-      </View>
+          <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>PASSWORD</ThemedText>
+          <TextInput
+            placeholder="Password"
+            secureTextEntry
+            style={styles.input}
+            onChangeText={setPassword}
+            value={password}
+          />
 
-      {/* ⬇️ New footer: Sign-up entry point */}
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Don&apos;t have an account?</Text>
-        <TouchableOpacity onPress={() => router.push('/(auth)/sign-up')}>
-          <Text style={styles.footerLink}>Sign up</Text>
-        </TouchableOpacity>
-      </View>
+          <View style={styles.spacer} />
+          <TouchableOpacity
+            style={[styles.primaryButton, { backgroundColor: '#968c6c' }]}
+            onPress={onSignIn}
+          >
+            <Text style={styles.primaryButtonText}>
+              {isMentor ? 'Sign in as mentor' : roleParam === 'mentee' ? 'Sign in as mentee' : 'Sign in'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ⬇️ New footer: Sign-up entry point */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Don&apos;t have an account?</Text>
+          <TouchableOpacity onPress={() => router.push('/(auth)/sign-up')}>
+            <Text style={styles.footerLink}>Sign up</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
 
       <Toast
         visible={!!msg}
@@ -130,6 +137,9 @@ export default function SignIn() {
 const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   header: {
     alignItems: 'center',
