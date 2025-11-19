@@ -1,13 +1,23 @@
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { View, TextInput, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../src/lib/supabase';
-import { Link, router } from 'expo-router';
+import { commonStyles } from '../../src/styles/common';
 
 import { Logo } from '@/components/Logo';
+import { ThemedText } from '@/components/themed-text';
+import { BackButton } from '@/components/ui/BackButton';
+import { Toast } from '@/components/ui/Toast';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { font } from '../../src/lib/fonts';
+
 
 export default function SignIn() {
+  const params = useLocalSearchParams<{ role?: string }>();
+  const role = typeof params.role === 'string' ? params.role : undefined;
+  const isMentor = role === 'mentor';
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
@@ -16,6 +26,13 @@ export default function SignIn() {
   const theme = Colors[colorScheme ?? 'light'];
 
   const onSignIn = async () => {
+    // In development, skip the real auth flow so you can test post-login UI
+    if (__DEV__) {
+      setMsg(null);
+      router.replace('/(app)/home');
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setMsg(error.message);
@@ -27,13 +44,19 @@ export default function SignIn() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <BackButton />
       <View style={styles.header}>
-        <Logo size={72} style={styles.logo} />
-        <Text style={[styles.appName, { color: theme.text }]}>Wyttle</Text>
-        <Text style={[styles.screenTitle, { color: theme.text }]}>Sign in</Text>
-      </View>
+              <Logo size={96} style={styles.logo} />
+              <ThemedText style={[styles.appName, font('SpaceGrotesk', '400')]}>WYTTLE</ThemedText>
+              <ThemedText style={[styles.subText, { color: '#968c6c' }, font('GlacialIndifference', '800')]}>
+          {isMentor ? 'Mentor' : role === 'mentee' ? '' : 'Sign in'}
+        </ThemedText>
+            </View>
+      
 
       <View style={styles.form}>
+        <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>EMAIL</ThemedText>
+        
         <TextInput
           placeholder="Email"
           autoCapitalize="none"
@@ -42,6 +65,8 @@ export default function SignIn() {
           onChangeText={setEmail}
           value={email}
         />
+        <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>PASSWORD</ThemedText>
+        
         <TextInput
           placeholder="Password"
           secureTextEntry
@@ -50,32 +75,31 @@ export default function SignIn() {
           value={password}
         />
 
-        {msg && <Text style={styles.error}>{msg}</Text>}
-
+        <View style={styles.spacer} />
         <TouchableOpacity
-          style={[styles.primaryButton, { backgroundColor: theme.tint }]}
+          style={[styles.primaryButton, { backgroundColor: '#968c6c' }]}
           onPress={onSignIn}
         >
-          <Text style={styles.primaryButtonText}>Sign in</Text>
+          
+          <Text style={styles.primaryButtonText}>
+            {isMentor ? 'Sign in as mentor' : role === 'mentee' ? 'Sign in as mentee' : 'Sign in'}
+          </Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.footer}>
-        <Text style={[styles.footerText, { color: theme.text }]}>Don't have an account?</Text>
-        <Link href="/(auth)/sign-up">
-          <Text style={[styles.footerLink, { color: theme.tint }]}>Create account</Text>
-        </Link>
-      </View>
+      <Toast
+        visible={!!msg}
+        message={msg ?? ''}
+        variant="error"
+        onDismiss={() => setMsg(null)}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 48,
-    paddingBottom: 24,
+    ...commonStyles.screen,
   },
   header: {
     alignItems: 'center',
@@ -85,9 +109,32 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   appName: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 40,
+    lineHeight: 48,
+    letterSpacing: 7,
+    color: '#968c6c',
+  },
+  subText: {
+    fontSize: 26,
+    lineHeight: 20,
+    letterSpacing: 2,
+    color: '#8f8e8e',
+    alignContent: 'center',
+    justifyContent: 'center',
+    textAlign: 'center',
     marginBottom: 4,
+    marginTop: 18,
+  },
+  labelText: {
+    fontSize: 16,
+    lineHeight: 20,
+    letterSpacing: 2,
+    color: '#8f8e8e',
+    alignContent: 'center',
+    justifyContent: 'center',
+    textAlign: 'center',
+    marginBottom: 4,
+    marginTop: 18,
   },
   screenTitle: {
     fontSize: 18,
@@ -98,23 +145,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
+    ...commonStyles.input,
   },
   primaryButton: {
+    ...commonStyles.primaryButton,
     marginTop: 8,
-    paddingVertical: 14,
-    borderRadius: 999,
-    alignItems: 'center',
   },
   primaryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    ...commonStyles.primaryButtonText,
   },
   error: {
     color: '#c00',
@@ -132,5 +170,8 @@ const styles = StyleSheet.create({
   footerLink: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  spacer: {
+    height: 46,
   },
 });

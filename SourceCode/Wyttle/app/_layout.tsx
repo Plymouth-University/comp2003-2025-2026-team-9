@@ -1,8 +1,8 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
-import { useFonts } from 'expo-font';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -44,9 +44,23 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          // Global transition animation between screens
+          animation: 'slide_from_right',
+        }}
+      >
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(app)" />
+        <Stack.Screen
+          name="modal"
+          options={{
+            presentation: 'modal',
+            animation: 'fade_from_bottom',
+            title: 'Modal',
+          }}
+        />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

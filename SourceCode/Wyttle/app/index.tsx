@@ -8,7 +8,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { supabase } from '../src/lib/supabase';
 
 import { ThemedText } from '@/components/themed-text';
-import { font } from '../src/lib/fonts'; // Import the font helper
+import { font } from '../src/lib/fonts';
+import { commonStyles } from '../src/styles/common';
 
 export default function Index() {
   const colorScheme = useColorScheme();
@@ -37,7 +38,7 @@ export default function Index() {
           <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>MENTEE</ThemedText>
           <TouchableOpacity
             style={[styles.primaryButton, { backgroundColor: '#333f5c' }]}
-            onPress={() => router.push('/(auth)/sign-in')}
+            onPress={() => router.push({ pathname: '/(auth)/sign-in', params: { role: 'mentee' } })}
           >
             <Text style={styles.primaryButtonText}>Log in</Text>
           </TouchableOpacity>
@@ -46,8 +47,9 @@ export default function Index() {
 
           <TouchableOpacity
             style={[styles.primaryButton, { backgroundColor: '#968c6c' }]}
-            onPress={() => router.push('/(auth)/sign-in')}>
-          <Text style={styles.primaryButtonText}>Log in</Text>
+            onPress={() => router.push({ pathname: '/(auth)/sign-in', params: { role: 'mentor' } })}
+          >
+            <Text style={styles.primaryButtonText}>Log in</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -65,12 +67,9 @@ export default function Index() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    ...commonStyles.screen,
     alignItems: 'center',
     justifyContent: 'flex-start',
-    paddingTop: 48,
-    paddingHorizontal: 24,
-    paddingBottom: 24,
   },
   header: {
     alignItems: 'center',
@@ -108,14 +107,12 @@ const styles = StyleSheet.create({
     marginTop: -62,
   },
   primaryButton: {
+    ...commonStyles.primaryButton,
     paddingVertical: 24,
     borderRadius: 10,
-    alignItems: 'center',
   },
   primaryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    ...commonStyles.primaryButtonText,
   },
   secondaryButton: {
     paddingVertical: 14,
