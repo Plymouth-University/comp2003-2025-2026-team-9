@@ -26,21 +26,21 @@ export default function SignIn() {
   const theme = Colors[colorScheme ?? 'light'];
 
   const onSignIn = async () => {
-    // In development, skip the real auth flow so you can test post-login UI
-    if (__DEV__) {
-      setMsg(null);
-      router.replace('/(app)/home');
-      return;
-    }
+  setMsg(null);
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setMsg(error.message);
-    } else {
-      setMsg(null);
-      router.replace('/(app)/home');
-    }
-  };
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    setMsg(error.message);
+    return;
+  }
+
+  // Optional: log for debugging
+  // console.log('Signed in user:', data.user);
+
+  router.replace('/(app)/home');
+};
+
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>

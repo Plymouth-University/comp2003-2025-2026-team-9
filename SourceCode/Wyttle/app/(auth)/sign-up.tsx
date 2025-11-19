@@ -16,14 +16,23 @@ export default function SignUp() {
   const theme = Colors[colorScheme ?? 'light'];
 
   const onSignUp = async () => {
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) {
-      setMsg(error.message);
-    } else {
-      setMsg(null);
-      router.replace('/(app)/home');
-    }
-  };
+  setMsg(null);
+
+  const { data, error } = await supabase.auth.signUp({ email, password });
+
+  if (error) {
+    setMsg(error.message);
+    return;
+  }
+
+  // If confirm email is enabled, Supabase sends an email
+  if (!data.session) {
+    setMsg('Check your email to confirm your account.');
+    return;
+  }
+
+  router.replace('/(app)/home');
+};
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
