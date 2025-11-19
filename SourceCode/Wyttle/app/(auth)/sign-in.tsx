@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View, ScrollView } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../src/lib/supabase';
 import { commonStyles } from '../../src/styles/common';
 
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
   },
   subText: {
     fontSize: 26,
-    lineHeight: 20,
+    lineHeight: 28,
     letterSpacing: 2,
     color: '#8f8e8e',
     alignContent: 'center',

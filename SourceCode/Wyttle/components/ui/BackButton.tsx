@@ -23,19 +23,29 @@ export function BackButton({ style }: BackButtonProps) {
   const tint = '#fff';
 
   const handlePress = () => {
-    // Custom behaviour for auth stack so back is predictable on web & native
-    if (pathname.startsWith('/(auth)/sign-up-mentee') || pathname.startsWith('/(auth)/sign-up-mentor')) {
+    // 1) Role-specific signup flows → go back to role chooser
+    if (
+      pathname.startsWith('/(auth)/sign-up-mentee') ||
+      pathname.startsWith('/(auth)/sign-up-mentor')
+    ) {
       router.replace('/(auth)/sign-up');
       return;
     }
 
-    if (pathname.startsWith('/(auth)/sign-up') || pathname.startsWith('/(auth)/sign-in')) {
+    // 2) Any other auth screen → go back to app landing (index)
+    if (pathname.startsWith('/(auth)/')) {
       router.replace('/');
       return;
     }
 
-    // Fallback: normal back navigation
-    router.back();
+    // 3) In the main app, always go home instead of leaving the app/history
+    if (pathname.startsWith('/(app)/')) {
+      router.replace('/(app)/home');
+      return;
+    }
+
+    // 4) Fallback: stay inside the app root
+    router.replace('/');
   };
 
   return (
