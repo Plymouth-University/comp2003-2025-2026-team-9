@@ -12,11 +12,10 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../src/lib/fonts';
 
-
 export default function SignIn() {
   const params = useLocalSearchParams<{ role?: string }>();
-  const role = typeof params.role === 'string' ? params.role : undefined;
-  const isMentor = role === 'mentor';
+  const roleParam = typeof params.role === 'string' ? params.role : undefined;
+  const isMentor = roleParam === 'mentor';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,37 +25,61 @@ export default function SignIn() {
   const theme = Colors[colorScheme ?? 'light'];
 
   const onSignIn = async () => {
-  setMsg(null);
+    setMsg(null);
 
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    // 1) Sign in with email/password
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
 
-  if (error) {
-    setMsg(error.message);
-    return;
-  }
+    if (error) {
+      setMsg(error.message);
+      return;
+    }
 
-  // Optional: log for debugging
-  // console.log('Signed in user:', data.user);
+    // 2) Get the current user
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      setMsg(userError?.message ?? 'Could not load user after sign-in.');
+      return;
+    }
+    const user = userData.user;
 
-  router.replace('/(app)/home');
-};
+    // 3) Look up their profile to determine role
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
 
+    if (profileError) {
+      setMsg(profileError.message);
+      return;
+    }
+
+    const role = profile?.role ?? 'member';
+
+    // 4) Route based on role
+    if (role === 'mentor') {
+      router.replace('/(app)/mentors'); // mentor area
+    } else {
+      router.replace('/(app)/home');    // mentee/member area
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <BackButton />
       <View style={styles.header}>
-              <Logo size={96} style={styles.logo} />
-              <ThemedText style={[styles.appName, font('SpaceGrotesk', '400')]}>WYTTLE</ThemedText>
-              <ThemedText style={[styles.subText, { color: '#968c6c' }, font('GlacialIndifference', '800')]}>
-          {isMentor ? 'Mentor' : role === 'mentee' ? '' : 'Sign in'}
+        <Logo size={96} style={styles.logo} />
+        <ThemedText style={[styles.appName, font('SpaceGrotesk', '400')]}>WYTTLE</ThemedText>
+        <ThemedText
+          style={[styles.subText, { color: '#968c6c' }, font('GlacialIndifference', '800')]}
+        >
+          {isMentor ? 'Mentor' : roleParam === 'mentee' ? '' : 'Sign in'}
         </ThemedText>
-            </View>
-      
+      </View>
 
       <View style={styles.form}>
         <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>EMAIL</ThemedText>
-        
         <TextInput
           placeholder="Email"
           autoCapitalize="none"
@@ -65,8 +88,8 @@ export default function SignIn() {
           onChangeText={setEmail}
           value={email}
         />
+
         <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>PASSWORD</ThemedText>
-        
         <TextInput
           placeholder="Password"
           secureTextEntry
@@ -80,10 +103,17 @@ export default function SignIn() {
           style={[styles.primaryButton, { backgroundColor: '#968c6c' }]}
           onPress={onSignIn}
         >
-          
           <Text style={styles.primaryButtonText}>
-            {isMentor ? 'Sign in as mentor' : role === 'mentee' ? 'Sign in as mentee' : 'Sign in'}
+            {isMentor ? 'Sign in as mentor' : roleParam === 'mentee' ? 'Sign in as mentee' : 'Sign in'}
           </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ⬇️ New footer: Sign-up entry point */}
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>Don&apos;t have an account?</Text>
+        <TouchableOpacity onPress={() => router.push('/(auth)/sign-up')}>
+          <Text style={styles.footerLink}>Sign up</Text>
         </TouchableOpacity>
       </View>
 

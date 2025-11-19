@@ -1,6 +1,8 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+
 
 import { supabase } from '../../src/lib/supabase';
 import { commonStyles } from '../../src/styles/common';
@@ -26,43 +28,59 @@ export default function SignUpMentor() {
   const theme = Colors[colorScheme ?? 'light'];
 
   const onSignUp = async () => {
-    if (!fullName || !email || !password || !confirmPassword || !expertise) {
-      setMsg('Please fill in all required fields.');
-      return;
-    }
+  if (!fullName || !email || !password || !confirmPassword || !expertise) {
+    setMsg('Please fill in all required fields.');
+    return;
+  }
 
-    if (password !== confirmPassword) {
-      setMsg('Passwords do not match.');
-      return;
-    }
+  if (password !== confirmPassword) {
+    setMsg('Passwords do not match.');
+    return;
+  }
 
-    // In development, skip real sign-up so you can test the post-login UI
-    if (__DEV__) {
-      setMsg(null);
-      router.replace('/(app)/home');
-      return;
-    }
+  setMsg(null);
 
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          role: 'mentor',
-          fullName,
-          expertise,
-          experienceYears: experienceYears || null,
-        },
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        role: 'mentor',              // metadata
+        fullName,
+        expertise,
+        experienceYears: experienceYears || null,
       },
-    });
+    },
+  });
 
-    if (error) {
-      setMsg(error.message);
-    } else {
-      setMsg(null);
-      router.replace('/(app)/home');
-    }
-  };
+  if (error) {
+    setMsg(error.message);
+    return;
+  }
+
+  const user = data.user;
+  if (!user) {
+    setMsg('Sign up succeeded, but no user returned. Check email confirmation settings.');
+    return;
+  }
+
+  const { error: profileError } = await supabase.from('profiles').upsert({
+    id: user.id,
+    full_name: fullName,
+    role: 'mentor',
+    bio: expertise,
+    // can add extra columns later if we extend the schema
+  });
+
+  if (profileError) {
+    setMsg(profileError.message);
+    return;
+  }
+
+  // Send mentors to mentor-specific home/dashboard
+  router.replace('/(app)/mentors'); // NEED TO CREATE THIS SCREEN
+};
+
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
