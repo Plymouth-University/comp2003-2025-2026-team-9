@@ -59,9 +59,9 @@ export default function SignIn() {
 
     // 4) Route based on role
     if (role === 'mentor') {
-      router.replace('/(app)/mentors'); // mentor area
+      router.replace('/(app)/mentor-home'); // mentor area
     } else {
-      router.replace('/(app)/home');    // mentee/member area
+      router.replace('/(app)/mentee-home');    // mentee/member area
     }
   };
 

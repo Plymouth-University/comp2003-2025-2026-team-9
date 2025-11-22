@@ -15,7 +15,7 @@ export default function Home(){
     <View style={{ padding:20, gap:12 }}>
       <Text>Welcome {name || 'there'} 👋</Text>
       <Button title="Discovery" onPress={() => router.push('/(app)/discovery')} />
-      <Button title="Mentor Hub" onPress={() => router.push('/(app)/mentors')} />
+      <Button title="Mentor Hub" onPress={() => router.push('/(app)/mentor-home')} />
     </View>
   );
 }

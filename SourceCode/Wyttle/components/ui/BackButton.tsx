@@ -38,9 +38,9 @@ export function BackButton({ style }: BackButtonProps) {
       return;
     }
 
-    // 3) In the main app, always go home instead of leaving the app/history
+    // 3) In the main app, always go to the mentee home instead of leaving the app/history
     if (pathname.startsWith('/(app)/')) {
-      router.replace('/(app)/home');
+      router.replace('/(app)/mentee-home');
       return;
     }
 

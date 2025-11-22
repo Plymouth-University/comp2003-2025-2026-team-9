@@ -75,7 +75,7 @@ export default function SignUpMentee() {
   }
 
   // Send mentees to the mentee home screen
-  router.replace('/(app)/home'); // or '/(app)/mentee-home' if we follow that route
+  router.replace('/(app)/mentee-home');
 };
 
 

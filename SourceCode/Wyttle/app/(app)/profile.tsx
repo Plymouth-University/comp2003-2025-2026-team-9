@@ -6,13 +6,12 @@ import { commonStyles } from '../../src/styles/common';
 
 export default function Profile() {
   const onLogout = async () => {
-    if (!__DEV__) {
-      try {
-        await supabase.auth.signOut();
-      } catch {
-        // ignore logout errors for now; navigation is enough for testing
-      }
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignore logout errors for now; navigation is enough for testing
     }
+
     router.replace('/(auth)/sign-in');
   };
 

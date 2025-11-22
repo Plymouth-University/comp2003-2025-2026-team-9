@@ -78,7 +78,7 @@ export default function SignUpMentor() {
   }
 
   // Send mentors to mentor-specific home/dashboard
-  router.replace('/(app)/mentors'); // NEED TO CREATE THIS SCREEN
+  router.replace('/(app)/mentor-home');
 };
 
 

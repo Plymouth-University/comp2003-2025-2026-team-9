@@ -15,13 +15,30 @@ export default function Index() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
 
-  // If the user already has a session, skip the chooser and go straight to the app
+  // If the user already has a session, skip the chooser and go straight to the correct area
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) {
-        router.replace('/(app)/home');
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.warn('Failed to load profile role', error);
       }
-    });
+
+      const role = profile?.role ?? 'member';
+
+      if (role === 'mentor') {
+        router.replace('/(app)/mentor-home');
+      } else {
+        router.replace('/(app)/mentee-home');
+      }
+    })();
   }, []);
 
   return (
