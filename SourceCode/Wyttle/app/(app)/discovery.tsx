@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 
-import { fetchDiscoveryProfiles, swipeOnProfile, createMatchOnMutualHandshake, Profile } from '../../src/lib/supabase';
+import { fetchDiscoveryProfiles, swipeOnProfile, rpcCreateMatchOnMutualHandshake, Profile, likeProfile } from '../../src/lib/supabase';
 import { commonStyles } from '../../src/styles/common';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
