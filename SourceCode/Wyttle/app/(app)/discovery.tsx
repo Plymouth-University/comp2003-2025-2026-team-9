@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -7,15 +7,14 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
 
-import { fetchDiscoveryProfiles, swipeOnProfile, rpcCreateMatchOnMutualHandshake, Profile, likeProfile } from '../../src/lib/supabase';
-import { commonStyles } from '../../src/styles/common';
+import { ThemedText } from '@/components/themed-text';
+import { BackButton } from '@/components/ui/BackButton';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { ThemedText } from '@/components/themed-text';
 import { font } from '../../src/lib/fonts';
-import { BackButton } from '@/components/ui/BackButton';
+import { Profile, fetchDiscoveryProfiles, likeProfile, swipeOnProfile } from '../../src/lib/supabase';
+import { commonStyles } from '../../src/styles/common';
 
 export default function DiscoveryStackScreen() {
   const colorScheme = useColorScheme();
@@ -127,16 +126,7 @@ export default function DiscoveryStackScreen() {
             <Text style={styles.circleButtonText}>🤝</Text>
           </TouchableOpacity>
         </View>
-      )}
-
-      {/* Bottom nav placeholder – hook into your real nav as needed */}
-      <View style={styles.navBar}>
-        <NavIcon label="Home" onPress={() => router.replace('/(app)/home')} />
-        <NavIcon label="Discover" active />
-        <NavIcon label="Tokens" onPress={() => router.replace('/(app)/tokens')} />
-        <NavIcon label="Inbox" onPress={() => router.replace('/(app)/inbox')} />
-        <NavIcon label="Settings" onPress={() => router.replace('/(app)/settings')} />
-      </View>
+      )}      
     </View>
   );
 }

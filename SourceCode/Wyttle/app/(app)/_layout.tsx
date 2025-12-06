@@ -1,4 +1,4 @@
-import { Slot, usePathname, router } from 'expo-router';
+import { router, Slot, usePathname } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

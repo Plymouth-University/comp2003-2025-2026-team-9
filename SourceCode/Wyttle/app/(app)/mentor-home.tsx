@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { View, Text, Button } from 'react-native';
 import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Button, Text, View } from 'react-native';
 
 import { supabase } from '../../src/lib/supabase';
 
@@ -23,7 +23,7 @@ export default function MentorsHome() {
   }, []);
 
   return (
-    <View style={{ padding: 20, gap: 12 }}>
+    <View style={{ padding: 20, gap: 12, marginTop: 50 }}>
       <Text>Welcome mentor {name || 'there'} 👋</Text>
       <Button title="Go to mentee home" onPress={() => router.push('/(app)/mentee-home')} />
     </View>
