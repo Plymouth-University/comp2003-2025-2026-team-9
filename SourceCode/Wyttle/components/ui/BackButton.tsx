@@ -47,15 +47,16 @@ export function BackButton({ style }: BackButtonProps) {
       return;
     }
 
-    if (pathname.startsWith('/mentee')) {
+    if (pathname.startsWith('/(app)/')) {
       router.replace('/(app)/mentee-home');
       return;
     }
 
-    if (pathname.startsWith('/mentor-hub')) {
-      router.replace('/(app)/mentee-home');
+    /*
+    if (pathname.startsWith('/mentor')) {
+      router.replace('/(app)/mentor-home');
       return;
-    }
+    }*/
 
     // 4) Fallback: stay inside the app root
     router.replace('/');
