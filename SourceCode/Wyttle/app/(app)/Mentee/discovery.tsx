@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
     paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingBottom: 140,
   },
   header: {
     marginTop: 16,
@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-evenly',
     marginTop: 16,
-    marginBottom: 8,
+    marginBottom: 32,
   },
   circleButton: {
     width: 64,

@@ -21,6 +21,8 @@ export default function MenteeBottomNav(_: Props) {
   const active =
     tabs.find((t) => pathname.startsWith(t.path))?.key ?? 'connections';
 
+  const activeTab = tabs.find((t) => t.key === active);
+
   const goTo = (path: string) => {
     if (!pathname.startsWith(path)) {
       router.replace(path as Href);
@@ -69,13 +71,7 @@ export default function MenteeBottomNav(_: Props) {
         <View style={styles.diamondOuter}>
           <View style={styles.diamondInner}>
             <Text style={styles.diamondText}>
-              {active === 'discovery'
-                ? 'Discover'
-                : active === 'connections'
-                ? 'Connect'
-                : active === 'mentorHub'
-                ? 'Mentors'
-                : 'Settings'}
+              {activeTab?.label ?? ''}
             </Text>
           </View>
         </View>

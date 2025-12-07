@@ -17,6 +17,8 @@ export default function MentorBottomNav() {
   const active =
     tabs.find((t) => pathname.startsWith(t.path))?.key ?? 'waiting';
 
+  const activeTab = tabs.find((t) => t.key === active);
+
   const goTo = (path: string) => {
     if (!pathname.startsWith(path)) {
       router.replace(path as Href);
@@ -60,13 +62,7 @@ export default function MentorBottomNav() {
         <View style={styles.diamondOuter}>
           <View style={styles.diamondInner}>
             <Text style={styles.diamondText}>
-              {active === 'waiting'
-                ? 'Waiting'
-                : active === 'connections'
-                ? 'Chats'
-                : active === 'calendar'
-                ? 'Calendar'
-                : 'Settings'}
+              {activeTab?.label ?? ''}
             </Text>
           </View>
         </View>
