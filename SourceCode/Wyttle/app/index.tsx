@@ -34,9 +34,9 @@ export default function Index() {
       const role = profile?.role ?? 'member';
 
       if (role === 'mentor') {
-        router.replace('/(app)/mentor-home');
+        router.replace('/(app)/Mentor/connections');
       } else {
-        router.replace('/(app)/mentee-home');
+        router.replace('/(app)/Mentee/connections');
       }
     })();
   }, []);

@@ -60,43 +60,6 @@ export default function AppLayout() {
       <View style={styles.content}>
         <Slot />
       </View>
-
-      <View
-        style={[
-          styles.navBar,
-          {
-            paddingBottom: insets.bottom || 12,
-            backgroundColor: theme.background,
-            borderTopColor: theme.icon,
-          },
-        ]}
-      >
-        {navItems.map((item) => {
-          const isActive = pathname.startsWith(item.href);
-
-          return (
-            <Pressable
-              key={item.href}
-              onPress={() => router.replace(item.href)}
-              style={({ pressed }) => [
-                styles.navItem,
-                {
-                  opacity: pressed ? 0.7 : 1,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.navLabel,
-                  { color: isActive ? theme.tint : theme.icon },
-                ]}
-              >
-                {item.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
     </View>
   );
 }

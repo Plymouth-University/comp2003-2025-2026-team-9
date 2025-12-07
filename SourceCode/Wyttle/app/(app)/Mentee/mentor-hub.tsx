@@ -13,9 +13,9 @@ import {
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { commonStyles } from '../../src/styles/common';
-import { font } from '../../src/lib/fonts';
-import { supabase } from '../../src/lib/supabase';
+import { commonStyles } from '../../../src/styles/common';
+import { font } from '../../../src/lib/fonts';
+import { supabase } from '../../../src/lib/supabase';
 import { BackButton } from '@/components/ui/BackButton';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;

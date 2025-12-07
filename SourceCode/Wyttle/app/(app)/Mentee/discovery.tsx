@@ -12,9 +12,9 @@ import { ThemedText } from '@/components/themed-text';
 import { BackButton } from '@/components/ui/BackButton';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { font } from '../../src/lib/fonts';
-import { Profile, fetchDiscoveryProfiles, likeProfile, swipeOnProfile } from '../../src/lib/supabase';
-import { commonStyles } from '../../src/styles/common';
+import { font } from '../../../src/lib/fonts';
+import { Profile, fetchDiscoveryProfiles, likeProfile, swipeOnProfile } from '../../../src/lib/supabase';
+import { commonStyles } from '../../../src/styles/common';
 
 export default function DiscoveryStackScreen() {
   const colorScheme = useColorScheme();
