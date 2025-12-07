@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -15,26 +15,53 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { commonStyles } from '../../src/styles/common';
 import { font } from '../../src/lib/fonts';
+import { supabase } from '../../src/lib/supabase';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
-const MOCK_MENTORS = [
-  { id: '1', name: 'J. Doe, PhD', price: 10 },
-  { id: '2', name: 'A. Banfield', price: 10 },
-  { id: '3', name: 'J. Pinder', price: 20 },
-  { id: '4', name: 'R. Grixti', price: 10 },
-  { id: '5', name: 'A. Lee', price: 30 },
-  { id: '6', name: 'R. Chen', price: 10 },
-  { id: '7', name: '', price: 0 },
-  { id: '8', name: '', price: 0 },
-  { id: '9', name: '', price: 0 },
-];
+type Mentor = {
+  id: string;
+  full_name?: string;
+  title?: string;
+  industry?: string;
+  photo_url?: string;
+  role?: string;
+};
 
 export default function MentorHub() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
 
   const [query, setQuery] = useState('');
+  const [mentors, setMentors] = useState<Mentor[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchMentors = async () => {
+      setLoading(true);
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, title, industry, photo_url')
+        .eq('role', 'mentor');
+
+      if (error) {
+        console.error('Error loading mentors', error);
+      } else {
+        setMentors(data as Mentor[]);
+      }
+
+      setLoading(false);
+    };
+
+    fetchMentors();
+  }, []);
+
+  const filteredMentors = mentors.filter((m) =>
+    (m.full_name ?? '').toLowerCase().includes(query.toLowerCase()) ||
+    (m.industry ?? '').toLowerCase().includes(query.toLowerCase())
+  );
+
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}> 
@@ -49,7 +76,7 @@ export default function MentorHub() {
             placeholderTextColor="#7f8186"
             value={query}
             onChangeText={setQuery}
-            style={[styles.searchInput, { backgroundColor: theme.card }]}
+            style={[styles.searchInput, { backgroundColor: theme.card, color: theme.text }]}
             returnKeyType="search"
           />
         </View>
@@ -68,19 +95,39 @@ export default function MentorHub() {
       </View>
 
       <ScrollView contentContainerStyle={styles.grid} showsVerticalScrollIndicator={true}>
-        {MOCK_MENTORS.map((m) => (
-          <View key={m.id} style={styles.card}>
+        {loading && (
+        <Text style={{ marginTop: 12, color: theme.text }}>Loading mentors…</Text>
+        )}
+
+        {!loading && filteredMentors.map((m) => (
+        <View key={m.id} style={styles.card}>
+            {m.photo_url ? (
+            <Image source={{ uri: m.photo_url }} style={styles.avatar} />
+            ) : (
             <View style={styles.avatar} />
-            <Text style={[styles.name,{color: theme.text}]}>{m.name}</Text>
-            {m.price > 0 ? (
-              <View style={styles.priceTag}>
+            )}
+
+            <Text style={[styles.name, { color: theme.text }]}>
+            {m.full_name ?? 'Unnamed mentor'}
+            </Text>
+
+            {m.title && (
+            <Text style={[styles.subtitle, { color: theme.text }]}>
+                {m.title}
+            </Text>
+            )}
+
+            {/* When we add a price/tokens column, render it here */}
+            {/* {m.tokens_rate && m.tokens_rate > 0 && (
+            <View style={styles.priceTag}>
                 <Text style={styles.priceEmoji}>💎</Text>
-                <Text style={styles.priceText}>{m.price}</Text>
+                <Text style={styles.priceText}>{m.tokens_rate}</Text>
                 <Text style={styles.priceUnit}>/session</Text>
-              </View>
-            ) : null}
-          </View>
+            </View>
+            )} */}
+        </View>
         ))}
+
       </ScrollView>
     </View>
   );
@@ -119,7 +166,6 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     paddingHorizontal: 18,
     fontSize: 16,
-    color: '#111',
   },
   filterRow: {
     flexDirection: 'row',
@@ -170,6 +216,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 11,
+    textAlign: 'center',
+    marginBottom: 6,
+    opacity: 0.7,
   },
   priceTag: {
     position: 'absolute',
