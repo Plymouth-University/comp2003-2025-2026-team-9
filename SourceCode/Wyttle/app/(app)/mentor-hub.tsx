@@ -16,6 +16,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { commonStyles } from '../../src/styles/common';
 import { font } from '../../src/lib/fonts';
 import { supabase } from '../../src/lib/supabase';
+import { BackButton } from '@/components/ui/BackButton';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -65,6 +66,7 @@ export default function MentorHub() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}> 
+        <BackButton />
       <View style={styles.headerWrap}>
         <ThemedText style={[styles.title, font('SpaceGrotesk', '400'), {color: theme.text}]}>Mentor <Text style={[styles.titleBold, {color: theme.text}]}>Hub</Text></ThemedText>
       </View>

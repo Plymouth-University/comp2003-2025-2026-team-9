@@ -16,6 +16,7 @@ export type BackButtonProps = {
  *   <BackButton />
  */
 export function BackButton({ style }: BackButtonProps) {
+  console.warn('🔙 BackButton component rendered!');
   const router = useRouter();
   const pathname = usePathname();
   const colorScheme = useColorScheme();
@@ -23,6 +24,7 @@ export function BackButton({ style }: BackButtonProps) {
   const tint = '#fff';
 
   const handlePress = () => {
+    console.warn('🔙 BackButton clicked! pathname=', pathname);
     // 1) Role-specific signup flows → go back to role chooser
     if (
       pathname.startsWith('/(auth)/sign-up-mentee') ||
@@ -38,8 +40,19 @@ export function BackButton({ style }: BackButtonProps) {
       return;
     }
 
-    // 3) In the main app, always go to the mentee home instead of leaving the app/history
-    if (pathname.startsWith('/(app)/')) {
+
+    // 3) In the main app, always go to the mentee/mentor home instead of leaving the app/history
+    if (pathname === '/discovery') {
+      router.replace('/(app)/mentee-home');
+      return;
+    }
+
+    if (pathname.startsWith('/mentee')) {
+      router.replace('/(app)/mentee-home');
+      return;
+    }
+
+    if (pathname.startsWith('/mentor-hub')) {
       router.replace('/(app)/mentee-home');
       return;
     }
