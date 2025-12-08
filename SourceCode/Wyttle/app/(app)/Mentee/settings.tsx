@@ -61,7 +61,7 @@ export default function MenteeSettingsScreen() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     // Clear any in-app navigation history so back from auth cannot
-    // jump into stale mentee routes after logging out.
+    // jump into stale member routes after logging out.
     resetHistory('/(auth)/sign-in');
     router.replace({ pathname: '/(auth)/sign-in', params: { from: 'logout' } });
   };

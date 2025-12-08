@@ -55,10 +55,10 @@ export default function Index() {
         {/* Middle: buttons centered in remaining space */}
         <View style={styles.middle}>
           <View style={styles.buttonGroup}>
-            <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>MENTEE</ThemedText>
+            <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>MEMBER</ThemedText>
             <TouchableOpacity
               style={[styles.primaryButton, { backgroundColor: '#333f5c' }]}
-              onPress={() => router.push({ pathname: '/(auth)/sign-in', params: { role: 'mentee' } })}
+              onPress={() => router.push({ pathname: '/(auth)/sign-in', params: { role: 'member' } })}
             >
               <Text style={styles.primaryButtonText}>Log in</Text>
             </TouchableOpacity>

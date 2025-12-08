@@ -9,7 +9,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../../src/lib/fonts';
 import { commonStyles } from '../../../src/styles/common';
 
-const MOCK_MENTEE_CONVERSATIONS = [
+const MOCK_MEMBER_CONVERSATIONS = [
   {
     id: '1',
     name: 'Alex Young',
@@ -36,7 +36,7 @@ const MOCK_MENTEE_CONVERSATIONS = [
   },
 ] as const;
 
-export default function MenteeConnectionsScreen() {
+export default function MemberConnectionsScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
 
@@ -49,7 +49,7 @@ export default function MenteeConnectionsScreen() {
 
       {/* Conversation list (placeholder) */}
       <FlatList
-        data={MOCK_MENTEE_CONVERSATIONS}
+        data={MOCK_MEMBER_CONVERSATIONS}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         ItemSeparatorComponent={() => <View style={{ height: 10 }} />}

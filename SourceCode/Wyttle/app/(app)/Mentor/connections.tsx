@@ -13,7 +13,7 @@ const MOCK_MENTOR_CONVERSATIONS = [
   {
     id: '1',
     name: 'Sam Taylor',
-    role: 'Mentee • UX designer',
+    role: 'Member  UX designer',
     lastMessage: 'Thank you, this was super helpful.',
     time: '5m',
     unread: true,
@@ -21,7 +21,7 @@ const MOCK_MENTOR_CONVERSATIONS = [
   {
     id: '2',
     name: 'Jamie Fox',
-    role: 'Mentee • Early career',
+    role: 'Member  Early career',
     lastMessage: 'Can we talk about salary offers?',
     time: '3h',
     unread: false,
@@ -29,7 +29,7 @@ const MOCK_MENTOR_CONVERSATIONS = [
   {
     id: '3',
     name: 'Robin Park',
-    role: 'Mentee • Portfolio review',
+    role: 'Member  Portfolio review',
     lastMessage: 'Just uploaded the latest version.',
     time: 'Yesterday',
     unread: false,
@@ -44,7 +44,7 @@ export default function MentorConnectionsScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScreenHeader
         title="Connections"
-        subtitle="Placeholder view of mentee chats and requests."
+        subtitle="Placeholder view of member chats and requests."
       />
 
       {/* Conversation list (placeholder) */}

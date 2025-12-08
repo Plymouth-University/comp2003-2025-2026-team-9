@@ -94,7 +94,7 @@ export default function SignIn() {
             <ThemedText
               style={[styles.subText, { color: '#968c6c' }, font('GlacialIndifference', '800')]}
             >
-              {isMentor ? 'Mentor' : roleParam === 'mentee' ? '' : 'Sign in'}
+              {isMentor ? 'Mentor' : roleParam === 'member' ? '' : 'Sign in'}
             </ThemedText>
           </View>
 
@@ -124,7 +124,11 @@ export default function SignIn() {
             onPress={onSignIn}
           >
             <Text style={styles.primaryButtonText}>
-              {isMentor ? 'Sign in as mentor' : roleParam === 'mentee' ? 'Sign in as mentee' : 'Sign in'}
+              {isMentor
+                ? 'Sign in as mentor'
+                : roleParam === 'member'
+                  ? 'Sign in as member'
+                  : 'Sign in'}
             </Text>
           </TouchableOpacity>
         </View>

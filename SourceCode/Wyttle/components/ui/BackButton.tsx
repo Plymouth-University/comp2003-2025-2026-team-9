@@ -38,7 +38,7 @@ export function BackButton({ style, onPressOverride }: BackButtonProps) {
 
     // 2) On the sign-in or sign-up chooser screens, always go back to the
     // main login chooser regardless of navigation history. This ensures
-    // tapping back from "Log in as mentor/mentee" or the register chooser
+    // tapping back from "Log in as mentor/member" or the register chooser
     // returns to the root role-agnostic login.
     if (
       pathname.startsWith('/(auth)/sign-in') ||

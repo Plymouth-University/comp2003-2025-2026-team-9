@@ -13,8 +13,8 @@ export default function SignUpRoleChooser() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
 
-  const onSelectRole = (role: 'mentee' | 'mentor') => {
-    const target = role === 'mentee' ? '/(auth)/sign-up-mentee' : '/(auth)/sign-up-mentor';
+  const onSelectRole = (role: 'member' | 'mentor') => {
+    const target = role === 'member' ? '/(auth)/sign-up-mentee' : '/(auth)/sign-up-mentor';
     router.push(target as any);
   };
 
@@ -36,9 +36,9 @@ export default function SignUpRoleChooser() {
 
           <TouchableOpacity
             style={[styles.primaryButton, { backgroundColor: '#333f5c' }]}
-            onPress={() => onSelectRole('mentee')}
+            onPress={() => onSelectRole('member')}
           >
-            <Text style={styles.primaryButtonText}>Mentee</Text>
+            <Text style={styles.primaryButtonText}>Member</Text>
           </TouchableOpacity>
           <View style={styles.spacer} />
           <TouchableOpacity

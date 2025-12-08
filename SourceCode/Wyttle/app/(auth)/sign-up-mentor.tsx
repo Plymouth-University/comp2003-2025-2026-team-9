@@ -229,9 +229,9 @@ export default function SignUpMentor() {
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Want to sign up as a mentee instead?</Text>
+          <Text style={styles.footerText}>Want to sign up as a member instead?</Text>
           <TouchableOpacity onPress={() => router.replace('/(auth)/sign-up-mentee')}>
-            <Text style={styles.footerLink}>Sign up as a mentee</Text>
+            <Text style={styles.footerLink}>Sign up as a member</Text>
           </TouchableOpacity>
         </View>
 

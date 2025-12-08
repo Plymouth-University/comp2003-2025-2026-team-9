@@ -37,7 +37,7 @@ export default function MentorChatScreen() {
   const displayName =
     typeof params.name === 'string' && params.name.length > 0
       ? params.name
-      : 'Mentee';
+      : 'Member';
 
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
@@ -55,7 +55,7 @@ export default function MentorChatScreen() {
           <View style={styles.headerTextBlock}>
             <ScreenHeader
               title={displayName}
-              subtitle="Mock chat with mentee"
+              subtitle="Mock chat with member"
             />
           </View>
         </View>

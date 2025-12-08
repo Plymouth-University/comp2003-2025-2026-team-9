@@ -25,7 +25,7 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../src/lib/fonts';
 
-export default function SignUpMentee() {
+export default function SignUpMember() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -74,7 +74,7 @@ export default function SignUpMentee() {
     password,
     options: {
       data: {
-        role: 'mentee',          // stored as metadata on auth.user
+        role: 'member',          // stored as metadata on auth.user
         fullName,
         goals: goals || null,
       },
@@ -93,11 +93,11 @@ export default function SignUpMentee() {
     return;
   }
 
-  // Create / update profile row in the DB (treat mentee as 'member' role in profiles)
+  // Create / update profile row in the DB (members use the 'member' role in profiles)
   const { error: profileError } = await supabase.from('profiles').upsert({
     id: user.id,
     full_name: fullName,
-    role: 'member',     // mentees are members in DB
+    role: 'member',
     bio: goals || null,
   });
 
@@ -116,7 +116,7 @@ export default function SignUpMentee() {
     }
   }
 
-  // Send mentees to their main app area (Mentee connections tab)
+  // Send members to their main app area (Member connections tab)
   router.replace('/(app)/Mentee/connections');
 };
 
@@ -140,7 +140,7 @@ export default function SignUpMentee() {
             <ThemedText
               style={[styles.subText, { color: '#968c6c' }, font('GlacialIndifference', '800')]}
             >
-              Mentee sign up
+              Member sign up
             </ThemedText>
           </View>
 
@@ -213,7 +213,7 @@ export default function SignUpMentee() {
           style={[styles.primaryButton, { backgroundColor: '#333f5c' }]}
           onPress={onSignUp}
         >
-          <Text style={styles.primaryButtonText}>Create mentee account</Text>
+          <Text style={styles.primaryButtonText}>Create member account</Text>
         </TouchableOpacity>
       </View>
 
