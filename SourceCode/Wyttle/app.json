@@ -82,43 +82,135 @@
               {
                 "fontFamily": "Montserrat",
                 "fontDefinitions": [
-                  { "path": "./assets/fonts/Montserrat/static/Montserrat-Thin.ttf", "weight": 100 },
-                  { "path": "./assets/fonts/Montserrat/static/Montserrat-ThinItalic.ttf", "weight": 100, "style": "italic" },
-                  { "path": "./assets/fonts/Montserrat/static/Montserrat-ExtraLight.ttf", "weight": 200 },
-                  { "path": "./assets/fonts/Montserrat/static/Montserrat-ExtraLightItalic.ttf", "weight": 200, "style": "italic" },
-                  { "path": "./assets/fonts/Montserrat/static/Montserrat-Light.ttf", "weight": 300 },
-                  { "path": "./assets/fonts/Montserrat/static/Montserrat-LightItalic.ttf", "weight": 300, "style": "italic" },
-                  { "path": "./assets/fonts/Montserrat/static/Montserrat-Regular.ttf", "weight": 400 },
-                  { "path": "./assets/fonts/Montserrat/static/Montserrat-Italic.ttf", "weight": 400, "style": "italic" },
-                  { "path": "./assets/fonts/Montserrat/static/Montserrat-Medium.ttf", "weight": 500 },
-                  { "path": "./assets/fonts/Montserrat/static/Montserrat-MediumItalic.ttf", "weight": 500, "style": "italic" },
-                  { "path": "./assets/fonts/Montserrat/static/Montserrat-SemiBold.ttf", "weight": 600 },
-                  { "path": "./assets/fonts/Montserrat/static/Montserrat-SemiBoldItalic.ttf", "weight": 600, "style": "italic" },
-                  { "path": "./assets/fonts/Montserrat/static/Montserrat-Bold.ttf", "weight": 700 },
-                  { "path": "./assets/fonts/Montserrat/static/Montserrat-BoldItalic.ttf", "weight": 700, "style": "italic" },
-                  { "path": "./assets/fonts/Montserrat/static/Montserrat-ExtraBold.ttf", "weight": 800 },
-                  { "path": "./assets/fonts/Montserrat/static/Montserrat-ExtraBoldItalic.ttf", "weight": 800, "style": "italic" },
-                  { "path": "./assets/fonts/Montserrat/static/Montserrat-Black.ttf", "weight": 900 },
-                  { "path": "./assets/fonts/Montserrat/static/Montserrat-BlackItalic.ttf", "weight": 900, "style": "italic" }
+                  {
+                    "path": "./assets/fonts/Montserrat/static/Montserrat-Thin.ttf",
+                    "weight": 100
+                  },
+                  {
+                    "path": "./assets/fonts/Montserrat/static/Montserrat-ThinItalic.ttf",
+                    "weight": 100,
+                    "style": "italic"
+                  },
+                  {
+                    "path": "./assets/fonts/Montserrat/static/Montserrat-ExtraLight.ttf",
+                    "weight": 200
+                  },
+                  {
+                    "path": "./assets/fonts/Montserrat/static/Montserrat-ExtraLightItalic.ttf",
+                    "weight": 200,
+                    "style": "italic"
+                  },
+                  {
+                    "path": "./assets/fonts/Montserrat/static/Montserrat-Light.ttf",
+                    "weight": 300
+                  },
+                  {
+                    "path": "./assets/fonts/Montserrat/static/Montserrat-LightItalic.ttf",
+                    "weight": 300,
+                    "style": "italic"
+                  },
+                  {
+                    "path": "./assets/fonts/Montserrat/static/Montserrat-Regular.ttf",
+                    "weight": 400
+                  },
+                  {
+                    "path": "./assets/fonts/Montserrat/static/Montserrat-Italic.ttf",
+                    "weight": 400,
+                    "style": "italic"
+                  },
+                  {
+                    "path": "./assets/fonts/Montserrat/static/Montserrat-Medium.ttf",
+                    "weight": 500
+                  },
+                  {
+                    "path": "./assets/fonts/Montserrat/static/Montserrat-MediumItalic.ttf",
+                    "weight": 500,
+                    "style": "italic"
+                  },
+                  {
+                    "path": "./assets/fonts/Montserrat/static/Montserrat-SemiBold.ttf",
+                    "weight": 600
+                  },
+                  {
+                    "path": "./assets/fonts/Montserrat/static/Montserrat-SemiBoldItalic.ttf",
+                    "weight": 600,
+                    "style": "italic"
+                  },
+                  {
+                    "path": "./assets/fonts/Montserrat/static/Montserrat-Bold.ttf",
+                    "weight": 700
+                  },
+                  {
+                    "path": "./assets/fonts/Montserrat/static/Montserrat-BoldItalic.ttf",
+                    "weight": 700,
+                    "style": "italic"
+                  },
+                  {
+                    "path": "./assets/fonts/Montserrat/static/Montserrat-ExtraBold.ttf",
+                    "weight": 800
+                  },
+                  {
+                    "path": "./assets/fonts/Montserrat/static/Montserrat-ExtraBoldItalic.ttf",
+                    "weight": 800,
+                    "style": "italic"
+                  },
+                  {
+                    "path": "./assets/fonts/Montserrat/static/Montserrat-Black.ttf",
+                    "weight": 900
+                  },
+                  {
+                    "path": "./assets/fonts/Montserrat/static/Montserrat-BlackItalic.ttf",
+                    "weight": 900,
+                    "style": "italic"
+                  }
                 ]
               },
               {
                 "fontFamily": "SpaceGrotesk",
                 "fontDefinitions": [
-                  { "path": "./assets/fonts/Space-Grotesk-Regular/otf/SpaceGrotesk-Light.otf", "weight": 300 },
-                  { "path": "./assets/fonts/Space-Grotesk-Regular/otf/SpaceGrotesk-Regular.otf", "weight": 400 },
-                  { "path": "./assets/fonts/Space-Grotesk-Regular/otf/SpaceGrotesk-Medium.otf", "weight": 500 },
-                  { "path": "./assets/fonts/Space-Grotesk-Regular/otf/SpaceGrotesk-SemiBold.otf", "weight": 600 },
-                  { "path": "./assets/fonts/Space-Grotesk-Regular/otf/SpaceGrotesk-Bold.otf", "weight": 700 }
+                  {
+                    "path": "./assets/fonts/Space-Grotesk-Regular/otf/SpaceGrotesk-Light.otf",
+                    "weight": 300
+                  },
+                  {
+                    "path": "./assets/fonts/Space-Grotesk-Regular/otf/SpaceGrotesk-Regular.otf",
+                    "weight": 400
+                  },
+                  {
+                    "path": "./assets/fonts/Space-Grotesk-Regular/otf/SpaceGrotesk-Medium.otf",
+                    "weight": 500
+                  },
+                  {
+                    "path": "./assets/fonts/Space-Grotesk-Regular/otf/SpaceGrotesk-SemiBold.otf",
+                    "weight": 600
+                  },
+                  {
+                    "path": "./assets/fonts/Space-Grotesk-Regular/otf/SpaceGrotesk-Bold.otf",
+                    "weight": 700
+                  }
                 ]
               },
               {
                 "fontFamily": "Verdana",
                 "fontDefinitions": [
-                  { "path": "./assets/fonts/Verdana/Verdana.ttf", "weight": 400 },
-                  { "path": "./assets/fonts/Verdana/Verdana-Italic.ttf", "weight": 400, "style": "italic" },
-                  { "path": "./assets/fonts/Verdana/Verdana-Bold.ttf", "weight": 700 },
-                  { "path": "./assets/fonts/Verdana/Verdana-BoldItalic.ttf", "weight": 700, "style": "italic" }
+                  {
+                    "path": "./assets/fonts/Verdana/Verdana.ttf",
+                    "weight": 400
+                  },
+                  {
+                    "path": "./assets/fonts/Verdana/Verdana-Italic.ttf",
+                    "weight": 400,
+                    "style": "italic"
+                  },
+                  {
+                    "path": "./assets/fonts/Verdana/Verdana-Bold.ttf",
+                    "weight": 700
+                  },
+                  {
+                    "path": "./assets/fonts/Verdana/Verdana-BoldItalic.ttf",
+                    "weight": 700,
+                    "style": "italic"
+                  }
                 ]
               }
             ]
@@ -157,7 +249,8 @@
             ]
           }
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
