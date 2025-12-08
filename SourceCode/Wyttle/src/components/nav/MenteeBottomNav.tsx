@@ -11,6 +11,7 @@ const VIEWBOX_WIDTH = 200.27968;
 const VIEWBOX_HEIGHT = 53.78904;
 const VIEWBOX_CIRCLE_CENTER_Y = 18.258205; // 15.83455 + 2.423655 from SVG
 const NAV_SCALE = 1.3;
+const BASE_NAV_WIDTH = 390; // keep nav height based on phone-ish width
 type Props = {
   // Optional – you can also just call usePathname() inside
 };
@@ -19,13 +20,19 @@ export default function MenteeBottomNav(_: Props) {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
 
+  const [navWidth, setNavWidth] = React.useState(() => Dimensions.get('window').width);
+
   const bottomInset = insets.bottom > 0 ? insets.bottom : 10;
   const bottomFillHeight = bottomInset ;
 
-  // Compute vertical offset so the active circle aligns with the SVG bump center
-  const { width } = Dimensions.get('window');
-  const scale = (width / VIEWBOX_WIDTH) * NAV_SCALE;
-  const circleCenterOffset = (VIEWBOX_HEIGHT - VIEWBOX_CIRCLE_CENTER_Y) * scale - 40;
+  // Compute vertical offset so the active circle aligns with the SVG bump center.
+  // Use the same clamped vertical scale as NavBlankShape so the circle stays
+  // aligned even on very wide screens.
+  const width = navWidth;
+  const widthScale = (width / VIEWBOX_WIDTH) * NAV_SCALE;
+  const designScale = (BASE_NAV_WIDTH / VIEWBOX_WIDTH) * NAV_SCALE;
+  const scale = Math.min(widthScale, designScale);
+  const circleCenterOffset = (VIEWBOX_HEIGHT - VIEWBOX_CIRCLE_CENTER_Y) * scale - 45;
 
   const tabs = [
     { key: 'connections', label: 'Connections', path: '/(app)/Mentee/connections', Icon: UsersAltIcon },
@@ -73,6 +80,12 @@ export default function MenteeBottomNav(_: Props) {
         styles.container,
         { paddingBottom: bottomFillHeight },
       ]}
+      onLayout={(e) => {
+        const w = e.nativeEvent.layout.width;
+        if (w > 0 && w !== navWidth) {
+          setNavWidth(w);
+        }
+      }}
     >
       {/* solid fill at the very bottom to avoid any white strip */}
       <View
@@ -83,7 +96,7 @@ export default function MenteeBottomNav(_: Props) {
       />
 
       {/* SVG background shape */}
-      <NavBlankShape style={styles.background} />
+      <NavBlankShape style={styles.background} width={navWidth} />
 
       {/* main bar content (tabs) */}
       <View style={styles.bar}>

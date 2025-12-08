@@ -4,22 +4,45 @@ import Svg, { G, Path, Circle } from 'react-native-svg';
 
 const VIEWBOX_WIDTH = 200.27968;
 const VIEWBOX_HEIGHT = 53.78904;
+const NAV_SCALE = 1.3;
+// Design-time width used to clamp vertical scale so the bar height
+// never grows beyond what looks good on a typical phone.
+const BASE_NAV_WIDTH = 390; // px
 
 export type NavBlankShapeProps = {
   color?: string;
   style?: StyleProp<ViewStyle>;
+  /**
+   * Optional explicit width to render at. Falls back to window width.
+   * This lets parents pass their measured layout width so the SVG
+   * matches the actual nav bar width on web / tablets.
+   */
+  width?: number;
 };
 
 /**
  * SVG background that recreates nav-blank.svg as a scalable nav bar shape.
+ *
+ * On very wide screens (web / tablets), we clamp the vertical scale based on
+ * the initial window width so the bar doesn't become excessively tall. This
+ * makes it "flatter but longer" on large screens while keeping phone height.
  */
-export function NavBlankShape({ color = '#333f5c', style }: NavBlankShapeProps) {
-  const { width } = Dimensions.get('window');
-  const height = (VIEWBOX_HEIGHT / VIEWBOX_WIDTH) * width * 1.3;
+export function NavBlankShape({ color = '#333f5c', style, width }: NavBlankShapeProps) {
+  const windowWidth = Dimensions.get('window').width;
+  const effectiveWidth = width ?? windowWidth;
+
+  // Natural uniform scale for the current nav width
+  const widthScale = (effectiveWidth / VIEWBOX_WIDTH) * NAV_SCALE;
+  // Baseline scale based on a fixed "design" width (approx phone width)
+  const designScale = (BASE_NAV_WIDTH / VIEWBOX_WIDTH) * NAV_SCALE;
+  // Clamp so vertical scale never exceeds the design-time scale
+  const scale = Math.min(widthScale, designScale);
+
+  const height = VIEWBOX_HEIGHT * scale;
 
   return (
     <Svg
-      width={width}
+      width={effectiveWidth}
       height={height}
       viewBox="0 0 200.27968 53.78904"
       style={style}

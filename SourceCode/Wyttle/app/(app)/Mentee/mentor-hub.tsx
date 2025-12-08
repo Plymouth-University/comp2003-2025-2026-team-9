@@ -11,12 +11,12 @@ import {
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { commonStyles } from '../../../src/styles/common';
 import { font } from '../../../src/lib/fonts';
 import { supabase } from '../../../src/lib/supabase';
-import { BackButton } from '@/components/ui/BackButton';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -66,10 +66,10 @@ export default function MentorHub() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}> 
-        <BackButton />
-      <View style={styles.headerWrap}>
-        <ThemedText style={[styles.title, font('SpaceGrotesk', '400'), {color: theme.text}]}>Mentor <Text style={[styles.titleBold, {color: theme.text}]}>Hub</Text></ThemedText>
-      </View>
+      <ScreenHeader
+        title="Mentor"
+        highlight="Hub"
+      />
 
       <View style={styles.controls}>
         <View style={styles.searchRow}>
@@ -139,20 +139,11 @@ const AVATAR_SIZE = 56;
 const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
-    paddingTop: 36,
     paddingHorizontal: 18,
   },
   headerWrap: {
     alignItems: 'center',
     marginBottom: 12,
-  },
-  title: {
-    fontSize: 34,
-    lineHeight: 40,
-    color: '#111',
-  },
-  titleBold: {
-    fontWeight: '700',
   },
   controls: {
     width: '100%',

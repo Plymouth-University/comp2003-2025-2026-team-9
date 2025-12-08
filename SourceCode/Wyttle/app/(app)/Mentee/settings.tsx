@@ -1,21 +1,28 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { supabase } from '../../../src/lib/supabase';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { commonStyles } from '../../../src/styles/common';
+import { supabase } from '../../../src/lib/supabase';
+
 export default function MenteeSettingsScreen() {
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? 'light'];
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.replace('/(auth)/sign-in');
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Settings</Text>
-      <Text style={styles.subtitle}>
-        Profile options, accessibility, account, tokens, and notifications will
-        live here.
-      </Text>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <ScreenHeader
+        title="Settings"
+        subtitle="Profile options, accessibility, account, tokens, and notifications will live here."
+      />
 
       <TouchableOpacity style={styles.button} onPress={handleLogout}>
         <Text style={styles.buttonText}>Log out</Text>
@@ -25,9 +32,11 @@ export default function MenteeSettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, paddingBottom: 90 },
-  title: { fontSize: 24, fontWeight: '700', marginBottom: 8 },
-  subtitle: { fontSize: 14, color: '#555', marginBottom: 20 },
+  container: {
+    ...commonStyles.screen,
+    paddingHorizontal: 18,
+    paddingBottom: 120,
+  },
   button: {
     marginTop: 20,
     backgroundColor: '#1F2940',

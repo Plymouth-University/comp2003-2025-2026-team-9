@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { BackButton } from '@/components/ui/BackButton';
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../../src/lib/fonts';
@@ -77,14 +77,11 @@ export default function DiscoveryStackScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <BackButton />
-
-      {/* Header */}
-      <View style={styles.header}>
-        <ThemedText style={[styles.title, font('SpaceGrotesk', '600')]}>
-          Discovery <Text style={{ fontWeight: '900' }}>Stack</Text>
-        </ThemedText>
-      </View>
+      <ScreenHeader
+        title="Discovery"
+        highlight="Stack"
+        subtitle="Discover mentors to connect with."
+      />
 
       {/* Content */}
       <View style={styles.content}>
@@ -222,10 +219,6 @@ const styles = StyleSheet.create({
   header: {
     marginTop: 16,
     marginBottom: 16,
-  },
-  title: {
-    fontSize: 28,
-    lineHeight: 32,
   },
   content: {
     flex: 1,
