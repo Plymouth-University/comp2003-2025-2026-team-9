@@ -9,10 +9,12 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Image,
 } from 'react-native';
 
+import * as ImagePicker from 'expo-image-picker';
 
-import { supabase } from '../../src/lib/supabase';
+import { supabase, uploadProfilePhoto } from '../../src/lib/supabase';
 import { commonStyles } from '../../src/styles/common';
 
 import { Logo } from '@/components/Logo';
@@ -30,10 +32,30 @@ export default function SignUpMentor() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [expertise, setExpertise] = useState('');
   const [experienceYears, setExperienceYears] = useState('');
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
+
+  const handlePickAvatar = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      setMsg('Permission to access photos is required to set a profile picture.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setAvatarUri(result.assets[0].uri);
+    }
+  };
 
   const onSignUp = async () => {
   if (!fullName || !email || !password || !confirmPassword || !expertise) {
@@ -85,6 +107,15 @@ export default function SignUpMentor() {
     return;
   }
 
+  // If they picked an avatar, upload it and update photo_url.
+  if (avatarUri) {
+    try {
+      await uploadProfilePhoto(avatarUri);
+    } catch (e) {
+      console.warn('Failed to upload profile photo', e);
+    }
+  }
+
   // Send mentors to their main app area (Mentor connections tab)
   router.replace('/(app)/Mentor/connections');
 };
@@ -115,6 +146,14 @@ export default function SignUpMentor() {
         </View>
 
         <View style={styles.form}>
+          <TouchableOpacity style={styles.avatarPicker} onPress={handlePickAvatar}>
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+            ) : (
+              <Text style={styles.avatarPlaceholderText}>Add profile photo</Text>
+            )}
+          </TouchableOpacity>
+
           <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>FULL NAME</ThemedText>
           <TextInput
             placeholder="Full name"
@@ -281,5 +320,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333f5c',
     textAlign: 'center',
+  },
+  avatarPicker: {
+    alignSelf: 'center',
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: '#d9d9d9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  avatarImage: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+  },
+  avatarPlaceholderText: {
+    fontSize: 12,
+    color: '#555',
+    textAlign: 'center',
+    paddingHorizontal: 8,
   },
 });

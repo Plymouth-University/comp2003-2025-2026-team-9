@@ -112,3 +112,47 @@ export async function replyToHandshake(fromUserId: string, replyMessage: string)
   return match; // can be null or a peer_matches row
 }
 
+// Upload a local image file as this user's profile photo.
+// fileUri is something like "file:///..." from expo-image-picker.
+export async function uploadProfilePhoto(fileUri: string): Promise<string> {
+  const user = await getCurrentUser();
+
+  // Very simple extension detection; default to jpg
+  const ext = fileUri.split('.').pop()?.toLowerCase();
+  const fileExt = ext === 'png' ? 'png' : 'jpg';
+  const contentType = fileExt === 'png' ? 'image/png' : 'image/jpeg';
+
+  const filePath = `profiles/${user.id}.${fileExt}`;
+
+  // Fetch the local file and turn into a Blob
+  const response = await fetch(fileUri);
+  const blob = await response.blob();
+
+  const { error: uploadError } = await supabase.storage
+    .from('avatars')
+    .upload(filePath, blob as any, {
+      upsert: true,
+      contentType,
+    });
+
+  if (uploadError) {
+    throw uploadError;
+  }
+
+  const { data: publicData } = supabase.storage
+    .from('avatars')
+    .getPublicUrl(filePath);
+
+  const publicUrl = publicData.publicUrl;
+
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .update({ photo_url: publicUrl })
+    .eq('id', user.id);
+
+  if (profileError) {
+    throw profileError;
+  }
+
+  return publicUrl;
+}

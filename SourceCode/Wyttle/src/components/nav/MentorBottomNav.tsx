@@ -1,5 +1,5 @@
 import { router, usePathname, type Href } from 'expo-router';
-import React from 'react';
+import React, { JSX } from 'react';
 import { Dimensions, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
