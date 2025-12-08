@@ -52,19 +52,11 @@ export default function RootLayout() {
           screenOptions={{
             headerShown: false,
             // Global transition animation between screens
-            animation: 'slide_from_right',
+            animation: 'fade',
           }}
         >
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(app)" />
-          <Stack.Screen
-            name="modal"
-            options={{
-              presentation: 'modal',
-              animation: 'fade_from_bottom',
-              title: 'Modal',
-            }}
-          />
         </Stack>
         <StatusBar
           style={colorScheme === 'dark' ? 'light' : 'dark'}

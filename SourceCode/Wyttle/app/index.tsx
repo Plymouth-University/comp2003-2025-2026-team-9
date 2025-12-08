@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Logo } from '@/components/Logo';
 import { Colors } from '@/constants/theme';
@@ -14,6 +15,7 @@ import { commonStyles } from '../src/styles/common';
 export default function Index() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
 
   // If the user already has a session, skip the chooser and go straight to the correct area
   useEffect(() => {
@@ -42,42 +44,44 @@ export default function Index() {
   }, []);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Top: logo + app name */}
-      <View style={styles.header}>
-        <Logo size={96} style={styles.logo} />
-        <ThemedText style={[styles.appName, font('SpaceGrotesk', '400')]}>WYTTLE</ThemedText>
-      </View>
-
-      {/* Middle: buttons centered in remaining space */}
-      <View style={styles.middle}>
-        <View style={styles.buttonGroup}>
-          <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>MENTEE</ThemedText>
-          <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: '#333f5c' }]}
-            onPress={() => router.push({ pathname: '/(auth)/sign-in', params: { role: 'mentee' } })}
-          >
-            <Text style={styles.primaryButtonText}>Log in</Text>
-          </TouchableOpacity>
-          <View style={styles.spacer} />
-          <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>MENTOR</ThemedText>
-
-          <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: '#968c6c' }]}
-            onPress={() => router.push({ pathname: '/(auth)/sign-in', params: { role: 'mentor' } })}
-          >
-            <Text style={styles.primaryButtonText}>Log in</Text>
-          </TouchableOpacity>
+    <View style={{ flex: 1, paddingTop: insets.top, backgroundColor: theme.background }}>
+      <View style={styles.container}>
+        {/* Top: logo + app name */}
+        <View style={styles.header}>
+          <Logo size={96} style={styles.logo} />
+          <ThemedText style={[styles.appName, font('SpaceGrotesk', '400')]}>WYTTLE</ThemedText>
         </View>
-      </View>
 
-      {/* Bottom: sign up link */}
-      <TouchableOpacity
-        style={styles.textButton}
-        onPress={() => router.push('/(auth)/sign-up')}
-      >
-        <Text style={[styles.textButtonLabel, { color: theme.tint }]}>Need an account? Register here</Text>
-      </TouchableOpacity>
+        {/* Middle: buttons centered in remaining space */}
+        <View style={styles.middle}>
+          <View style={styles.buttonGroup}>
+            <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>MENTEE</ThemedText>
+            <TouchableOpacity
+              style={[styles.primaryButton, { backgroundColor: '#333f5c' }]}
+              onPress={() => router.push({ pathname: '/(auth)/sign-in', params: { role: 'mentee' } })}
+            >
+              <Text style={styles.primaryButtonText}>Log in</Text>
+            </TouchableOpacity>
+            <View style={styles.spacer} />
+            <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>MENTOR</ThemedText>
+
+            <TouchableOpacity
+              style={[styles.primaryButton, { backgroundColor: '#968c6c' }]}
+              onPress={() => router.push({ pathname: '/(auth)/sign-in', params: { role: 'mentor' } })}
+            >
+              <Text style={styles.primaryButtonText}>Log in</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Bottom: sign up link */}
+        <TouchableOpacity
+          style={styles.textButton}
+          onPress={() => router.push('/(auth)/sign-up')}
+        >
+          <Text style={[styles.textButtonLabel, { color: theme.tint }]}>Need an account? Register here</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -90,6 +94,7 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
+    marginTop: 24,
   },
   middle: {
     flex: 1,

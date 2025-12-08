@@ -19,7 +19,7 @@ import { commonStyles } from '../../src/styles/common';
 
 import { Logo } from '@/components/Logo';
 import { ThemedText } from '@/components/themed-text';
-import { BackButton } from '@/components/ui/BackButton';
+import { AuthBackButton } from '@/components/ui/AuthBackButton';
 import { Toast } from '@/components/ui/Toast';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -133,17 +133,16 @@ export default function SignUpMentee() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <BackButton />
-
-        <View style={styles.header}>
-        <Logo size={96} style={styles.logo} />
-        <ThemedText style={[styles.appName, font('SpaceGrotesk', '400')]}>WYTTLE</ThemedText>
-        <ThemedText
-          style={[styles.subText, { color: '#968c6c' }, font('GlacialIndifference', '800')]}
-        >
-          Mentee sign up
-        </ThemedText>
-      </View>
+          <View style={styles.header}>
+            <AuthBackButton style={styles.headerBackButton} />
+            <Logo size={96} style={styles.logo} />
+            <ThemedText style={[styles.appName, font('SpaceGrotesk', '400')]}>WYTTLE</ThemedText>
+            <ThemedText
+              style={[styles.subText, { color: '#968c6c' }, font('GlacialIndifference', '800')]}
+            >
+              Mentee sign up
+            </ThemedText>
+          </View>
 
       <View style={styles.form}>
         <TouchableOpacity style={styles.avatarPicker} onPress={handlePickAvatar}>
@@ -247,7 +246,13 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
+    marginTop: 24,
     marginBottom: 32,
+  },
+  headerBackButton: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
   },
   logo: {
     marginBottom: 8,

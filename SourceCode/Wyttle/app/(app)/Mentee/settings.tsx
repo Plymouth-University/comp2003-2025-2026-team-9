@@ -9,10 +9,12 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { commonStyles } from '../../../src/styles/common';
 import { supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
+import { useNavigationHistory } from '../../../src/lib/navigation-history';
 
 export default function MenteeSettingsScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
+  const { resetHistory } = useNavigationHistory();
 
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
@@ -58,7 +60,10 @@ export default function MenteeSettingsScreen() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.replace('/(auth)/sign-in');
+    // Clear any in-app navigation history so back from auth cannot
+    // jump into stale mentee routes after logging out.
+    resetHistory('/(auth)/sign-in');
+    router.replace({ pathname: '/(auth)/sign-in', params: { from: 'logout' } });
   };
 
   return (

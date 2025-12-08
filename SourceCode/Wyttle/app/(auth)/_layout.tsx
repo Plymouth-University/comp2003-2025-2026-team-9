@@ -13,7 +13,9 @@ export default function AuthLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        animation: 'fade_from_bottom',
+        animation: 'fade',
+        // Use safe-area top inset so the auth logo & title sit comfortably
+        // below the status bar / dynamic island.
         contentStyle: {
           paddingTop: insets.top,
           backgroundColor: theme.background,

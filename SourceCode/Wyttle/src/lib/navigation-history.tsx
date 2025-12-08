@@ -12,6 +12,12 @@ export type NavigationHistoryContextValue = {
    * - Returns `true` if navigation occurred, otherwise `false`.
    */
   goBackSmart: () => boolean;
+  /**
+   * Hard-resets the recorded history to a single entry. This is useful
+   * on logout, so that back navigation from auth screens cannot jump
+   * into stale in-app routes.
+   */
+  resetHistory: (initialPath: string) => void;
 };
 
 const NavigationHistoryContext = createContext<NavigationHistoryContextValue | undefined>(
@@ -62,9 +68,13 @@ export function NavigationHistoryProvider({ children }: PropsWithChildren) {
     return true;
   }, [history, router]);
 
+  const resetHistory = useCallback((initialPath: string) => {
+    setHistory([initialPath]);
+  }, []);
+
   const value = useMemo(
-    () => ({ history, goBackSmart }),
-    [history, goBackSmart],
+    () => ({ history, goBackSmart, resetHistory }),
+    [history, goBackSmart, resetHistory],
   );
 
   return (

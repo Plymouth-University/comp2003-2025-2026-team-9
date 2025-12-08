@@ -3,7 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { Logo } from '@/components/Logo';
 import { ThemedText } from '@/components/themed-text';
-import { BackButton } from '@/components/ui/BackButton';
+import { AuthBackButton } from '@/components/ui/AuthBackButton';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../src/lib/fonts';
@@ -20,17 +20,16 @@ export default function SignUpRoleChooser() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}> 
-      <BackButton />
-
       <View style={styles.header}>
-          <Logo size={96} style={styles.logo} />
-          <ThemedText style={[styles.appName, font('SpaceGrotesk', '400')]}>WYTTLE</ThemedText>
-          <ThemedText
-            style={[styles.subText, { color: '#968c6c' }, font('GlacialIndifference', '800')]}
-          >
-            Create your account
-          </ThemedText>
-        </View>
+        <AuthBackButton style={styles.headerBackButton} />
+        <Logo size={96} style={styles.logo} />
+        <ThemedText style={[styles.appName, font('SpaceGrotesk', '400')]}>WYTTLE</ThemedText>
+        <ThemedText
+          style={[styles.subText, { color: '#968c6c' }, font('GlacialIndifference', '800')]}
+        >
+          Create your account
+        </ThemedText>
+      </View>
       <View style={styles.spacer} />
       <View style={styles.content}>
           <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>I am a</ThemedText>
@@ -66,7 +65,13 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
+    marginTop: 24,
     marginBottom: 32,
+  },
+  headerBackButton: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
   },
   logo: {
     marginBottom: 8,
