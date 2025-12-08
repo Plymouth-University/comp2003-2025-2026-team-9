@@ -1,69 +1,126 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { router, usePathname, type Href } from 'expo-router';
+import React from 'react';
+import { Dimensions, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { Logo } from '../../../components/Logo';
+import { CalendarIcon, ChatIcon, SettingIcon, VideoIcon } from './MentorNavIcons';
+import { NavBlankShape } from './NavBlankShape';
+
+const VIEWBOX_WIDTH = 200.27968;
+const VIEWBOX_HEIGHT = 53.78904;
+const VIEWBOX_CIRCLE_CENTER_Y = 18.258205;
+const NAV_SCALE = 1.3;
 
 export default function MentorBottomNav() {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
 
+  const bottomInset = insets.bottom > 0 ? insets.bottom : 10;
+  const bottomFillHeight = bottomInset;
+
+  const { width } = Dimensions.get('window');
+  const scale = (width / VIEWBOX_WIDTH) * NAV_SCALE;
+  const circleCenterOffset = (VIEWBOX_HEIGHT - VIEWBOX_CIRCLE_CENTER_Y) * scale - 40;
+
   const tabs = [
-    { key: 'waiting', label: 'Waiting', path: '/(app)/Mentor/waiting-room' },
-    { key: 'connections', label: 'Chats', path: '/(app)/Mentor/connections' },
-    { key: 'calendar', label: 'Calendar', path: '/(app)/Mentor/calendar' },
-    { key: 'settings', label: 'Settings', path: '/(app)/Mentor/settings' },
-  ];
+    { key: 'waiting', label: 'Waiting', path: '/(app)/Mentor/waiting-room', Icon: VideoIcon },
+    { key: 'connections', label: 'Chats', path: '/(app)/Mentor/connections', Icon: ChatIcon },
+    { key: 'calendar', label: 'Calendar', path: '/(app)/Mentor/calendar', Icon: CalendarIcon },
+    { key: 'settings', label: 'Settings', path: '/(app)/Mentor/settings', Icon: SettingIcon },
+  ] as const;
 
-  const active =
-    tabs.find((t) => pathname.startsWith(t.path))?.key ?? 'waiting';
+  // Derive active tab from the last pathname segment so it works reliably
+  // regardless of group segments like "(app)".
+  const [pathWithoutQuery] = pathname.split('?');
+  const segments = pathWithoutQuery.split('/').filter(Boolean);
+  const lastSegment = segments[segments.length - 1] ?? 'connections';
 
-  const activeTab = tabs.find((t) => t.key === active);
+  let activeKey: (typeof tabs)[number]['key'] = 'connections';
+  switch (lastSegment) {
+    case 'waiting-room':
+      activeKey = 'waiting';
+      break;
+    case 'connections':
+      activeKey = 'connections';
+      break;
+    case 'calendar':
+      activeKey = 'calendar';
+      break;
+    case 'settings':
+      activeKey = 'settings';
+      break;
+    default:
+      activeKey = 'connections';
+  }
 
-  const goTo = (path: string) => {
-    if (!pathname.startsWith(path)) {
-      router.replace(path as Href);
-    }
+  const active = activeKey;
+
+  const goTo = (path: string, key: (typeof tabs)[number]['key']) => {
+    // If this tab is already active, do nothing to avoid re-running
+    // the navigation animation or resetting the stack.
+    if (key === active) return;
+    router.replace(path as Href);
   };
 
   return (
     <View
       style={[
         styles.container,
-        { paddingBottom: insets.bottom > 0 ? insets.bottom : 10 },
+        { paddingBottom: bottomFillHeight },
       ]}
     >
-      <View className="bar" style={styles.bar}>
-        <NavItem
-          label="Waiting"
-          active={active === 'waiting'}
-          onPress={() => goTo('/(app)/Mentor/waiting-room')}
-        />
-        <NavItem
-          label="Chats"
-          active={active === 'connections'}
-          onPress={() => goTo('/(app)/Mentor/connections')}
-        />
+      {/* solid fill at the very bottom to avoid any white strip */}
+      <View
+        style={[
+          styles.bottomFill,
+          { height: bottomFillHeight },
+        ]}
+      />
 
-        <View style={{ width: 70 }} />
+      {/* SVG background shape */}
+      <NavBlankShape style={styles.background} />
 
-        <NavItem
-          label="Calendar"
-          active={active === 'calendar'}
-          onPress={() => goTo('/(app)/Mentor/calendar')}
-        />
-        <NavItem
-          label="Settings"
-          active={active === 'settings'}
-          onPress={() => goTo('/(app)/Mentor/settings')}
-        />
+      {/* main bar content (tabs) */}
+      <View style={styles.bar}>
+        {/* left group */}
+        <View style={styles.sideGroup}>
+          <NavItem
+            Icon={VideoIcon}
+            active={active === 'waiting'}
+            onPress={() => goTo('/(app)/Mentor/waiting-room', 'waiting')}
+            size={40}
+          />
+          <NavItem
+            Icon={ChatIcon}
+            active={active === 'connections'}
+            onPress={() => goTo('/(app)/Mentor/connections', 'connections')}
+          />
+        </View>
+
+        {/* gap for diamond */}
+        <View style={{ width: 80 }} />
+
+        {/* right group */}
+        <View style={styles.sideGroup}>
+          <NavItem
+            Icon={CalendarIcon}
+            active={active === 'calendar'}
+            onPress={() => goTo('/(app)/Mentor/calendar', 'calendar')}
+          />
+          <NavItem
+            Icon={SettingIcon}
+            active={active === 'settings'}
+            onPress={() => goTo('/(app)/Mentor/settings', 'settings')}
+          />
+        </View>
       </View>
 
-      <View style={styles.diamondWrapper}>
+      {/* floating middle logo circle */}
+      <View style={[styles.diamondWrapper, { bottom: circleCenterOffset }]}>
         <View style={styles.diamondOuter}>
           <View style={styles.diamondInner}>
-            <Text style={styles.diamondText}>
-              {activeTab?.label ?? ''}
-            </Text>
+            <Logo size={54} fill="#968c6c" />
           </View>
         </View>
       </View>
@@ -71,19 +128,21 @@ export default function MentorBottomNav() {
   );
 }
 
+type NavItemIconComponent = (props: { color: string; size?: number }) => JSX.Element;
+
 type NavItemProps = {
-  label: string;
+  Icon: NavItemIconComponent;
   active: boolean;
   onPress: () => void;
+  size?: number;
 };
 
-function NavItem({ label, active, onPress }: NavItemProps) {
+function NavItem({ Icon, active, onPress, size = 30 }: NavItemProps) {
+  const color = active ? '#968c6c' : '#dedfe0';
+
   return (
     <TouchableOpacity style={styles.navItem} onPress={onPress}>
-      <View style={[styles.iconDot, active && styles.iconDotActive]} />
-      <Text style={[styles.navLabel, active && styles.navLabelActive]}>
-        {label}
-      </Text>
+      <Icon color={color} size={size} />
     </TouchableOpacity>
   );
 }
@@ -96,48 +155,46 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
   },
+  background: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  bottomFill: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#333f5c',
+  },
   bar: {
     width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#1F2940',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-  },
-  navItem: {
-    flex: 1,
+    paddingHorizontal: 24,
+    paddingVertical: 0,
     alignItems: 'center',
   },
-  iconDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'transparent',
-    marginBottom: 4,
+  sideGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 26,
   },
-  iconDotActive: {
-    backgroundColor: '#F5E1A4',
-  },
-  navLabel: {
-    fontSize: 10,
-    color: '#D0D4E0',
-  },
-  navLabelActive: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+  navItem: {
+    alignItems: 'center',
   },
   diamondWrapper: {
     position: 'absolute',
-    bottom: 30,
+    // `bottom` is set inline using `circleCenterOffset` so the circle
+    // tracks the SVG bump center across device sizes.
     alignItems: 'center',
   },
   diamondOuter: {
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: '#1F2940',
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 6,
@@ -146,12 +203,8 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: '#F5E1A4',
+    backgroundColor: '#333f5c',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  diamondText: {
-    fontSize: 10,
-    fontWeight: '700',
   },
 });

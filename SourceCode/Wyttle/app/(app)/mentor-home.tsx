@@ -25,7 +25,10 @@ export default function MentorsHome() {
   return (
     <View style={{ padding: 20, gap: 12, marginTop: 50 }}>
       <Text>Welcome mentor {name || 'there'} 👋</Text>
-      <Button title="Go to mentee home" onPress={() => router.push('/(app)/mentee-home')} />
+      <Button
+        title="Go to mentee area"
+        onPress={() => router.push('/(app)/Mentee/connections')}
+      />
     </View>
   );
 }

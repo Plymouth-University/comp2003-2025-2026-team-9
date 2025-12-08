@@ -4,7 +4,9 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
+import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { NavigationHistoryProvider } from '../src/lib/navigation-history';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -12,6 +14,7 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? 'light'];
   const [fontsLoaded] = useFonts({
     'Montserrat-Light': require('@/assets/fonts/Montserrat/static/Montserrat-Light.ttf'),
     'Montserrat-LightItalic': require('@/assets/fonts/Montserrat/static/Montserrat-LightItalic.ttf'),
@@ -43,26 +46,31 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          // Global transition animation between screens
-          animation: 'slide_from_right',
-        }}
-      >
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(app)" />
-        <Stack.Screen
-          name="modal"
-          options={{
-            presentation: 'modal',
-            animation: 'fade_from_bottom',
-            title: 'Modal',
+    <NavigationHistoryProvider>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            // Global transition animation between screens
+            animation: 'slide_from_right',
           }}
+        >
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(app)" />
+          <Stack.Screen
+            name="modal"
+            options={{
+              presentation: 'modal',
+              animation: 'fade_from_bottom',
+              title: 'Modal',
+            }}
+          />
+        </Stack>
+        <StatusBar
+          style={colorScheme === 'dark' ? 'light' : 'dark'}
+          backgroundColor={theme.background}
         />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+      </ThemeProvider>
+    </NavigationHistoryProvider>
   );
 }

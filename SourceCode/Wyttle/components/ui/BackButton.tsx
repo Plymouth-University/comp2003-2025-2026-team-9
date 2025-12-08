@@ -1,9 +1,8 @@
-import { useRouter, usePathname } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import { Pressable, StyleProp, StyleSheet, ViewStyle } from 'react-native';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useNavigationHistory } from '../../src/lib/navigation-history';
 
 export type BackButtonProps = {
   style?: StyleProp<ViewStyle>;
@@ -11,20 +10,17 @@ export type BackButtonProps = {
 
 /**
  * Reusable back button to use when the default header is hidden.
- *
- * Usage:
- *   <BackButton />
+ * Implements "smart" back behaviour inside the app so that once a
+ * session is active, users are taken back to their previous in-app
+ * screen instead of bouncing to the login/index screen.
  */
 export function BackButton({ style }: BackButtonProps) {
-  console.warn('🔙 BackButton component rendered!');
   const router = useRouter();
   const pathname = usePathname();
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
+  const { goBackSmart } = useNavigationHistory();
   const tint = '#fff';
 
   const handlePress = () => {
-    console.warn('🔙 BackButton clicked! pathname=', pathname);
     // 1) Role-specific signup flows → go back to role chooser
     if (
       pathname.startsWith('/(auth)/sign-up-mentee') ||
@@ -34,25 +30,19 @@ export function BackButton({ style }: BackButtonProps) {
       return;
     }
 
-    // 2) Any other auth screen → go back to app landing (index)
+    // 2) First try to walk back through non-auth history.
+    const didGoBack = goBackSmart();
+    if (didGoBack) {
+      return;
+    }
+
+    // 3) If still on an auth screen (typical pre-login case), go to landing.
     if (pathname.startsWith('/(auth)/')) {
       router.replace('/');
       return;
     }
 
-
-    // 3) In the main app, always go to the mentee/mentor home instead of leaving the app/history
-    if (pathname === '/discovery') {
-      router.replace('/(app)/mentee-home');
-      return;
-    }
-
-    if (pathname.includes('mentor-hub')) {
-      router.replace('/(app)/mentee-home');
-      return;
-    }
-
-    // 4) Fallback: stay inside the app root
+    // 4) Fallback: go to app landing
     router.replace('/');
   };
 
