@@ -8,12 +8,20 @@
     "scheme": "wyttle",
     "extra": {
       "supabaseUrl": "https://kbdzjsnovtosezribvly.supabase.co",
-      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtiZHpqc25vdnRvc2V6cmlidmx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4NjQxNzAsImV4cCI6MjA3ODQ0MDE3MH0.daW44xvVNot4AKrIGBvUhwqMIIQO1krwB7_-ho8INII"
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtiZHpqc25vdnRvc2V6cmlidmx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4NjQxNzAsImV4cCI6MjA3ODQ0MDE3MH0.daW44xvVNot4AKrIGBvUhwqMIIQO1krwB7_-ho8INII",
+      "router": {},
+      "eas": {
+        "projectId": "f1d6f35c-7be5-4c01-b141-78978c028ed7"
+      }
     },
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.wyttle.Wyttle-App",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
