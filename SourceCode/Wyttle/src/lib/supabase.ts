@@ -1,6 +1,8 @@
 import 'react-native-url-polyfill/auto';
 import Constants from 'expo-constants';
 import { createClient } from '@supabase/supabase-js';
+import * as FileSystem from 'expo-file-system/legacy';
+import { decode } from 'base64-arraybuffer';
 
 // Avoid referencing `window` (and AsyncStorage's web shim) during SSR
 const isServer = typeof window === 'undefined';
@@ -117,40 +119,49 @@ export async function replyToHandshake(fromUserId: string, replyMessage: string)
 export async function uploadProfilePhoto(fileUri: string): Promise<string> {
   const user = await getCurrentUser();
 
-  // Very simple extension detection; default to jpg
+  // Guess extension, default to jpg
   const ext = fileUri.split('.').pop()?.toLowerCase();
   const fileExt = ext === 'png' ? 'png' : 'jpg';
   const contentType = fileExt === 'png' ? 'image/png' : 'image/jpeg';
 
   const filePath = `profiles/${user.id}.${fileExt}`;
 
-  // Fetch the local file and turn into a Blob
-  const response = await fetch(fileUri);
-  const blob = await response.blob();
+  // 1) Read the picked image as base64 from the local file system
+  const base64 = await FileSystem.readAsStringAsync(fileUri, {
+    encoding: 'base64',
+  });
 
+  // 2) Convert base64 → ArrayBuffer (what Supabase storage expects)
+  const arrayBuffer = decode(base64);
+
+  // 3) Upload to the `avatars` bucket in Supabase
   const { error: uploadError } = await supabase.storage
     .from('avatars')
-    .upload(filePath, blob as any, {
+    .upload(filePath, arrayBuffer, {
       upsert: true,
       contentType,
     });
 
   if (uploadError) {
+    console.log('Avatar upload error:', uploadError);
     throw uploadError;
   }
 
+  // 4) Get a public URL for the uploaded file
   const { data: publicData } = supabase.storage
     .from('avatars')
     .getPublicUrl(filePath);
 
   const publicUrl = publicData.publicUrl;
 
+  // 5) Store that URL in the user's profile row
   const { error: profileError } = await supabase
     .from('profiles')
     .update({ photo_url: publicUrl })
     .eq('id', user.id);
 
   if (profileError) {
+    console.log('Profile update error:', profileError);
     throw profileError;
   }
 
