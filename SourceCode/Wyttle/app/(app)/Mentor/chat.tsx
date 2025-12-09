@@ -114,7 +114,7 @@ function MessageBubble({ message, theme }: MessageBubbleProps) {
         <Text
           style={[
             styles.bubbleText,
-            isMe && { color: '#fff' },
+            { color: isMe ? '#fff' : theme.text },
           ]}
         >
           {message.text}
@@ -165,7 +165,6 @@ const styles = StyleSheet.create({
   },
   bubbleText: {
     fontSize: 14,
-    color: '#222',
   },
   bubbleTime: {
     alignSelf: 'flex-end',

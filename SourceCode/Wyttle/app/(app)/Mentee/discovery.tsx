@@ -33,6 +33,7 @@ const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
 export default function DiscoveryStackScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
+  const isDark = colorScheme === 'dark';
 
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [index, setIndex] = useState(0);
@@ -109,7 +110,7 @@ export default function DiscoveryStackScreen() {
 
   const showEmpty = !loading && (!profiles.length || !current);
 
-  return (
+   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScreenHeader
         title="Discovery"
@@ -129,7 +130,11 @@ export default function DiscoveryStackScreen() {
               You&apos;re all caught up
             </ThemedText>
             <ThemedText
-              style={[styles.emptySubtitle, font('GlacialIndifference', '400')]}
+              style={[
+                styles.emptySubtitle,
+                font('GlacialIndifference', '400'),
+                { color: theme.text },
+              ]}
             >
               Check back later for more members to discover.
             </ThemedText>
@@ -154,6 +159,7 @@ export default function DiscoveryStackScreen() {
                   style={[
                     styles.progressSubText,
                     font('GlacialIndifference', '400'),
+                    { color: isDark ? '#cfd3ff' : '#777' },
                   ]}
                 >
                   {remaining <= 0
@@ -192,13 +198,17 @@ export default function DiscoveryStackScreen() {
             />
 
             <View style={styles.belowCardInfo}>
-              <Text
-                style={[styles.matchTagline, font('GlacialIndifference', '400')]}
-              >
-                {current?.industry
-                  ? `Members interested in ${current.industry}.`
-                  : 'Members to grow and learn alongside you.'}
-              </Text>
+            <Text
+              style={[
+                styles.matchTagline,
+                font('GlacialIndifference', '400'),
+                { color: isDark ? theme.text : '#666' },
+              ]}
+            >
+              {current?.industry
+                ? `Members interested in ${current.industry}.`
+                : 'Members to grow and learn alongside you.'}
+            </Text>
             </View>
 
             {lastPass && (
@@ -225,11 +235,15 @@ export default function DiscoveryStackScreen() {
           >
             <BlockSvg width={64} height={64} color="#333f5c" />
           </TouchableOpacity>
-                  <Text
-                    style={[styles.actionLabel, font('GlacialIndifference', '400')]}
-                  >
-                    Skip
-                  </Text>
+            <Text
+              style={[
+                styles.actionLabel,
+                font('GlacialIndifference', '400'),
+                { color: isDark ? theme.text : '#555' },
+              ]}
+            >
+              Skip
+            </Text>
                 </View>
 
                 <View style={styles.actionItem}>
@@ -244,11 +258,15 @@ export default function DiscoveryStackScreen() {
           >
             <HandshakeCircleSvg width={64} height={64} color="#333f5c" />
           </TouchableOpacity>
-                  <Text
-                    style={[styles.actionLabel, font('GlacialIndifference', '400')]}
-                  >
-                    Connect
-                  </Text>
+            <Text
+              style={[
+                styles.actionLabel,
+                font('GlacialIndifference', '400'),
+                { color: isDark ? theme.text : '#555' },
+              ]}
+            >
+              Connect
+            </Text>
                 </View>
               </View>
             </View>
@@ -283,6 +301,9 @@ function ProfileCard({
   swiping,
 }: ProfileCardProps) {
   const translateX = useSharedValue(0);
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? 'light'];
+  const isDark = colorScheme === 'dark';
 
   const formatRoleLabel = (role: Profile['role'] | string | null) => {
     if (!role) return null;
@@ -322,8 +343,18 @@ function ProfileCard({
             {p.photo_url ? (
               <Image source={{ uri: p.photo_url }} style={styles.avatarImage} />
             ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarInitial}>
+              <View
+                style={[
+                  styles.avatarPlaceholder,
+                  isDark && { backgroundColor: '#1b1f33' },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.avatarInitial,
+                    { color: isDark ? theme.text : '#5a5a5a' },
+                  ]}
+                >
                   {firstName.charAt(0).toUpperCase()}
                 </Text>
               </View>
@@ -335,12 +366,22 @@ function ProfileCard({
         <View style={styles.cardRight}>
           {/* Name + title */}
           <View style={styles.textBlock}>
-            <Text style={[styles.nameText, font('GlacialIndifference', '800')]}
+            <Text
+              style={[
+                styles.nameText,
+                font('GlacialIndifference', '800'),
+                { color: theme.text },
+              ]}
             >
               {p.full_name ?? 'Unknown Member'}
             </Text>
             {p.title && (
-              <Text style={[styles.titleText, font('GlacialIndifference', '400')]}
+              <Text
+                style={[
+                  styles.titleText,
+                  font('GlacialIndifference', '400'),
+                  { color: isDark ? '#cfd3ff' : '#666' },
+                ]}
               >
                 {p.title}
               </Text>
@@ -351,7 +392,11 @@ function ProfileCard({
           {p.industry && (
             <View style={styles.statsRow}>
               <Text
-                style={[styles.statText, font('GlacialIndifference', '400')]}
+                style={[
+                  styles.statText,
+                  font('GlacialIndifference', '400'),
+                  { color: isDark ? '#cfd3ff' : '#666' },
+                ]}
                 numberOfLines={1}
               >
                 {p.industry}
@@ -367,6 +412,7 @@ function ProfileCard({
                   styles.bottomLine,
                   styles.bottomBio,
                   font('GlacialIndifference', '400'),
+                  { color: isDark ? theme.text : '#555' },
                 ]}
                 numberOfLines={3}
               >
@@ -382,6 +428,7 @@ function ProfileCard({
                       style={[
                         styles.chipText,
                         font('GlacialIndifference', '400'),
+                        { color: isDark ? '#e6e7ff' : '#4a4a4a' },
                       ]}
                       numberOfLines={1}
                     >
@@ -393,7 +440,11 @@ function ProfileCard({
             )}
 
             <Text
-              style={[styles.cardHintText, font('GlacialIndifference', '400')]}
+              style={[
+                styles.cardHintText,
+                font('GlacialIndifference', '400'),
+                { color: isDark ? '#cfd3ff' : '#777' },
+              ]}
             >
               Tap connect if you&apos;d like to meet {firstName}.
             </Text>
@@ -402,17 +453,28 @@ function ProfileCard({
           {/* Remaining indicator + role pill */}
           <View style={styles.remainingRow}>
             {roleLabel && (
-              <View style={styles.roleBadge}>
+              <View style={[styles.roleBadge, isDark && styles.roleBadgeDark]}>
                 <Text
-                  style={[styles.roleBadgeText, font('GlacialIndifference', '400')]}
+                  style={[
+                    styles.roleBadgeText,
+                    font('GlacialIndifference', '400'),
+                    { color: isDark ? '#e6e7ff' : '#555' },
+                  ]}
                   numberOfLines={1}
                 >
                   {roleLabel}
                 </Text>
               </View>
             )}
-            <View style={styles.remainingBadge}>
-              <Text style={styles.remainingText}>{rem} more</Text>
+            <View style={[styles.remainingBadge, isDark && styles.remainingBadgeDark]}>
+              <Text
+                style={[
+                  styles.remainingText,
+                  { color: isDark ? '#f8f9ff' : '#555' },
+                ]}
+              >
+                {rem} more
+              </Text>
             </View>
           </View>
         </View>
@@ -510,14 +572,28 @@ function ProfileCard({
     <View style={styles.stackWrapper}>
       {/* Next profile underneath */}
       {nextProfile && (
-        <View style={[styles.card, styles.cardShadow, styles.cardBehind1]}>
+        <View
+          style={[
+            styles.card,
+            styles.cardShadow,
+            styles.cardBehind1,
+            isDark && styles.cardDark,
+          ]}
+        >
           {renderProfileCardBody(nextProfile, Math.max(remaining - 1, 0))}
         </View>
       )}
 
       {/* Top card */}
       <GestureDetector gesture={gesture}>
-        <Animated.View style={[styles.card, styles.cardShadow, animatedCardStyle]}>
+        <Animated.View
+          style={[
+            styles.card,
+            styles.cardShadow,
+            animatedCardStyle,
+            isDark && styles.cardDark,
+          ]}
+        >
           {/* YES / NO badges */}
           <Animated.View style={[styles.badge, styles.badgeYes, yesLabelStyle]}>
             <Text style={styles.badgeText}>YES</Text>
@@ -576,6 +652,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#f4f4f4',
     overflow: 'hidden',
     minHeight: 260,
+  },
+  cardDark: {
+    backgroundColor: '#111524',
   },
   metaSection: {
     marginBottom: 12,
@@ -789,6 +868,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0eee5',
     marginRight: 8,
   },
+  roleBadgeDark: {
+    backgroundColor: 'rgba(157, 168, 255, 0.24)',
+    borderWidth: 1,
+    borderColor: '#9da8ff',
+  },
   roleBadgeText: {
     fontSize: 12,
     color: '#555',
@@ -798,6 +882,11 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 999,
     backgroundColor: '#e0dfd5',
+  },
+  remainingBadgeDark: {
+    backgroundColor: 'rgba(157, 168, 255, 0.32)',
+    borderWidth: 1,
+    borderColor: '#9da8ff',
   },
   remainingText: {
     fontSize: 12,
