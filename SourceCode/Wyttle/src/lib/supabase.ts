@@ -30,11 +30,14 @@ const { supabaseUrl, supabaseAnonKey } = (Constants.expoConfig?.extra ?? {}) as 
 export type Profile = {
   id: string;
   full_name: string | null;
-  title: string | null;
+  title: string | null;      // career / role title
   industry: string | null;
   bio: string | null;
   photo_url: string | null;
   role: 'member' | 'mentor' | 'admin' | null;
+  location?: string | null;  // optional location field
+  skills?: string[] | null;
+  interests?: string[] | null;
 };
 
 
@@ -60,7 +63,7 @@ export async function fetchDiscoveryProfiles(): Promise<Profile[]> {
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, full_name, title, industry, bio, photo_url, role')
+    .select('id, full_name, title, industry, bio, photo_url, role, location, skills, interests')
     .neq('id', user.id)   // don’t show myself
     .eq('role', 'member') // only show member profiles in discovery
     .order('created_at', { ascending: false });
@@ -95,16 +98,18 @@ export async function rpcCreateMatchOnMutualHandshake(otherUserId: string) {
   return data; // either a peer_matches row or null
 }
 
-// Simple like (no message)
+// Simple like (no message). Returns peer_matches row if a mutual match was created.
 export async function likeProfile(otherUserId: string) {
   await swipeOnProfile(otherUserId, 'like');
-  await rpcCreateMatchOnMutualHandshake(otherUserId);
+  const match = await rpcCreateMatchOnMutualHandshake(otherUserId);
+  return match;
 }
 
-// Like + first message
+// Like + first message. Returns peer_matches row if a mutual match was created.
 export async function likeProfileWithMessage(otherUserId: string, message: string) {
   await swipeOnProfile(otherUserId, 'like', message);
-  await rpcCreateMatchOnMutualHandshake(otherUserId);
+  const match = await rpcCreateMatchOnMutualHandshake(otherUserId);
+  return match;
 }
 
 // Reply to an incoming handshake (also a like)
@@ -112,6 +117,22 @@ export async function replyToHandshake(fromUserId: string, replyMessage: string)
   await swipeOnProfile(fromUserId, 'like', replyMessage);
   const match = await rpcCreateMatchOnMutualHandshake(fromUserId);
   return match; // can be null or a peer_matches row
+}
+
+// Disconnect / unmatch from a peer. This deletes the peer_matches row between the
+// current user and the other user (in either member_a/member_b order).
+export async function disconnectPeer(otherUserId: string) {
+  const me = await getCurrentUser();
+
+  const { error } = await supabase
+    .from('peer_matches')
+    .delete()
+    .or(
+      `and(member_a.eq.${me.id},member_b.eq.${otherUserId}),` +
+        `and(member_a.eq.${otherUserId},member_b.eq.${me.id})`,
+    );
+
+  if (error) throw error;
 }
 
 // Upload a local image file as this user's profile photo.

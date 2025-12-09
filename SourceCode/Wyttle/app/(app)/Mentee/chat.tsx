@@ -2,6 +2,7 @@ import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -11,12 +12,14 @@ import {
   View,
 } from 'react-native';
 
+import { router } from 'expo-router';
 import { BackButton } from '@/components/ui/BackButton';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../../src/lib/fonts';
 import { commonStyles } from '../../../src/styles/common';
 import { getCurrentUser, supabase } from '../../../src/lib/supabase';
+import type { Profile } from '../../../src/lib/supabase';
 type Message = {
   id: string;
   from: 'me' | 'them';
@@ -28,7 +31,8 @@ export default function MenteeChatScreen() {
   const params = useLocalSearchParams<{ threadId?: string; otherId?: string; name?: string }>();
 
   const threadId = params.threadId ? Number(params.threadId) : null;
-  const displayName =
+  const otherId = typeof params.otherId === 'string' ? params.otherId : null;
+  const fallbackName =
     typeof params.name === 'string' && params.name.length > 0
       ? params.name
       : 'Peer';
@@ -36,9 +40,12 @@ export default function MenteeChatScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
 
+  const displayName = otherProfile?.full_name ?? fallbackName;
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [meId, setMeId] = useState<string | null>(null);
+  const [otherProfile, setOtherProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -49,6 +56,17 @@ export default function MenteeChatScreen() {
       const me = await getCurrentUser();
       if (!isMounted) return;
       setMeId(me.id);
+
+      if (otherId) {
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, full_name, title, industry, bio, photo_url, role')
+          .eq('id', otherId)
+          .single();
+        if (!profileError && profile && isMounted) {
+          setOtherProfile(profile as Profile);
+        }
+      }
 
       const { data, error } = await supabase
         .from('messages')
@@ -63,22 +81,45 @@ export default function MenteeChatScreen() {
 
       if (!isMounted) return;
 
-      const mapped: Message[] = (data ?? []).map((m) => ({
+      const mapRow = (m: any): Message => ({
         id: String(m.id),
         from: m.sender === me.id ? 'me' : 'them',
         text: m.body,
         time: new Date(m.inserted_at).toLocaleTimeString(),
-      }));
+      });
 
+      const mapped: Message[] = (data ?? []).map(mapRow);
       setMessages(mapped);
+
+      // Realtime subscription for new messages in this thread
+      const channel = supabase
+        .channel(`messages-thread-${threadId}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'messages', filter: `thread_id=eq.${threadId}` },
+          (payload) => {
+            const row = payload.new as any;
+            setMessages((prev) => {
+              const idStr = String(row.id);
+              if (prev.some((m) => m.id === idStr)) return prev;
+              return [...prev, mapRow(row)];
+            });
+          },
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     };
 
-    load();
+    const cleanupPromise = load();
 
     return () => {
       isMounted = false;
+      void cleanupPromise;
     };
-  }, [threadId]);
+  }, [threadId, otherId]);
 
   const handleSend = async () => {
     if (!threadId || !meId || !input.trim()) return;
@@ -86,25 +127,28 @@ export default function MenteeChatScreen() {
     const body = input.trim();
     setInput('');
 
-    const { error } = await supabase.from('messages').insert({
-      thread_id: threadId,
-      sender: meId,
-      body,
-    });
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({
+        thread_id: threadId,
+        sender: meId,
+        body,
+      })
+      .select('id, sender, body, inserted_at')
+      .single();
 
     if (error) {
       console.error('Failed to send message', error);
       return;
     }
 
-    // Optimistically append; could also refetch
     setMessages((prev) => [
       ...prev,
       {
-        id: String(Date.now()),
-        from: 'me',
-        text: body,
-        time: new Date().toLocaleTimeString(),
+        id: String(data.id),
+        from: data.sender === meId ? 'me' : 'them',
+        text: data.body,
+        time: new Date(data.inserted_at).toLocaleTimeString(),
       },
     ]);
   };
@@ -119,25 +163,47 @@ export default function MenteeChatScreen() {
         {/* Header */}
         <View style={styles.headerRow}>
           <BackButton />
-          <View style={styles.headerTextBlock}>
-            <Text
-              style={[
-                styles.headerName,
-                font('GlacialIndifference', '800'),
-                { color: theme.text },
-              ]}
-            >
-              {displayName}
-            </Text>
-            <Text
-              style={[
-                styles.headerSubtitle,
-                font('GlacialIndifference', '400'),
-              ]}
-            >
-              Mock conversation preview
-            </Text>
-          </View>
+          <TouchableOpacity
+            style={styles.headerProfileBlock}
+            activeOpacity={0.8}
+            disabled={!otherId}
+            onPress={() => {
+              if (!otherId) return;
+              router.push({
+                pathname: '/(app)/profile-view',
+                params: { userId: otherId },
+              });
+            }}
+          >
+            <View style={styles.headerAvatar}>
+              {otherProfile?.photo_url ? (
+                <Image source={{ uri: otherProfile.photo_url }} style={styles.headerAvatarImage} />
+              ) : (
+                <Text style={styles.headerAvatarInitial}>
+                  {displayName.charAt(0).toUpperCase()}
+                </Text>
+              )}
+            </View>
+            <View style={styles.headerTextBlock}>
+              <Text
+                style={[
+                  styles.headerName,
+                  font('GlacialIndifference', '800'),
+                  { color: theme.text },
+                ]}
+              >
+                {displayName}
+              </Text>
+              <Text
+                style={[
+                  styles.headerSubtitle,
+                  font('GlacialIndifference', '400'),
+                ]}
+              >
+                Peer match conversation
+              </Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Messages */}
@@ -217,8 +283,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  headerTextBlock: {
+  headerProfileBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginLeft: 12,
+    flex: 1,
+  },
+  headerAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#333f5c',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  headerAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 18,
+  },
+  headerAvatarInitial: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  headerTextBlock: {
+    flex: 1,
   },
   headerName: {
     fontSize: 18,

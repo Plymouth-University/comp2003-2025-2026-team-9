@@ -3,8 +3,10 @@ import {
   ActivityIndicator,
   Dimensions,
   Image,
+  Modal,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -17,6 +19,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { router } from 'expo-router';
+
 import BlockSvg from '@/assets/icons/block.svg';
 import HandshakeCircleSvg from '@/assets/icons/handshake-circle.svg';
 import { ThemedText } from '@/components/themed-text';
@@ -24,7 +28,7 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../../src/lib/fonts';
-import { Profile, fetchDiscoveryProfiles, likeProfile, swipeOnProfile } from '../../../src/lib/supabase';
+import { Profile, fetchDiscoveryProfiles, getCurrentUser, likeProfile, supabase, swipeOnProfile } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -42,6 +46,10 @@ export default function DiscoveryStackScreen() {
   const [swipeCommand, setSwipeCommand] = useState<'left' | 'right' | null>(null);
   const [lastPass, setLastPass] = useState<{ profile: Profile; index: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [myProfile, setMyProfile] = useState<Profile | null>(null);
+  const [matchIntro, setMatchIntro] = useState('');
+  const [matchModalProfile, setMatchModalProfile] = useState<Profile | null>(null);
 
   const loadProfiles = useCallback(async () => {
     setLoading(true);
@@ -62,6 +70,30 @@ export default function DiscoveryStackScreen() {
   useEffect(() => {
     loadProfiles();
   }, [loadProfiles]);
+
+  // Load my own profile for match modal avatars
+  useEffect(() => {
+    let cancelled = false;
+    const loadMe = async () => {
+      try {
+        const user = await getCurrentUser();
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, full_name, title, industry, bio, photo_url, role')
+          .eq('id', user.id)
+          .single();
+        if (!cancelled && !error && data) {
+          setMyProfile(data as Profile);
+        }
+      } catch (err) {
+        console.error('Failed to load self profile', err);
+      }
+    };
+    loadMe();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const current = profiles[index];
   const nextProfile = profiles[index + 1];
@@ -86,12 +118,19 @@ export default function DiscoveryStackScreen() {
   const handleLike = useCallback(async (id: string) => {
     try {
       const match = await likeProfile(id);
-      // if you ever want "It's a match!" popup:
-      // if (match) { showMatchModal(match); }
+
+      // If a peer_match row was returned, we have a mutual match.
+      if (match) {
+        const other = profiles.find((p) => p.id === id);
+        if (other) {
+          setMatchIntro('');
+          setMatchModalProfile(other);
+        }
+      }
     } catch (err) {
       console.error('Failed to like profile', err);
     }
-  }, []);
+  }, [profiles]);
 
   const handleSwipeCommandHandled = () => {
     setSwipeCommand(null);
@@ -109,6 +148,49 @@ export default function DiscoveryStackScreen() {
   };
 
   const showEmpty = !loading && (!profiles.length || !current);
+
+  const handleCloseMatchModal = () => {
+    setMatchModalProfile(null);
+    setMatchIntro('');
+  };
+
+  const handleSendIntroFromMatch = async () => {
+    if (!matchModalProfile) return;
+    try {
+      const otherUserId = matchModalProfile.id;
+      // Ensure a thread exists
+      const { data, error } = await supabase.rpc('ensure_peer_thread', {
+        other_user: otherUserId,
+      });
+      if (error) throw error;
+      const threadId = data?.id as number | undefined;
+      if (!threadId) return;
+
+      const text = matchIntro.trim();
+      if (text.length > 0) {
+        const me = await getCurrentUser();
+        const { error: msgError } = await supabase.from('messages').insert({
+          thread_id: threadId,
+          sender: me.id,
+          body: text,
+        });
+        if (msgError) throw msgError;
+      }
+
+      const name = matchModalProfile.full_name ?? 'Peer';
+      handleCloseMatchModal();
+      router.push({
+        pathname: '/(app)/Mentee/chat',
+        params: {
+          threadId: String(threadId),
+          otherId: otherUserId,
+          name,
+        },
+      });
+    } catch (err) {
+      console.error('Failed to send intro message from match', err);
+    }
+  };
 
    return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -273,6 +355,89 @@ export default function DiscoveryStackScreen() {
           </View>
         )}
       </View>
+
+      {/* Match modal */}
+      {matchModalProfile && (
+        <Modal
+          visible={true}
+          transparent
+          animationType="fade"
+          onRequestClose={handleCloseMatchModal}
+        >
+          <View style={styles.matchModalOverlay}>
+            <View style={[styles.matchModalCard, { backgroundColor: theme.card }]}>
+              <Text
+                style={[
+                  styles.matchTitle,
+                  font('GlacialIndifference', '800'),
+                  { color: theme.text },
+                ]}
+              >
+                It&apos;s a match!
+              </Text>
+
+              <View style={styles.matchAvatarsRow}>
+                <View style={styles.matchAvatarBig}>
+                  {myProfile?.photo_url ? (
+                    <Image source={{ uri: myProfile.photo_url }} style={styles.matchAvatarImage} />
+                  ) : (
+                    <Text style={styles.matchAvatarInitial}>
+                      {(myProfile?.full_name ?? 'You').charAt(0).toUpperCase()}
+                    </Text>
+                  )}
+                </View>
+                <Text style={styles.matchAmpersand}>&amp;</Text>
+                <View style={styles.matchAvatarBig}>
+                  {matchModalProfile.photo_url ? (
+                    <Image
+                      source={{ uri: matchModalProfile.photo_url }}
+                      style={styles.matchAvatarImage}
+                    />
+                  ) : (
+                    <Text style={styles.matchAvatarInitial}>
+                      {(matchModalProfile.full_name ?? 'Peer').charAt(0).toUpperCase()}
+                    </Text>
+                  )}
+                </View>
+              </View>
+
+              <Text
+                style={[
+                  styles.matchSubtitle,
+                  font('GlacialIndifference', '400'),
+                  { color: theme.text },
+                ]}
+              >
+                You and {matchModalProfile.full_name ?? 'this member'} liked each other.
+              </Text>
+
+              <TextInput
+                style={[styles.matchInput, { color: theme.text }]}
+                placeholder="Send an introductory message"
+                placeholderTextColor="#7f8186"
+                value={matchIntro}
+                onChangeText={setMatchIntro}
+                multiline
+              />
+
+              <View style={styles.matchButtonsRow}>
+                <TouchableOpacity
+                  style={[styles.matchButton, styles.matchButtonSecondary]}
+                  onPress={handleCloseMatchModal}
+                >
+                  <Text style={styles.matchButtonSecondaryText}>Not now</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.matchButton, styles.matchButtonPrimary]}
+                  onPress={handleSendIntroFromMatch}
+                >
+                  <Text style={styles.matchButtonPrimaryText}>Send &amp; open chat</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -334,6 +499,10 @@ function ProfileCard({
     const firstName = p.full_name?.split(' ')[0] ?? 'Anonymous';
     const chips = buildChips(p);
     const roleLabel = formatRoleLabel(p.role);
+    const detailParts: string[] = [];
+    if ((p as any).location) detailParts.push((p as any).location as string);
+    if (p.industry) detailParts.push(p.industry);
+    const detailLine = detailParts.join(' • ');
 
     return (
       <View style={styles.cardRow}>
@@ -388,8 +557,8 @@ function ProfileCard({
             )}
           </View>
 
-          {/* Mini stats row: show industry only under the name */}
-          {p.industry && (
+          {/* Mini stats row: show location + industry under the name */}
+          {detailLine.length > 0 && (
             <View style={styles.statsRow}>
               <Text
                 style={[
@@ -399,7 +568,7 @@ function ProfileCard({
                 ]}
                 numberOfLines={1}
               >
-                {p.industry}
+                {detailLine}
               </Text>
             </View>
           )}
@@ -999,6 +1168,95 @@ const styles = StyleSheet.create({
   },
   navLabelActive: {
     color: '#000',
+    fontWeight: '600',
+  },
+  matchModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  matchModalCard: {
+    width: '88%',
+    borderRadius: 24,
+    padding: 20,
+  },
+  matchTitle: {
+    fontSize: 20,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  matchAvatarsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  matchAvatarBig: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#333f5c',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  matchAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 36,
+  },
+  matchAvatarInitial: {
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: '700',
+  },
+  matchAmpersand: {
+    marginHorizontal: 12,
+    fontSize: 22,
+    color: '#fff',
+  },
+  matchSubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  matchInput: {
+    minHeight: 60,
+    maxHeight: 120,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  matchButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    columnGap: 8,
+  },
+  matchButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 999,
+    alignItems: 'center',
+  },
+  matchButtonSecondary: {
+    borderWidth: 1,
+    borderColor: '#968c6c',
+    backgroundColor: 'transparent',
+  },
+  matchButtonSecondaryText: {
+    color: '#968c6c',
+    fontSize: 14,
+  },
+  matchButtonPrimary: {
+    backgroundColor: '#968c6c',
+  },
+  matchButtonPrimaryText: {
+    color: '#fff',
+    fontSize: 14,
     fontWeight: '600',
   },
 });
