@@ -15,15 +15,16 @@ import { commonStyles } from '../../src/styles/common';
 
 import { Logo } from '@/components/Logo';
 import { ThemedText } from '@/components/themed-text';
-import { BackButton } from '@/components/ui/BackButton';
+import { AuthBackButton } from '@/components/ui/AuthBackButton';
 import { Toast } from '@/components/ui/Toast';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../src/lib/fonts';
 
 export default function SignIn() {
-  const params = useLocalSearchParams<{ role?: string }>();
+  const params = useLocalSearchParams<{ role?: string; from?: string }>();
   const roleParam = typeof params.role === 'string' ? params.role : undefined;
+  const fromLogout = params.from === 'logout';
   const isMentor = roleParam === 'mentor';
 
   const [email, setEmail] = useState('');
@@ -86,17 +87,16 @@ export default function SignIn() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <BackButton />
-
-        <View style={styles.header}>
-          <Logo size={96} style={styles.logo} />
-          <ThemedText style={[styles.appName, font('SpaceGrotesk', '400')]}>WYTTLE</ThemedText>
-          <ThemedText
-            style={[styles.subText, { color: '#968c6c' }, font('GlacialIndifference', '800')]}
-          >
-            {isMentor ? 'Mentor' : roleParam === 'mentee' ? '' : 'Sign in'}
-          </ThemedText>
-        </View>
+          <View style={styles.header}>
+            {!fromLogout && <AuthBackButton style={styles.headerBackButton} />}
+            <Logo size={96} style={styles.logo} />
+            <ThemedText style={[styles.appName, font('SpaceGrotesk', '400')]}>WYTTLE</ThemedText>
+            <ThemedText
+              style={[styles.subText, { color: '#968c6c' }, font('GlacialIndifference', '800')]}
+            >
+              {isMentor ? 'Mentor' : roleParam === 'member' ? '' : 'Sign in'}
+            </ThemedText>
+          </View>
 
         <View style={styles.form}>
           <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>EMAIL</ThemedText>
@@ -124,7 +124,11 @@ export default function SignIn() {
             onPress={onSignIn}
           >
             <Text style={styles.primaryButtonText}>
-              {isMentor ? 'Sign in as mentor' : roleParam === 'mentee' ? 'Sign in as mentee' : 'Sign in'}
+              {isMentor
+                ? 'Sign in as mentor'
+                : roleParam === 'member'
+                  ? 'Sign in as member'
+                  : 'Sign in'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -159,7 +163,13 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
+    marginTop: 24,
     marginBottom: 32,
+  },
+  headerBackButton: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
   },
   logo: {
     marginBottom: 8,
@@ -229,5 +239,12 @@ const styles = StyleSheet.create({
   },
   spacer: {
     height: 46,
+  },
+  // When there is no BackButton (e.g. after logout), we reserve the
+  // same vertical space so the logo/title don't jump upwards and
+  // stay comfortably below the dynamic island.
+  noBackTopSpacer: {
+    height: 52,
+    marginBottom: 8,
   },
 });

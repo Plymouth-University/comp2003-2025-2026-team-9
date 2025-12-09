@@ -32,7 +32,7 @@ export default function MentorChatScreen() {
   const displayName =
     typeof params.name === 'string' && params.name.length > 0
       ? params.name
-      : 'Mentee';
+      : 'Member';
 
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
@@ -122,7 +122,7 @@ export default function MentorChatScreen() {
           <View style={styles.headerTextBlock}>
             <ScreenHeader
               title={displayName}
-              subtitle="Mock chat with mentee"
+              subtitle="Mock chat with member"
             />
           </View>
         </View>
@@ -182,7 +182,7 @@ function MessageBubble({ message, theme }: MessageBubbleProps) {
         <Text
           style={[
             styles.bubbleText,
-            isMe && { color: '#fff' },
+            { color: isMe ? '#fff' : theme.text },
           ]}
         >
           {message.text}
@@ -233,7 +233,6 @@ const styles = StyleSheet.create({
   },
   bubbleText: {
     fontSize: 14,
-    color: '#222',
   },
   bubbleTime: {
     alignSelf: 'flex-end',

@@ -6,6 +6,8 @@ import { useNavigationHistory } from '../../src/lib/navigation-history';
 
 export type BackButtonProps = {
   style?: StyleProp<ViewStyle>;
+  /** Optional override for back behaviour on specific screens. */
+  onPressOverride?: () => void;
 };
 
 /**
@@ -14,13 +16,17 @@ export type BackButtonProps = {
  * session is active, users are taken back to their previous in-app
  * screen instead of bouncing to the login/index screen.
  */
-export function BackButton({ style }: BackButtonProps) {
+export function BackButton({ style, onPressOverride }: BackButtonProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { goBackSmart } = useNavigationHistory();
   const tint = '#fff';
 
   const handlePress = () => {
+    if (onPressOverride) {
+      onPressOverride();
+      return;
+    }
     // 1) Role-specific signup flows → go back to role chooser
     if (
       pathname.startsWith('/(auth)/sign-up-mentee') ||
@@ -30,19 +36,31 @@ export function BackButton({ style }: BackButtonProps) {
       return;
     }
 
-    // 2) First try to walk back through non-auth history.
+    // 2) On the sign-in or sign-up chooser screens, always go back to the
+    // main login chooser regardless of navigation history. This ensures
+    // tapping back from "Log in as mentor/member" or the register chooser
+    // returns to the root role-agnostic login.
+    if (
+      pathname.startsWith('/(auth)/sign-in') ||
+      pathname.startsWith('/(auth)/sign-up')
+    ) {
+      router.replace('/');
+      return;
+    }
+
+    // 3) First try to walk back through non-auth history.
     const didGoBack = goBackSmart();
     if (didGoBack) {
       return;
     }
 
-    // 3) If still on an auth screen (typical pre-login case), go to landing.
+    // 4) If still on an auth screen (typical pre-login case), go to landing.
     if (pathname.startsWith('/(auth)/')) {
       router.replace('/');
       return;
     }
 
-    // 4) Fallback: go to app landing
+    // 5) Fallback: go to app landing
     router.replace('/');
   };
 

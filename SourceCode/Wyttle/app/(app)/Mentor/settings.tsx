@@ -1,18 +1,21 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import * as ImagePicker from 'expo-image-picker';
 
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
+import { setThemeOverride } from '@/hooks/theme-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { commonStyles } from '../../../src/styles/common';
+import { useNavigationHistory } from '../../../src/lib/navigation-history';
 import { supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
+import { commonStyles } from '../../../src/styles/common';
 
 export default function MentorSettingsScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
+  const { resetHistory } = useNavigationHistory();
 
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
@@ -58,7 +61,10 @@ export default function MentorSettingsScreen() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.replace('/(auth)/sign-in');
+    // Clear any in-app navigation history so back from auth cannot
+    // jump into stale mentor routes after logging out.
+    resetHistory('/');
+    router.replace({ pathname: '/', params: { from: 'logout' } });
   };
 
   return (
@@ -78,8 +84,46 @@ export default function MentorSettingsScreen() {
           style={styles.avatar}
         />
         <TouchableOpacity onPress={handleChangePhoto}>
-          <Text style={styles.changePhotoText}>Change profile photo</Text>
+          <Text style={[styles.changePhotoText, { color: theme.tint }]}>Change profile photo</Text>
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.themeSection}>
+        <Text style={[styles.themeLabel, { color: theme.text }]}>Appearance</Text>
+        <View style={styles.themeButtonsRow}>
+          <TouchableOpacity
+            style={[
+              styles.themeChip,
+              colorScheme !== 'dark' && styles.themeChipActive,
+            ]}
+            onPress={() => setThemeOverride('light')}
+          >
+            <Text
+              style={[
+                styles.themeChipText,
+                colorScheme !== 'dark' && styles.themeChipTextActive,
+              ]}
+            >
+              Light
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.themeChip,
+              colorScheme === 'dark' && styles.themeChipActive,
+            ]}
+            onPress={() => setThemeOverride('dark')}
+          >
+            <Text
+              style={[
+                styles.themeChipText,
+                colorScheme === 'dark' && styles.themeChipTextActive,
+              ]}
+            >
+              Dark
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <TouchableOpacity style={styles.button} onPress={handleLogout}>
@@ -118,7 +162,36 @@ const styles = StyleSheet.create({
     backgroundColor: '#d9d9d9',
   },
   changePhotoText: {
-    color: '#1F2940',
     fontWeight: '600',
+  },
+  themeSection: {
+    marginTop: 24,
+    marginBottom: 8,
+  },
+  themeLabel: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  themeButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  themeChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#c6c1ae',
+  },
+  themeChipActive: {
+    backgroundColor: '#333f5c',
+    borderColor: '#333f5c',
+  },
+  themeChipText: {
+    fontSize: 13,
+    color: '#333f5c',
+  },
+  themeChipTextActive: {
+    color: '#fff',
   },
 });

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React from 'react';
+import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
@@ -8,201 +8,84 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../../src/lib/fonts';
 import { commonStyles } from '../../../src/styles/common';
-import { supabase } from '../../../src/lib/supabase';
 
-type MentorChatItem = {
-  requestId: number;
-  threadId: number;
-  otherUserId: string;
-  name: string;
-  photoUrl: string | null;
-  lastMessage: string | null;
-  lastMessageAt: string | null;
-};
+const MOCK_MENTOR_CONVERSATIONS = [
+  {
+    id: '1',
+    name: 'Sam Taylor',
+    role: 'Member  UX designer',
+    lastMessage: 'Thank you, this was super helpful.',
+    time: '5m',
+    unread: true,
+  },
+  {
+    id: '2',
+    name: 'Jamie Fox',
+    role: 'Member  Early career',
+    lastMessage: 'Can we talk about salary offers?',
+    time: '3h',
+    unread: false,
+  },
+  {
+    id: '3',
+    name: 'Robin Park',
+    role: 'Member  Portfolio review',
+    lastMessage: 'Just uploaded the latest version.',
+    time: 'Yesterday',
+    unread: false,
+  },
+] as const;
 
 export default function MentorConnectionsScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
 
-  const [chats, setChats] = useState<MentorChatItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          setChats([]);
-          return;
-        }
-
-        // 1) All mentor_requests for this mentor that have an associated thread
-        const { data: requests, error: reqError } = await supabase
-          .from('mentor_requests')
-          .select('id, mentee, mentor, thread_id, requested_at')
-          .eq('mentor', user.id)
-          .not('thread_id', 'is', null)
-          .order('requested_at', { ascending: false });
-
-        if (reqError) throw reqError;
-
-        if (!requests || requests.length === 0) {
-          if (!isMounted) return;
-          setChats([]);
-          return;
-        }
-
-        const menteeIds = Array.from(new Set(requests.map((r) => r.mentee)));
-
-        const { data: profiles, error: profileError } = await supabase
-          .from('profiles')
-          .select('id, full_name, photo_url')
-          .in('id', menteeIds);
-
-        if (profileError) throw profileError;
-
-        const profileMap: Record<string, { name: string; photoUrl: string | null }> = {};
-        (profiles ?? []).forEach((p) => {
-          profileMap[p.id] = {
-            name: p.full_name ?? 'Mentee',
-            photoUrl: p.photo_url ?? null,
-          };
-        });
-
-        const threadIds = Array.from(
-          new Set(requests.map((r) => r.thread_id).filter((id): id is number => id != null)),
-        );
-
-        let lastByThread: Record<number, { body: string; inserted_at: string }> = {};
-        if (threadIds.length > 0) {
-          const { data: msgs, error: msgError } = await supabase
-            .from('messages')
-            .select('id, thread_id, body, inserted_at')
-            .in('thread_id', threadIds)
-            .order('inserted_at', { ascending: false });
-
-          if (msgError) throw msgError;
-
-          (msgs ?? []).forEach((m) => {
-            if (!lastByThread[m.thread_id]) {
-              lastByThread[m.thread_id] = {
-                body: m.body,
-                inserted_at: m.inserted_at,
-              };
-            }
-          });
-        }
-
-        const chatItems: MentorChatItem[] = (requests ?? []).map((r) => {
-          const profile = profileMap[r.mentee] ?? { name: 'Mentee', photoUrl: null };
-          const last = r.thread_id ? lastByThread[r.thread_id] : undefined;
-          return {
-            requestId: r.id,
-            threadId: r.thread_id!,
-            otherUserId: r.mentee,
-            name: profile.name,
-            photoUrl: profile.photoUrl,
-            lastMessage: last?.body ?? null,
-            lastMessageAt: last?.inserted_at ?? null,
-          };
-        }).sort((a, b) => {
-          const ta = a.lastMessageAt ?? '';
-          const tb = b.lastMessageAt ?? '';
-          return ta < tb ? 1 : ta > tb ? -1 : 0;
-        });
-
-        if (!isMounted) return;
-        setChats(chatItems);
-      } catch (err: any) {
-        console.error('Failed to load mentor connections', err);
-        if (!isMounted) return;
-        setError(err.message ?? 'Failed to load connections');
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    load();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const openChat = (item: MentorChatItem) => {
-    router.push({
-      pathname: '/(app)/Mentor/chat',
-      params: {
-        threadId: String(item.threadId),
-        otherId: item.otherUserId,
-        name: item.name,
-      },
-    });
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScreenHeader
         title="Connections"
-        subtitle="Mentees who have booked sessions with you."
+        subtitle="Placeholder view of member chats and requests."
       />
 
-      {loading && (
-        <View style={{ paddingVertical: 16 }}>
-          <ActivityIndicator />
-        </View>
-      )}
-
-      {error && (
-        <Text style={{ color: 'red', marginBottom: 8 }}>{error}</Text>
-      )}
-
-      {chats.length === 0 && !loading ? (
-        <Text style={{ fontSize: 14, color: '#8f8e8e' }}>
-          No active mentee chats yet.
-        </Text>
-      ) : (
-        <FlatList
-          data={chats}
-          keyExtractor={(item) => String(item.threadId)}
-          contentContainerStyle={styles.listContent}
-          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <ConversationRow
-              name={item.name}
-              role="Mentee"
-              lastMessage={item.lastMessage ?? 'New mentorship request'}
-              time={item.lastMessageAt ? new Date(item.lastMessageAt).toLocaleTimeString() : ''}
-              photoUrl={item.photoUrl}
-              unread={false}
-              theme={theme}
-              onPress={() => openChat(item)}
-            />
-          )}
-        />
-      )}
+      {/* Conversation list (placeholder) */}
+      <FlatList
+        data={MOCK_MENTOR_CONVERSATIONS}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContent}
+        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+        showsVerticalScrollIndicator={false}
+        renderItem={({ item }) => (
+          <ConversationRow
+            name={item.name}
+            role={item.role}
+            lastMessage={item.lastMessage}
+            time={item.time}
+            unread={item.unread}
+            theme={theme}
+            onPress={() =>
+              router.push({
+                pathname: '/(app)/Mentor/chat',
+                params: { id: item.id, name: item.name },
+              })
+            }
+          />
+        )}
+      />
     </View>
   );
 }
+
 type ConversationRowProps = {
   name: string;
   role: string;
   lastMessage: string;
   time: string;
-  photoUrl?: string | null;
   unread?: boolean;
-  theme: (typeof Colors)[keyof typeof Colors];
+  theme: ReturnType<typeof Colors[string]>;
   onPress?: () => void;
 };
 
-function ConversationRow({ name, role, lastMessage, time, photoUrl, unread, theme, onPress }: ConversationRowProps) {
+function ConversationRow({ name, role, lastMessage, time, unread, theme, onPress }: ConversationRowProps) {
   const initials = name
     .split(' ')
     .map((n) => n.charAt(0))
@@ -213,13 +96,9 @@ function ConversationRow({ name, role, lastMessage, time, photoUrl, unread, them
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.75}>
       <View style={[styles.row, { backgroundColor: theme.card }]}> 
-        {/* Avatar */}
+        {/* Avatar placeholder */}
         <View style={styles.avatar}>
-          {photoUrl ? (
-            <Image source={{ uri: photoUrl }} style={styles.avatarImage} />
-          ) : (
-            <Text style={styles.avatarText}>{initials}</Text>
-          )}
+          <Text style={styles.avatarText}>{initials}</Text>
         </View>
 
       {/* Main text */}
@@ -280,11 +159,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '700',
-  },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 22,
   },
   rowMiddle: {
     flex: 1,

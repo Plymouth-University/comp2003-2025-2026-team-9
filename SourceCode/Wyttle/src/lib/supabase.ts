@@ -62,7 +62,7 @@ export async function fetchDiscoveryProfiles(): Promise<Profile[]> {
     .from('profiles')
     .select('id, full_name, title, industry, bio, photo_url, role')
     .neq('id', user.id)   // don’t show myself
-    .eq('role', 'member') // only show mentee/member profiles in discovery
+    .eq('role', 'member') // only show member profiles in discovery
     .order('created_at', { ascending: false });
 
   if (error) throw error;
