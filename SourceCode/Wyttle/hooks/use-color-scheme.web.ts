@@ -6,17 +6,19 @@ import { useThemeOverride } from './theme-store';
  * Web variant of useColorScheme that still respects the global theme
  * override, and only falls back to the RN color scheme after hydration.
  */
-export function useColorScheme() {
+export function useColorScheme(): 'light' | 'dark' | null {
   const [hasHydrated, setHasHydrated] = useState(false);
   const override = useThemeOverride();
+  const colorScheme = useRNColorScheme();
 
   useEffect(() => {
     setHasHydrated(true);
   }, []);
 
-  if (override) return override;
-
-  const colorScheme = useRNColorScheme();
+  // Always call all hooks above; only branch in returns below.
+  if (override) {
+    return override;
+  }
 
   if (hasHydrated) {
     return colorScheme;
