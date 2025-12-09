@@ -126,18 +126,13 @@ export async function uploadProfilePhoto(fileUri: string): Promise<string> {
 
   const filePath = `profiles/${user.id}.${fileExt}`;
 
-  // 1) Read the picked image as base64 from the local file system
-  const base64 = await FileSystem.readAsStringAsync(fileUri, {
-    encoding: 'base64',
-  });
+  // Read the picked image and convert to Blob (works in modern Expo)
+  const response = await fetch(fileUri);
+  const blob = await response.blob();
 
-  // 2) Convert base64 → ArrayBuffer (what Supabase storage expects)
-  const arrayBuffer = decode(base64);
-
-  // 3) Upload to the `avatars` bucket in Supabase
   const { error: uploadError } = await supabase.storage
     .from('avatars')
-    .upload(filePath, arrayBuffer, {
+    .upload(filePath, blob as any, {
       upsert: true,
       contentType,
     });
@@ -147,14 +142,14 @@ export async function uploadProfilePhoto(fileUri: string): Promise<string> {
     throw uploadError;
   }
 
-  // 4) Get a public URL for the uploaded file
+  // Get a public URL for the uploaded file
   const { data: publicData } = supabase.storage
     .from('avatars')
     .getPublicUrl(filePath);
 
   const publicUrl = publicData.publicUrl;
 
-  // 5) Store that URL in the user's profile row
+  // Store that URL in the user's profile row
   const { error: profileError } = await supabase
     .from('profiles')
     .update({ photo_url: publicUrl })

@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -17,7 +17,7 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../../src/lib/fonts';
 import { commonStyles } from '../../../src/styles/common';
-
+import { getCurrentUser, supabase } from '../../../src/lib/supabase';
 type Message = {
   id: string;
   from: 'me' | 'them';
@@ -25,15 +25,10 @@ type Message = {
   time: string;
 };
 
-const MOCK_MESSAGES: Message[] = [
-  { id: '1', from: 'them', text: "Hi, thanks for offering to mentor me!", time: '14:02' },
-  { id: '2', from: 'me', text: "Great to meet you. What would you like to focus on first?", time: '14:03' },
-  { id: '3', from: 'them', text: "I'm trying to move into a senior role this year.", time: '14:05' },
-  { id: '4', from: 'me', text: "Perfect, we can put a plan together.", time: '14:07' },
-];
-
 export default function MentorChatScreen() {
-  const params = useLocalSearchParams<{ id?: string; name?: string }>();
+  const params = useLocalSearchParams<{ threadId?: string; otherId?: string; name?: string }>();
+
+  const threadId = params.threadId ? Number(params.threadId) : null;
   const displayName =
     typeof params.name === 'string' && params.name.length > 0
       ? params.name
@@ -41,6 +36,78 @@ export default function MentorChatScreen() {
 
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
+
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [meId, setMeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const load = async () => {
+      if (!threadId) return;
+
+      const me = await getCurrentUser();
+      if (!isMounted) return;
+      setMeId(me.id);
+
+      const { data, error } = await supabase
+        .from('messages')
+        .select('id, sender, body, inserted_at')
+        .eq('thread_id', threadId)
+        .order('inserted_at', { ascending: true });
+
+      if (error) {
+        console.error('Failed to load messages', error);
+        return;
+      }
+
+      if (!isMounted) return;
+
+      const mapped: Message[] = (data ?? []).map((m) => ({
+        id: String(m.id),
+        from: m.sender === me.id ? 'me' : 'them',
+        text: m.body,
+        time: new Date(m.inserted_at).toLocaleTimeString(),
+      }));
+
+      setMessages(mapped);
+    };
+
+    load();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [threadId]);
+
+  const handleSend = async () => {
+    if (!threadId || !meId || !input.trim()) return;
+
+    const body = input.trim();
+    setInput('');
+
+    const { error } = await supabase.from('messages').insert({
+      thread_id: threadId,
+      sender: meId,
+      body,
+    });
+
+    if (error) {
+      console.error('Failed to send message', error);
+      return;
+    }
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: String(Date.now()),
+        from: 'me',
+        text: body,
+        time: new Date().toLocaleTimeString(),
+      },
+    ]);
+  };
 
   return (
     <KeyboardAvoidingView
@@ -62,22 +129,23 @@ export default function MentorChatScreen() {
 
         {/* Messages */}
         <FlatList
-          data={MOCK_MESSAGES}
+          data={messages}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => <MessageBubble message={item} theme={theme} />}
         />
 
-        {/* Composer (non-functional placeholder) */}
+        {/* Composer */}
         <View style={[styles.composer, { backgroundColor: theme.card }]}> 
           <TextInput
             style={[styles.input, { color: theme.text }]}
-            placeholder="Message (mock UI only)…"
+            placeholder="Message..."
             placeholderTextColor="#7f8186"
-            editable={false}
+            value={input}
+            onChangeText={setInput}
           />
-          <TouchableOpacity style={styles.sendButton} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.sendButton} activeOpacity={0.8} onPress={handleSend}>
             <Text style={styles.sendButtonText}>Send</Text>
           </TouchableOpacity>
         </View>
