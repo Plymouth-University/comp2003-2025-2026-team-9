@@ -1,9 +1,9 @@
 import { router } from 'expo-router';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
+import { useNavigationHistory } from '../../src/lib/navigation-history';
 import { supabase } from '../../src/lib/supabase';
 import { commonStyles } from '../../src/styles/common';
-import { useNavigationHistory } from '../../src/lib/navigation-history';
 
 export default function Profile() {
   const { resetHistory } = useNavigationHistory();
@@ -15,8 +15,8 @@ export default function Profile() {
       // ignore logout errors for now; navigation is enough for testing
     }
 
-    resetHistory('/(auth)/sign-in');
-    router.replace({ pathname: '/(auth)/sign-in', params: { from: 'logout' } });
+    resetHistory('/');
+    router.replace({ pathname: '/', params: { from: 'logout' } });
   };
 
   return (

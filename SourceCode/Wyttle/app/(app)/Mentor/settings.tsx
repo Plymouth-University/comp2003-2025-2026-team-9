@@ -1,16 +1,16 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import * as ImagePicker from 'expo-image-picker';
 
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { setThemeOverride } from '@/hooks/theme-store';
-import { commonStyles } from '../../../src/styles/common';
-import { supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useNavigationHistory } from '../../../src/lib/navigation-history';
+import { supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
+import { commonStyles } from '../../../src/styles/common';
 
 export default function MentorSettingsScreen() {
   const colorScheme = useColorScheme();
@@ -63,8 +63,8 @@ export default function MentorSettingsScreen() {
     await supabase.auth.signOut();
     // Clear any in-app navigation history so back from auth cannot
     // jump into stale mentor routes after logging out.
-    resetHistory('/(auth)/sign-in');
-    router.replace({ pathname: '/(auth)/sign-in', params: { from: 'logout' } });
+    resetHistory('/');
+    router.replace({ pathname: '/', params: { from: 'logout' } });
   };
 
   return (
