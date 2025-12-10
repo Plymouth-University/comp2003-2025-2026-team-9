@@ -7,8 +7,8 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../../src/lib/fonts';
-import { commonStyles } from '../../../src/styles/common';
 import { supabase } from '../../../src/lib/supabase';
+import { commonStyles } from '../../../src/styles/common';
 
 type MatchItem = {
   matchId: number;
@@ -210,7 +210,7 @@ export default function MenteeConnectionsScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScreenHeader
         title="Connections"
-        subtitle="Your peer matches and active chats."
+        subtitle="Your peer connections and active chats."
       />
 
       {loading && (
@@ -227,7 +227,7 @@ export default function MenteeConnectionsScreen() {
       <View style={styles.matchesSection}>
         <ThemedText style={[styles.matchesTitle, font('GlacialIndifference', '800')]}>Matches</ThemedText>
         {matches.length === 0 ? (
-          <Text style={styles.emptyText}>No matches yet – keep swiping in Discovery.</Text>
+          <Text style={styles.emptyText}>No connections yet – keep swiping in Discovery.</Text>
         ) : (
           <FlatList
             horizontal

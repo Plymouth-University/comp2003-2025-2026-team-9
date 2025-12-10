@@ -373,7 +373,7 @@ export default function DiscoveryStackScreen() {
                   { color: theme.text },
                 ]}
               >
-                It&apos;s a match!
+                You found a connection!
               </Text>
 
               <View style={styles.matchAvatarsRow}>
@@ -408,7 +408,7 @@ export default function DiscoveryStackScreen() {
                   { color: theme.text },
                 ]}
               >
-                You and {matchModalProfile.full_name ?? 'this member'} liked each other.
+                You and {matchModalProfile.full_name ?? 'this member'} are now connected!
               </Text>
 
               <TextInput
