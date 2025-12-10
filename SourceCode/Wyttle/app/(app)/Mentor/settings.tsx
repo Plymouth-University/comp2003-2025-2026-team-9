@@ -1,6 +1,16 @@
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -122,107 +132,119 @@ export default function MentorSettingsScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <ScreenHeader
-        title="Settings"
-        subtitle="Profile options, accessibility, switch account, and notifications will live here."
-      />
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={0}
+    >
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <ScreenHeader
+            title="Settings"
+            subtitle="Profile options, accessibility, switch account, and notifications will live here."
+          />
 
-      <View style={styles.profileSection}>
-        <Image
-          source={
-            photoUrl
-              ? { uri: photoUrl }
-              : { uri: 'https://placehold.co/96x96?text=Me' }
-          }
-          style={styles.avatar}
-        />
-        <TouchableOpacity onPress={handleChangePhoto}>
-          <Text style={[styles.changePhotoText, { color: theme.tint }]}>Change profile photo</Text>
-        </TouchableOpacity>
-      </View>
+          <View style={styles.profileSection}>
+            <Image
+              source={
+                photoUrl
+                  ? { uri: photoUrl }
+                  : { uri: 'https://placehold.co/96x96?text=Me' }
+              }
+              style={styles.avatar}
+            />
+            <TouchableOpacity onPress={handleChangePhoto}>
+              <Text style={[styles.changePhotoText, { color: theme.tint }]}>Change profile photo</Text>
+            </TouchableOpacity>
+          </View>
 
-      <View style={styles.profileDetailsSection}>
-        <Text style={[styles.themeLabel, { color: theme.text }]}>Profile details</Text>
-        <TextInput
-          style={[styles.textInput, { color: theme.text }]}
-          placeholder="Career / role title"
-          placeholderTextColor="#7f8186"
-          value={title}
-          onChangeText={setTitle}
-        />
-        <TextInput
-          style={[styles.textInput, { color: theme.text }]}
-          placeholder="Industry"
-          placeholderTextColor="#7f8186"
-          value={industry}
-          onChangeText={setIndustry}
-        />
-        <TextInput
-          style={[styles.textInput, { color: theme.text }]}
-          placeholder="Location"
-          placeholderTextColor="#7f8186"
-          value={location}
-          onChangeText={setLocation}
-        />
-        <TouchableOpacity style={styles.locationButton} onPress={handleUseMyLocation}>
-          <Text style={styles.locationButtonText}>Use my current location</Text>
-        </TouchableOpacity>
-        <TextInput
-          style={[styles.textArea, { color: theme.text }]}
-          placeholder="Short bio"
-          placeholderTextColor="#7f8186"
-          value={bio}
-          onChangeText={setBio}
-          multiline
-        />
-        <TouchableOpacity style={styles.saveButton} onPress={handleSaveProfile}>
-          <Text style={styles.saveButtonText}>Save profile</Text>
-        </TouchableOpacity>
-      </View>
+          <View style={styles.profileDetailsSection}>
+            <Text style={[styles.themeLabel, { color: theme.text }]}>Profile details</Text>
+            <TextInput
+              style={[styles.textInput, { color: theme.text }]}
+              placeholder="Career / role title"
+              placeholderTextColor="#7f8186"
+              value={title}
+              onChangeText={setTitle}
+            />
+            <TextInput
+              style={[styles.textInput, { color: theme.text }]}
+              placeholder="Industry"
+              placeholderTextColor="#7f8186"
+              value={industry}
+              onChangeText={setIndustry}
+            />
+            <TextInput
+              style={[styles.textInput, { color: theme.text }]}
+              placeholder="Location"
+              placeholderTextColor="#7f8186"
+              value={location}
+              onChangeText={setLocation}
+            />
+            <TouchableOpacity style={styles.locationButton} onPress={handleUseMyLocation}>
+              <Text style={styles.locationButtonText}>Use my current location</Text>
+            </TouchableOpacity>
+            <TextInput
+              style={[styles.textArea, { color: theme.text }]}
+              placeholder="Short bio"
+              placeholderTextColor="#7f8186"
+              value={bio}
+              onChangeText={setBio}
+              multiline
+            />
+            <TouchableOpacity style={styles.saveButton} onPress={handleSaveProfile}>
+              <Text style={styles.saveButtonText}>Save profile</Text>
+            </TouchableOpacity>
+          </View>
 
-      <View style={styles.themeSection}>
-        <Text style={[styles.themeLabel, { color: theme.text }]}>Appearance</Text>
-        <View style={styles.themeButtonsRow}>
-          <TouchableOpacity
-            style={[
-              styles.themeChip,
-              colorScheme !== 'dark' && styles.themeChipActive,
-            ]}
-            onPress={() => setThemeOverride('light')}
-          >
-            <Text
-              style={[
-                styles.themeChipText,
-                colorScheme !== 'dark' && styles.themeChipTextActive,
-              ]}
-            >
-              Light
-            </Text>
+          <View style={styles.themeSection}>
+            <Text style={[styles.themeLabel, { color: theme.text }]}>Appearance</Text>
+            <View style={styles.themeButtonsRow}>
+              <TouchableOpacity
+                style={[
+                  styles.themeChip,
+                  colorScheme !== 'dark' && styles.themeChipActive,
+                ]}
+                onPress={() => setThemeOverride('light')}
+              >
+                <Text
+                  style={[
+                    styles.themeChipText,
+                    colorScheme !== 'dark' && styles.themeChipTextActive,
+                  ]}
+                >
+                  Light
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.themeChip,
+                  colorScheme === 'dark' && styles.themeChipActive,
+                ]}
+                onPress={() => setThemeOverride('dark')}
+              >
+                <Text
+                  style={[
+                    styles.themeChipText,
+                    colorScheme === 'dark' && styles.themeChipTextActive,
+                  ]}
+                >
+                  Dark
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <TouchableOpacity style={styles.button} onPress={handleLogout}>
+            <Text style={styles.buttonText}>Log out</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.themeChip,
-              colorScheme === 'dark' && styles.themeChipActive,
-            ]}
-            onPress={() => setThemeOverride('dark')}
-          >
-            <Text
-              style={[
-                styles.themeChipText,
-                colorScheme === 'dark' && styles.themeChipTextActive,
-              ]}
-            >
-              Dark
-            </Text>
-          </TouchableOpacity>
-        </View>
+        </ScrollView>
       </View>
-
-      <TouchableOpacity style={styles.button} onPress={handleLogout}>
-        <Text style={styles.buttonText}>Log out</Text>
-      </TouchableOpacity>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -231,6 +253,10 @@ const styles = StyleSheet.create({
     ...commonStyles.screen,
     paddingHorizontal: 18,
     paddingBottom: 120,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 32,
   },
   button: {
     marginTop: 20,
