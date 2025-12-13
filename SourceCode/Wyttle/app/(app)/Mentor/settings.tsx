@@ -13,6 +13,7 @@ import {
 
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 import { ThemedText } from '@/components/themed-text';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
@@ -83,12 +84,6 @@ export default function MentorSettingsScreen() {
     }
   };
 
-  const handleLogout = async () => {
-    
-    resetHistory('/');
-    router.replace({ pathname: '/', params: { from: 'logout' } });
-  };
-
   // Toggle dropdown sections
   function toggleSection(id: string) {
     if (Platform.OS !== 'web') {
@@ -154,21 +149,30 @@ export default function MentorSettingsScreen() {
   function handleToggleEmail(enabled: boolean) {
     setEmailEnabled(enabled);
   }
-
- 
-
-  function handleSignOut() {
-    handleLogout();
-  }
+  const handleLogout = async () => {
+      await supabase.auth.signOut();
+      // Clear any in-app navigation history so back from auth cannot
+      // jump into stale member routes after logging out.
+      resetHistory('/');
+      router.replace({ pathname: '/', params: { from: 'logout' } });
+    };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <ScreenHeader
-        title="Settings"
-        subtitle="Profile options, accessibility, switch account, and notifications will live here."
-      />
+      <KeyboardAwareScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        extraScrollHeight={20}
+      >
+        <ScreenHeader
+          title="Settings"
+          subtitle="Profile options, accessibility, switch account, and notifications will live here."
+        />
 
-      <View style={styles.profileSection}>
+        <View style={styles.profileSection}>
         <Image
           source={
             photoUrl
@@ -270,8 +274,7 @@ export default function MentorSettingsScreen() {
           <ThemedText style={styles.itemText}>Add account</ThemedText>
         </TouchableOpacity>
       </SettingsDropdown>
-
-      
+      </KeyboardAwareScrollView>
     </View>
   );
 }
@@ -285,6 +288,10 @@ const styles = StyleSheet.create({
     ...commonStyles.screen,
     paddingHorizontal: 18,
     paddingBottom: 120,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 32,
   },
   button: {
     marginTop: 20,

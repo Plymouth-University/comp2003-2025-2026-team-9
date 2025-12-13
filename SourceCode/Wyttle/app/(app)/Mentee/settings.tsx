@@ -2,9 +2,6 @@ import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -14,6 +11,7 @@ import {
 
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
@@ -132,21 +130,19 @@ export default function MenteeSettingsScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={0}
-    >
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <ScreenHeader
-            title="Settings"
-            subtitle="Profile options, accessibility, account, tokens, and notifications will live here."
-          />
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <KeyboardAwareScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        extraScrollHeight={20}
+      >
+        <ScreenHeader
+          title="Settings"
+          subtitle="Profile options, accessibility, account, tokens, and notifications will live here."
+        />
 
           <View style={styles.profileSection}>
             <Image
@@ -242,9 +238,8 @@ export default function MenteeSettingsScreen() {
           <TouchableOpacity style={styles.button} onPress={handleLogout}>
             <Text style={styles.buttonText}>Log out</Text>
           </TouchableOpacity>
-        </ScrollView>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 
