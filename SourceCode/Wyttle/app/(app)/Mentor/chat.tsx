@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -25,6 +26,8 @@ type Message = {
   from: 'me' | 'them';
   text: string;
   time: string;
+  deleted?: boolean;
+  edited?: boolean;
 };
 
 export default function MentorChatScreen() {
@@ -44,6 +47,8 @@ export default function MentorChatScreen() {
   const [input, setInput] = useState('');
   const [meId, setMeId] = useState<string | null>(null);
   const [otherProfile, setOtherProfile] = useState<Profile | null>(null);
+  const listRef = useRef<FlatList<Message>>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
 
   const displayName = otherProfile?.full_name ?? fallbackName;
 
@@ -70,7 +75,7 @@ export default function MentorChatScreen() {
 
       const { data, error } = await supabase
         .from('messages')
-        .select('id, sender, body, inserted_at')
+.select('id, sender, body, inserted_at, edited_at, deleted_at')
         .eq('thread_id', threadId)
         .order('inserted_at', { ascending: true });
 
@@ -81,12 +86,21 @@ export default function MentorChatScreen() {
 
       if (!isMounted) return;
 
-      const mapRow = (m: any): Message => ({
-        id: String(m.id),
-        from: m.sender === me.id ? 'me' : 'them',
-        text: m.body,
-        time: new Date(m.inserted_at).toLocaleTimeString(),
-      });
+      const mapRow = (m: any): Message => {
+        const deleted = !!m.deleted_at;
+        const edited = !!m.edited_at;
+        return {
+          id: String(m.id),
+          from: m.sender === me.id ? 'me' : 'them',
+          text: deleted ? 'Message deleted' : m.body,
+          time: new Date(m.inserted_at).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+          deleted,
+          edited,
+        };
+      };
 
       const mapped: Message[] = (data ?? []).map(mapRow);
       setMessages(mapped);
@@ -103,6 +117,14 @@ export default function MentorChatScreen() {
               if (prev.some((m) => m.id === idStr)) return prev;
               return [...prev, mapRow(row)];
             });
+          },
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'messages', filter: `thread_id=eq.${threadId}` },
+          (payload) => {
+            const row = payload.new as any;
+            setMessages((prev) => prev.map((m) => (m.id === String(row.id) ? mapRow(row) : m)));
           },
         )
         .subscribe();
@@ -126,6 +148,45 @@ export default function MentorChatScreen() {
     const body = input.trim();
     setInput('');
 
+    if (editingMessageId) {
+      const { data, error } = await supabase
+        .from('messages')
+        .update({
+          body,
+          edited_at: new Date().toISOString(),
+          deleted_at: null,
+        })
+        .eq('id', editingMessageId)
+        .select('id, sender, body, inserted_at, edited_at, deleted_at')
+        .single();
+
+      if (error) {
+        console.error('Failed to edit message', error);
+        return;
+      }
+
+      setEditingMessageId(null);
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === String(data.id)
+            ? {
+                id: String(data.id),
+                from: data.sender === meId ? 'me' : 'them',
+                text: data.body,
+                time: new Date(data.inserted_at).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }),
+                deleted: !!data.deleted_at,
+                edited: !!data.edited_at,
+              }
+            : m,
+        ),
+      );
+      return;
+    }
+
     const { data, error } = await supabase
       .from('messages')
       .insert({
@@ -133,7 +194,7 @@ export default function MentorChatScreen() {
         sender: meId,
         body,
       })
-      .select('id, sender, body, inserted_at')
+      .select('id, sender, body, inserted_at, edited_at, deleted_at')
       .single();
 
     if (error) {
@@ -141,22 +202,91 @@ export default function MentorChatScreen() {
       return;
     }
 
+    const deleted = !!data.deleted_at;
+    const edited = !!data.edited_at;
     setMessages((prev) => [
       ...prev,
       {
         id: String(data.id),
         from: data.sender === meId ? 'me' : 'them',
-        text: data.body,
-        time: new Date(data.inserted_at).toLocaleTimeString(),
+        text: deleted ? 'Message deleted' : data.body,
+        time: new Date(data.inserted_at).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        deleted,
+        edited,
       },
     ]);
   };
 
+  const handleMessageLongPress = (message: Message) => {
+    if (message.from !== 'me' || message.deleted) return;
+
+    Alert.alert(
+      'Message options',
+      undefined,
+      [
+        {
+          text: 'Edit',
+          onPress: () => {
+            setInput(message.text);
+            setEditingMessageId(message.id);
+          },
+        },
+        {
+          text: 'Unsend',
+          style: 'destructive',
+          onPress: async () => {
+            if (!threadId || !meId) return;
+            try {
+              const { data, error } = await supabase
+                .from('messages')
+                .update({ body: '', deleted_at: new Date().toISOString() })
+                .eq('id', message.id)
+                .select('id, sender, body, inserted_at, edited_at, deleted_at')
+                .single();
+              if (error) throw error;
+
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === String(data.id)
+                    ? {
+                        id: String(data.id),
+                        from: data.sender === meId ? 'me' : 'them',
+                        text: 'Message deleted',
+                        time: new Date(data.inserted_at).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        }),
+                        deleted: true,
+                        edited: false,
+                      }
+                    : m,
+                ),
+              );
+            } catch (err) {
+              console.error('Failed to unsend message', err);
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+      { cancelable: true },
+    );
+  };
+
+  useEffect(() => {
+    if (listRef.current && messages.length > 0) {
+      listRef.current.scrollToEnd({ animated: true });
+    }
+  }, [messages]);
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={80}
     >
       <View style={[styles.container, { backgroundColor: theme.background }]}> 
         {/* Header */}
@@ -194,11 +324,14 @@ export default function MentorChatScreen() {
 
         {/* Messages */}
         <FlatList
+          ref={listRef}
           data={messages}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => <MessageBubble message={item} theme={theme} />}
+          renderItem={({ item }) => (
+            <MessageBubble message={item} theme={theme} onLongPress={handleMessageLongPress} />
+          )}
         />
 
         {/* Composer */}
@@ -222,13 +355,16 @@ export default function MentorChatScreen() {
 type MessageBubbleProps = {
   message: Message;
   theme: ReturnType<typeof Colors[string]>;
+  onLongPress?: (message: Message) => void;
 };
 
-function MessageBubble({ message, theme }: MessageBubbleProps) {
+function MessageBubble({ message, theme, onLongPress }: MessageBubbleProps) {
   const isMe = message.from === 'me';
 
   return (
-    <View
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onLongPress={() => onLongPress?.(message)}
       style={[
         styles.bubbleRow,
         {
@@ -254,7 +390,7 @@ function MessageBubble({ message, theme }: MessageBubbleProps) {
         </Text>
         <Text style={styles.bubbleTime}>{message.time}</Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 

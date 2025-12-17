@@ -39,6 +39,7 @@ export default function MenteeConnectionsScreen() {
 
   useEffect(() => {
     let isMounted = true;
+    let channel: any | null = null;
 
     const load = async () => {
       setLoading(true);
@@ -162,10 +163,45 @@ export default function MenteeConnectionsScreen() {
       }
     };
 
+    const setupRealtime = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        channel = supabase
+          .channel(`mentee-connections-${user.id}`)
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'peer_matches' },
+            () => {
+              if (isMounted) {
+                load();
+              }
+            },
+          )
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'messages' },
+            () => {
+              if (isMounted) {
+                load();
+              }
+            },
+          )
+          .subscribe();
+      } catch (err) {
+        console.warn('Failed to set up realtime for mentee connections', err);
+      }
+    };
+
     load();
+    setupRealtime();
 
     return () => {
       isMounted = false;
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, []);
 

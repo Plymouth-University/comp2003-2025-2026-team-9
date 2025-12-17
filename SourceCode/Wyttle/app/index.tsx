@@ -12,6 +12,14 @@ import { ThemedText } from '@/components/themed-text';
 import { font } from '../src/lib/fonts';
 import { commonStyles } from '../src/styles/common';
 
+/*Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});*/
+
 export default function Index() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
