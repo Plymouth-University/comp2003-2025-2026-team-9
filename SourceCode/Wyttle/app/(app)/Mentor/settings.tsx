@@ -23,24 +23,25 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useNavigationHistory } from '../../../src/lib/navigation-history';
 import { supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
+import { TextInput } from 'react-native';
+import * as Location from 'expo-location';
 
 // Declare constants for layout animation
 export default function MentorSettingsScreen() {
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [openSection, setOpenSection] = useState<string | null>(null);
+  const [pushEnabled, setPushEnabled] = useState<boolean>(true);
+  const [emailEnabled, setEmailEnabled] = useState<boolean>(false);
+  const [largeText, setLargeText] = useState<boolean>(false);
+
+  const [title, setTitle] = useState('');
+  const [industry, setIndustry] = useState('');
+  const [location, setLocation] = useState('');
+  const [bio, setBio] = useState('');
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   const { resetHistory } = useNavigationHistory();
-
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-
-  
-  const [openSection, setOpenSection] = useState<string | null>(null);
-
-  
-  const [pushEnabled, setPushEnabled] = useState<boolean>(true);
-  const [emailEnabled, setEmailEnabled] = useState<boolean>(false);
-
-  // Accessibility demo state (text size)
-  const [largeText, setLargeText] = useState<boolean>(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
 
 
 
@@ -149,10 +150,51 @@ export default function MentorSettingsScreen() {
   function handleToggleEmail(enabled: boolean) {
     setEmailEnabled(enabled);
   }
+ 
+  const handleSaveProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    await supabase
+      .from('profiles')
+      .update({
+        title: title.trim() || null,
+        industry: industry.trim() || null,
+        location: location.trim() || null,
+        bio: bio.trim() || null,
+      })
+      .eq('id', user.id);
+  };
+  
+  const handleUseMyLocation = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted')  return;
+
+    const pos = await Location.getCurrentPositionAsync({});
+    const [place] = await Location.reverseGeocodeAsync(pos.coords);
+    const friendly = [place?.city, place?.region, place?.country]
+      .filter(Boolean)
+      .join(', ');
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    await supabase
+      .from('profiles')
+      .update({
+        location: friendly || null,
+        latitude: pos.coords.latitude, 
+        longitude: pos.coords.longitude,
+      })
+      .eq('id', user.id);
+
+    setLocation(friendly || '');
+  };
+
+
+  {/*Functio to handle the user logging out of their account*/}
   const handleLogout = async () => {
       await supabase.auth.signOut();
-      // Clear any in-app navigation history so back from auth cannot
-      // jump into stale member routes after logging out.
       resetHistory('/');
       router.replace({ pathname: '/', params: { from: 'logout' } });
     };
@@ -226,13 +268,70 @@ export default function MentorSettingsScreen() {
 
       {/* Settings dropdowns */}
       <SettingsDropdown id="profiles" title="Profile Options">
-        <TouchableOpacity style={styles.itemRow} onPress={() => router.push('/(app)/profile')}>
+        <TouchableOpacity
+          style={styles.itemRow}
+          onPress={async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              router.push({
+                pathname: '/(app)/profile-view',
+                params: { userId: user.id },
+              });
+            }
+          }}
+        >
           <ThemedText style={styles.itemText}>View profile</ThemedText>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.itemRow} onPress={() => router.push('/(app)/profile' as any)}>
+        <TouchableOpacity
+          style={styles.itemRow}
+          onPress={() => setIsEditingProfile((prev) => !prev)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: isEditingProfile }}
+        >
+        
           <ThemedText style={styles.itemText}>Edit profile</ThemedText>
         </TouchableOpacity>
+                {isEditingProfile && (
+                  <View style={styles.profileDetailsSection}>
+                    <Text style={[styles.themeLabel, { color: theme.text }]}>Profile details</Text>
+                    <TextInput
+                      style={[styles.textInput, { color: theme.text }]}
+                      placeholder="Career / role title"
+                      placeholderTextColor="#7f8186"
+                      value={title}
+                      onChangeText={setTitle}
+                    />
+                    <TextInput
+                      style={[styles.textInput, { color: theme.text }]}
+                      placeholder="Industry"
+                      placeholderTextColor="#7f8186"
+                      value={industry}
+                      onChangeText={setIndustry}
+                    />
+                    <TextInput
+                      style={[styles.textInput, { color: theme.text }]}
+                      placeholder="Location"
+                      placeholderTextColor="#7f8186"
+                      value={location}
+                      onChangeText={setLocation}
+                    />
+                    <TouchableOpacity style={styles.locationButton} onPress={handleUseMyLocation}>
+                      <Text style={styles.locationButtonText}>Use my current location</Text>
+                    </TouchableOpacity>
+                    <TextInput
+                      style={[styles.textArea, { color: theme.text }]}
+                      placeholder="Short bio"
+                      placeholderTextColor="#7f8186"
+                      value={bio}
+                      onChangeText={setBio}
+                      multiline
+                    />
+                    <TouchableOpacity style={styles.saveButton} onPress={handleSaveProfile}>
+                      <Text style={styles.saveButtonText}>Save profile</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
 
         <TouchableOpacity style={styles.itemRow} onPress={() => router.push('/(app)/profile' as any)}>
           <ThemedText style={styles.itemText}>Manage public info</ThemedText>
@@ -390,6 +489,50 @@ itemRowWithSwitch: {
   flexDirection: 'row',
   alignItems: 'center',
   justifyContent: 'space-between',
+},
+profileDetailsSection: {
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  gap: 10,
+},
+textInput: {
+  borderWidth: 1,
+  borderColor: '#c6c1ae',
+  borderRadius: 10,
+  paddingHorizontal: 12,
+  paddingVertical: 10,
+  fontSize: 15,
+},
+textArea: {
+  borderWidth: 1,
+  borderColor: '#c6c1ae',
+  borderRadius: 10,
+  paddingHorizontal: 12,
+  paddingVertical: 12,
+  fontSize: 15,
+  minHeight: 90,
+  textAlignVertical: 'top',
+},
+locationButton: {
+  paddingVertical: 12,
+  paddingHorizontal: 12,
+  borderRadius: 10,
+  backgroundColor: '#1F2940',
+},
+locationButtonText: {
+  color: '#fff',
+  fontWeight: '600',
+  textAlign: 'center',
+},
+saveButton: {
+  paddingVertical: 14,
+  borderRadius: 10,
+  backgroundColor: '#333f5c',
+  alignItems: 'center',
+},
+saveButtonText: {
+  color: '#fff',
+  fontWeight: '700',
 },
 });
 
