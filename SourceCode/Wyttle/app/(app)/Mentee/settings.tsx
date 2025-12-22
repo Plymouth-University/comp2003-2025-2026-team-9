@@ -2,17 +2,20 @@ import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Image,
+  LayoutAnimation,
+  Platform,
   StyleSheet,
+  Switch,
   Text,
-  TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
+import { ThemedText } from '@/components/themed-text';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { setThemeOverride } from '@/hooks/theme-store';
@@ -20,17 +23,27 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useNavigationHistory } from '../../../src/lib/navigation-history';
 import { supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
+import { TextInput } from 'react-native';
+import * as Location from 'expo-location';
 
+// Declare constants for layout animation
 export default function MenteeSettingsScreen() {
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
-  const { resetHistory } = useNavigationHistory();
-
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [openSection, setOpenSection] = useState<string | null>(null);
+  const [pushEnabled, setPushEnabled] = useState<boolean>(true);
+  const [emailEnabled, setEmailEnabled] = useState<boolean>(false);
+  const [largeText, setLargeText] = useState<boolean>(false);
+
   const [title, setTitle] = useState('');
   const [industry, setIndustry] = useState('');
   const [location, setLocation] = useState('');
   const [bio, setBio] = useState('');
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? 'light'];
+  const { resetHistory } = useNavigationHistory();
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+
+
 
   useEffect(() => {
     (async () => {
@@ -39,17 +52,11 @@ export default function MenteeSettingsScreen() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('photo_url, title, industry, location, bio')
+        .select('photo_url')
         .eq('id', user.id)
         .maybeSingle();
 
-      if (profile) {
-        setPhotoUrl(profile.photo_url ?? null);
-        setTitle(profile.title ?? '');
-        setIndustry(profile.industry ?? '');
-        setLocation((profile as any).location ?? '');
-        setBio(profile.bio ?? '');
-      }
+      setPhotoUrl(profile?.photo_url ?? null);
     })();
   }, []);
 
@@ -78,6 +85,72 @@ export default function MenteeSettingsScreen() {
     }
   };
 
+  // Toggle dropdown sections
+  function toggleSection(id: string) {
+    if (Platform.OS !== 'web') {
+      // enable smooth layout
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    }
+    setOpenSection((prev) => (prev === id ? null : id));
+  }
+
+  // Reusable component for rendering dropdowns
+  function SettingsDropdown({
+    id,
+    title,
+    children,
+  }: {
+    id: string;
+    title: string;
+    children?: React.ReactNode;
+  }) {
+    const open = openSection === id;
+
+    return (
+      <View style={[styles.dropdownContainer, { backgroundColor: theme.card }]}>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => toggleSection(id)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          style={[styles.sectionHeader, { borderBottomColor: theme.text + '0F' }]}
+        >
+          <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
+            {title}
+          </ThemedText>
+
+          {/* icon rotates based on open/closed state */}
+          <Ionicons
+            name={open ? 'chevron-up' : 'chevron-down'}
+            size={20}
+            color={theme.text}
+            style={styles.chevron}
+          />
+        </TouchableOpacity>
+
+        {/* Show items only if the section is open */}
+        {open ? <View style={styles.itemsContainer}>{children}</View> : null}
+      </View>
+    );
+  }
+
+  // Handlers used by toggles and accessibility items
+  function handleOpenTextSize() {
+    setLargeText((s) => !s);
+  }
+
+  function toggleHighContrast() {
+    setThemeOverride(colorScheme === 'dark' ? 'light' : 'dark');
+  }
+
+  function handleTogglePush(enabled: boolean) {
+    setPushEnabled(enabled);
+  }
+
+  function handleToggleEmail(enabled: boolean) {
+    setEmailEnabled(enabled);
+  }
+ 
   const handleSaveProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -92,17 +165,14 @@ export default function MenteeSettingsScreen() {
       })
       .eq('id', user.id);
   };
-
+  
   const handleUseMyLocation = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      return;
-    }
+    if (status !== 'granted')  return;
 
     const pos = await Location.getCurrentPositionAsync({});
     const [place] = await Location.reverseGeocodeAsync(pos.coords);
-
-    const friendly = [place.city, place.region, place.country]
+    const friendly = [place?.city, place?.region, place?.country]
       .filter(Boolean)
       .join(', ');
 
@@ -112,22 +182,22 @@ export default function MenteeSettingsScreen() {
     await supabase
       .from('profiles')
       .update({
-        location: friendly,
-        latitude: pos.coords.latitude,
+        location: friendly || null,
+        latitude: pos.coords.latitude, 
         longitude: pos.coords.longitude,
       })
       .eq('id', user.id);
 
-    setLocation(friendly);
+    setLocation(friendly || '');
   };
 
+
+  {/*Functio to handle the user logging out of their account*/}
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    // Clear any in-app navigation history so back from auth cannot
-    // jump into stale member routes after logging out.
-    resetHistory('/');
-    router.replace({ pathname: '/', params: { from: 'logout' } });
-  };
+      await supabase.auth.signOut();
+      resetHistory('/');
+      router.replace({ pathname: '/', params: { from: 'logout' } });
+    };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -141,107 +211,176 @@ export default function MenteeSettingsScreen() {
       >
         <ScreenHeader
           title="Settings"
-          subtitle="Profile options, accessibility, account, tokens, and notifications will live here."
+          subtitle="Profile options, accessibility, switch account, and notifications will live here."
         />
 
-          <View style={styles.profileSection}>
-            <Image
-              source={
-                photoUrl
-                  ? { uri: photoUrl }
-                  : { uri: 'https://placehold.co/96x96?text=Me' }
-              }
-              style={styles.avatar}
-            />
-            <TouchableOpacity onPress={handleChangePhoto}>
-              <Text style={[styles.changePhotoText, { color: theme.tint }]}>Change profile photo</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.profileSection}>
+        <Image
+          source={
+            photoUrl
+              ? { uri: photoUrl }
+              : { uri: 'https://placehold.co/96x96?text=Me' }
+          }
+          style={styles.avatar}
+        />
+        <TouchableOpacity onPress={handleChangePhoto}>
+          <Text style={[styles.changePhotoText, { color: theme.tint }]}>Change profile photo</Text>
+        </TouchableOpacity>
+      </View>
 
-          <View style={styles.profileDetailsSection}>
-            <Text style={[styles.themeLabel, { color: theme.text }]}>Profile details</Text>
-            <TextInput
-              style={[styles.textInput, { color: theme.text }]}
-              placeholder="Career / role title"
-              placeholderTextColor="#7f8186"
-              value={title}
-              onChangeText={setTitle}
-            />
-            <TextInput
-              style={[styles.textInput, { color: theme.text }]}
-              placeholder="Industry"
-              placeholderTextColor="#7f8186"
-              value={industry}
-              onChangeText={setIndustry}
-            />
-            <TextInput
-              style={[styles.textInput, { color: theme.text }]}
-              placeholder="Location"
-              placeholderTextColor="#7f8186"
-              value={location}
-              onChangeText={setLocation}
-            />
-            <TouchableOpacity style={styles.locationButton} onPress={handleUseMyLocation}>
-              <Text style={styles.locationButtonText}>Use my current location</Text>
-            </TouchableOpacity>
-            <TextInput
-              style={[styles.textArea, { color: theme.text }]}
-              placeholder="Short bio"
-              placeholderTextColor="#7f8186"
-              value={bio}
-              onChangeText={setBio}
-              multiline
-            />
-            <TouchableOpacity style={styles.saveButton} onPress={handleSaveProfile}>
-              <Text style={styles.saveButtonText}>Save profile</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.themeSection}>
-            <Text style={[styles.themeLabel, { color: theme.text }]}>Appearance</Text>
-            <View style={styles.themeButtonsRow}>
-              <TouchableOpacity
-                style={[
-                  styles.themeChip,
-                  colorScheme !== 'dark' && styles.themeChipActive,
-                ]}
-                onPress={() => setThemeOverride('light')}
-              >
-                <Text
-                  style={[
-                    styles.themeChipText,
-                    colorScheme !== 'dark' && styles.themeChipTextActive,
-                  ]}
-                >
-                  Light
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.themeChip,
-                  colorScheme === 'dark' && styles.themeChipActive,
-                ]}
-                onPress={() => setThemeOverride('dark')}
-              >
-                <Text
-                  style={[
-                    styles.themeChipText,
-                    colorScheme === 'dark' && styles.themeChipTextActive,
-                  ]}
-                >
-                  Dark
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <TouchableOpacity style={styles.button} onPress={handleLogout}>
-            <Text style={styles.buttonText}>Log out</Text>
+      <View style={styles.themeSection}>
+        <Text style={[styles.themeLabel, { color: theme.text }]}>Appearance</Text>
+        <View style={styles.themeButtonsRow}>
+          <TouchableOpacity
+            style={[
+              styles.themeChip,
+              colorScheme !== 'dark' && styles.themeChipActive,
+            ]}
+            onPress={() => setThemeOverride('light')}
+          >
+            <Text
+              style={[
+                styles.themeChipText,
+                colorScheme !== 'dark' && styles.themeChipTextActive,
+              ]}
+            >
+              Light
+            </Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.themeChip,
+              colorScheme === 'dark' && styles.themeChipActive,
+            ]}
+            onPress={() => setThemeOverride('dark')}
+          >
+            <Text
+              style={[
+                styles.themeChipText,
+                colorScheme === 'dark' && styles.themeChipTextActive,
+              ]}
+            >
+              Dark
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Settings dropdowns */}
+      <SettingsDropdown id="profiles" title="Profile Options">
+        <TouchableOpacity
+          style={styles.itemRow}
+          onPress={async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              router.push({
+                pathname: '/(app)/profile-view',
+                params: { userId: user.id },
+              });
+            }
+          }}
+        >
+          <ThemedText style={styles.itemText}>View profile</ThemedText>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.itemRow}
+          onPress={() => setIsEditingProfile((prev) => !prev)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: isEditingProfile }}
+        >
+        
+          <ThemedText style={styles.itemText}>Edit profile</ThemedText>
+        </TouchableOpacity>
+                {isEditingProfile && (
+                  <View style={styles.profileDetailsSection}>
+                    <Text style={[styles.themeLabel, { color: theme.text }]}>Profile details</Text>
+                    <TextInput
+                      style={[styles.textInput, { color: theme.text }]}
+                      placeholder="Career / role title"
+                      placeholderTextColor="#7f8186"
+                      value={title}
+                      onChangeText={setTitle}
+                    />
+                    <TextInput
+                      style={[styles.textInput, { color: theme.text }]}
+                      placeholder="Industry"
+                      placeholderTextColor="#7f8186"
+                      value={industry}
+                      onChangeText={setIndustry}
+                    />
+                    <TextInput
+                      style={[styles.textInput, { color: theme.text }]}
+                      placeholder="Location"
+                      placeholderTextColor="#7f8186"
+                      value={location}
+                      onChangeText={setLocation}
+                    />
+                    <TouchableOpacity style={styles.locationButton} onPress={handleUseMyLocation}>
+                      <Text style={styles.locationButtonText}>Use my current location</Text>
+                    </TouchableOpacity>
+                    <TextInput
+                      style={[styles.textArea, { color: theme.text }]}
+                      placeholder="Short bio"
+                      placeholderTextColor="#7f8186"
+                      value={bio}
+                      onChangeText={setBio}
+                      multiline
+                    />
+                    <TouchableOpacity style={styles.saveButton} onPress={handleSaveProfile}>
+                      <Text style={styles.saveButtonText}>Save profile</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+        <TouchableOpacity style={styles.itemRow} onPress={() => router.push('/(app)/profile' as any)}>
+          <ThemedText style={styles.itemText}>Manage public info</ThemedText>
+        </TouchableOpacity>
+      </SettingsDropdown>
+
+      <SettingsDropdown id="accessibility" title="Accessibility">
+        <TouchableOpacity style={styles.itemRow} onPress={() => handleOpenTextSize()}>
+          <ThemedText style={styles.itemText}>Text size</ThemedText>
+          <ThemedText style={styles.itemSubText}>{largeText ? 'Large' : 'Default'}</ThemedText>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.itemRow} onPress={() => toggleHighContrast()}>
+          <ThemedText style={styles.itemText}>High contrast (theme)</ThemedText>
+        </TouchableOpacity>
+      </SettingsDropdown>
+
+      <SettingsDropdown id="notifications" title="Notifications">
+        <View style={styles.itemRowWithSwitch}>
+          <ThemedText style={styles.itemText}>Push notifications</ThemedText>
+          <Switch value={pushEnabled} onValueChange={handleTogglePush} />
+        </View>
+
+        <View style={styles.itemRowWithSwitch}>
+          <ThemedText style={styles.itemText}>Email notifications</ThemedText>
+          <Switch value={emailEnabled} onValueChange={handleToggleEmail} />
+        </View>
+      </SettingsDropdown>
+
+      {/* Switch accounts */}
+      <SettingsDropdown id="switch_accounts" title="Switch Accounts">
+        <TouchableOpacity style={styles.itemRow} onPress={handleLogout}>
+          <ThemedText style={styles.itemText}>Sign out</ThemedText>
+        </TouchableOpacity>
+
+
+      {/* Add account */}
+        <TouchableOpacity style={styles.itemRow} onPress={() => router.push('/(auth)/sign-up' as any)}>
+          <ThemedText style={styles.itemText}>Add account</ThemedText>
+        </TouchableOpacity>
+      </SettingsDropdown>
       </KeyboardAwareScrollView>
     </View>
   );
 }
+
+ 
+
+{/* Style sheets */}
 
 const styles = StyleSheet.create({
   container: {
@@ -278,51 +417,6 @@ const styles = StyleSheet.create({
   changePhotoText: {
     fontWeight: '600',
   },
-  profileDetailsSection: {
-    marginTop: 16,
-  },
-  textInput: {
-    marginTop: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontSize: 14,
-  },
-  textArea: {
-    marginTop: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontSize: 14,
-    minHeight: 72,
-    textAlignVertical: 'top',
-  },
-  saveButton: {
-    marginTop: 12,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: '#333f5c',
-  },
-  saveButtonText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  locationButton: {
-    marginTop: 6,
-    alignSelf: 'flex-start',
-  },
-  locationButtonText: {
-    fontSize: 12,
-    color: '#333f5c',
-    textDecorationLine: 'underline',
-  },
   themeSection: {
     marginTop: 24,
     marginBottom: 8,
@@ -353,4 +447,93 @@ const styles = StyleSheet.create({
   themeChipTextActive: {
     color: '#fff',
   },
+  dropdownContainer: {
+  marginBottom: 12,
+  marginTop: 8,
+  borderRadius: 10,
+  overflow: 'hidden',
+},
+sectionHeader: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  paddingVertical: 16,
+  paddingHorizontal: 12,
+  borderBottomWidth: 1,
+},
+sectionTitle: {
+  fontSize: 16,
+},
+chevron: {
+  marginLeft: 12,
+},
+itemsContainer: {
+  paddingVertical: 6,
+},
+itemRow: {
+  paddingVertical: 14,
+  paddingHorizontal: 12,
+  flexDirection: 'row',
+  alignItems: 'center',
+},
+itemText: {
+  fontSize: 15,
+},
+itemSubText: {
+  marginLeft: 'auto',
+  fontSize: 13,
+},
+itemRowWithSwitch: {
+  paddingVertical: 14,
+  paddingHorizontal: 12,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+},
+profileDetailsSection: {
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  gap: 10,
+},
+textInput: {
+  borderWidth: 1,
+  borderColor: '#c6c1ae',
+  borderRadius: 10,
+  paddingHorizontal: 12,
+  paddingVertical: 10,
+  fontSize: 15,
+},
+textArea: {
+  borderWidth: 1,
+  borderColor: '#c6c1ae',
+  borderRadius: 10,
+  paddingHorizontal: 12,
+  paddingVertical: 12,
+  fontSize: 15,
+  minHeight: 90,
+  textAlignVertical: 'top',
+},
+locationButton: {
+  paddingVertical: 12,
+  paddingHorizontal: 12,
+  borderRadius: 10,
+  backgroundColor: '#1F2940',
+},
+locationButtonText: {
+  color: '#fff',
+  fontWeight: '600',
+  textAlign: 'center',
+},
+saveButton: {
+  paddingVertical: 14,
+  borderRadius: 10,
+  backgroundColor: '#333f5c',
+  alignItems: 'center',
+},
+saveButtonText: {
+  color: '#fff',
+  fontWeight: '700',
+},
 });
+
+
