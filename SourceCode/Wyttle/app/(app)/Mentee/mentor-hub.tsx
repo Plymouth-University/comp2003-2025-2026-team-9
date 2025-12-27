@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -7,7 +7,7 @@ import {
   ScrollView,
   Text,
   Image,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -18,8 +18,6 @@ import { commonStyles } from '../../../src/styles/common';
 import { font } from '../../../src/lib/fonts';
 import { supabase } from '../../../src/lib/supabase';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-
 type Mentor = {
   id: string;
   full_name?: string;
@@ -29,6 +27,24 @@ type Mentor = {
   role?: string;
 };
 
+/**
+ * Layout tuning:
+ * - CARD_WIDTH: fixed card width in px
+ * - GAP: horizontal & vertical gap between cards (px)
+ * - H_PADDING: horizontal screen padding (matches container paddingHorizontal)
+ *
+ * Adjust CARD_WIDTH / GAP to taste. The component will:
+ * - compute how many columns fit in the available width,
+ * - build an inner container sized to exactly hold that many columns,
+ * - center that inner container horizontally,
+ * - append invisible placeholders so the last row aligns with full rows.
+ */
+
+
+const CARD_WIDTH = 100;
+const GAP = 15;
+const H_PADDING = 18;
+
 export default function MentorHub() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
@@ -37,13 +53,15 @@ export default function MentorHub() {
   const [mentors, setMentors] = useState<Mentor[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const { width: screenWidth } = useWindowDimensions();
+
   useEffect(() => {
     const fetchMentors = async () => {
       setLoading(true);
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, title, industry, photo_url')
+        .select('id, full_name, title, industry, photo_url') //price when column is added
         .eq('role', 'mentor');
 
       if (error) {
@@ -63,6 +81,39 @@ export default function MentorHub() {
     (m.industry ?? '').toLowerCase().includes(query.toLowerCase())
   );
 
+  // compute layout: columns, contentWidth, placeholders to fill last row
+  const { columns, contentWidth, placeholderCount } = useMemo(() => {
+    // available width inside the horizontal padding
+    const available = Math.max(0, screenWidth - H_PADDING * 2);
+
+    // how many columns fit (account for GAP between cards)
+    const computedColumns = Math.max(
+      1,
+      Math.floor((available + GAP) / (CARD_WIDTH + GAP))
+    );
+
+    const contentW = computedColumns * CARD_WIDTH + (computedColumns - 1) * GAP;
+
+    const remainder = filteredMentors.length % computedColumns;
+    const placeholders = remainder === 0 ? 0 : computedColumns - remainder;
+
+    return {
+      columns: computedColumns,
+      contentWidth: contentW,
+      placeholderCount: placeholders,
+    };
+  }, [screenWidth, filteredMentors.length]);
+
+  // build render list with placeholders appended (typed to avoid implicit any)
+  const renderItems: Array<Mentor | { __placeholder: true; key: string }> = useMemo(() => {
+    const items: Array<Mentor | { __placeholder: true; key: string }> = [
+      ...filteredMentors,
+    ];
+    for (let i = 0; i < placeholderCount; i++) {
+      items.push({ __placeholder: true, key: `ph-${i}` });
+    }
+    return items;
+  }, [filteredMentors, placeholderCount]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}> 
@@ -96,39 +147,58 @@ export default function MentorHub() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.grid} showsVerticalScrollIndicator={true}>
-        {loading && (
-        <Text style={{ marginTop: 12, color: theme.text }}>Loading mentors…</Text>
-        )}
+      {/* ScrollView centers the inner grid block via contentContainerStyle alignItems:'center' */}
+      <ScrollView 
+      contentContainerStyle={[
+          styles.scrollContainer,
+          { paddingHorizontal: H_PADDING, paddingBottom: 120 },
+        ]}
+        showsVerticalScrollIndicator={true}
+      >
+        {/* centered block with fixed width exactly matching the columns */}
+        <View style={[styles.innerContainer, { width: contentWidth }]}>
+          {renderItems.map((item, index) => {
+            const isPlaceholder = '__placeholder' in item;
+            const key = isPlaceholder ? (item as { __placeholder: true; key: string }).key : (item as Mentor).id;
+            const isLastColumn = (index % columns) === (columns - 1);
 
-        {!loading && filteredMentors.map((m) => (
-        <View key={m.id} style={styles.card}>
-            {m.photo_url ? (
-            <Image source={{ uri: m.photo_url }} style={styles.avatar} />
-            ) : (
-            <View style={styles.avatar} />
-            )}
+            return (
+              <View
+                key={key ?? index}
+                pointerEvents={isPlaceholder ? 'none' : 'auto'}
+                style={[
+                  styles.card,
+                  {
+                    width: CARD_WIDTH,
+                    marginRight: isLastColumn ? 0 : GAP,
+                    marginBottom: GAP,
+                    opacity: isPlaceholder ? 0 : 1,
+                  },
+                ]}
+              >
+                {isPlaceholder ? null : (
+                  <>
+                    {(item as Mentor).photo_url ? (
+                      <Image source={{ uri: (item as Mentor).photo_url }} style={styles.avatar} />
+                    ) : (
+                      <View style={styles.avatar} />
+                    )}
 
-            <Text style={[styles.name, { color: theme.text }]}>
-            {m.full_name ?? 'Unnamed mentor'}
-            </Text>
+                    <Text style={[styles.name, { color: theme.text }]}>
+                      {(item as Mentor).full_name ?? 'Unnamed mentor'}
+                    </Text>
 
-            {m.title && (
-            <Text style={[styles.subtitle, { color: theme.text }]}>
-                {m.title}
-            </Text>
-            )}
-
-            {/* When we add a price/tokens column, render it here */}
-            {/* {m.tokens_rate && m.tokens_rate > 0 && (
-            <View style={styles.priceTag}>
-                <Text style={styles.priceEmoji}>💎</Text>
-                <Text style={styles.priceText}>{m.tokens_rate}</Text>
-                <Text style={styles.priceUnit}>/session</Text>
-            </View>
-            )} */}
+                    {(item as Mentor).title && (
+                      <Text style={[styles.subtitle, { color: theme.text }]}>
+                        {(item as Mentor).title}
+                      </Text>
+                    )}
+                  </>
+                )}
+              </View>
+            );
+          })}
         </View>
-        ))}
 
       </ScrollView>
     </View>
@@ -139,7 +209,7 @@ const AVATAR_SIZE = 56;
 const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
-    paddingHorizontal: 18,
+    paddingHorizontal: H_PADDING,
   },
   headerWrap: {
     alignItems: 'center',
@@ -183,21 +253,27 @@ const styles = StyleSheet.create({
     color: '#3b3b3b',
     fontSize: 20,
   },
-  grid: {
+
+  // Scroll container centers the innerContainer which has exact contentWidth
+  scrollContainer: {
+    alignItems: 'center',
+    paddingTop: 12,
+  },
+
+  // innerContainer width is set dynamically in-line (contentWidth)
+  innerContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    paddingTop: 12,
-    paddingBottom: 120,
     alignItems: 'flex-start',
     justifyContent: 'flex-start',
   },
+
+  // card wrapper: width overridden in-line to CARD_WIDTH; contents are centered
   card: {
-    width: (SCREEN_WIDTH - 18 * 2 - 12 * 2) / 3,
     alignItems: 'center',
-    marginBottom: 18,
     position: 'relative',
   },
+
   avatar: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
