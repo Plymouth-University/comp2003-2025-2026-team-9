@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
+import { router } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
@@ -55,6 +56,26 @@ export default function MentorHub() {
 
   const { width: screenWidth } = useWindowDimensions();
 
+  //Distance filter state (null = no distance filter)
+  const [selectedDistance, setSelectedDistance] = useState<number | null>(null);
+  const [showDistanceOptions, setShowDistanceOptions] = useState(false);
+
+  /**
+   * Placeholder distance getter.
+   * - Right now profiles don't have distance info in DB.
+   * - When storing distances on the profile (e.g. the backend adds "distance_miles"),
+   *   this function should return that numeric value in miles.
+   * - For now this checks a `distance_miles` field on the profile object (if present).
+   * - Return `null` when unknown.
+   */
+  const computeDistanceMiles = (p: Mentor): number | null => {
+    // TODO: replace this with real calculation / DB-provided distance
+    // For now, check a placeholder property that we can add later: distance_miles
+    const asAny = p as any;
+    if (typeof asAny.distance_miles === 'number') return asAny.distance_miles;
+    return null;
+  };
+
   useEffect(() => {
     const fetchMentors = async () => {
       setLoading(true);
@@ -76,10 +97,40 @@ export default function MentorHub() {
     fetchMentors();
   }, []);
 
-  const filteredMentors = mentors.filter((m) =>
-    (m.full_name ?? '').toLowerCase().includes(query.toLowerCase()) ||
-    (m.industry ?? '').toLowerCase().includes(query.toLowerCase())
-  );
+
+  // filter by query then sort alphabetically by full name (case-insensitive)
+  const filteredMentors = useMemo(() => {
+    const q = query.trim().toLowerCase();
+
+    const filtered = mentors.filter((m) => {
+      // search match
+      const matchesQuery = !q || (
+        (m.full_name ?? '').toLowerCase().includes(q) ||
+        (m.industry ?? '').toLowerCase().includes(q)
+      );
+      if (!matchesQuery) return false;
+
+      // distance filter (only apply when user selected a distance)
+      if (selectedDistance != null) {
+        const d = computeDistanceMiles(m);
+        // currently we exclude mentors with unknown distance (d === null)
+        if (d === null) return false;
+        return d <= selectedDistance;
+      }
+
+      return true;
+    });
+
+    // case-insensitive sort by full_name
+    return filtered.slice().sort((a, b) => {
+      const aName = (a.full_name ?? '').toLowerCase();
+      const bName = (b.full_name ?? '').toLowerCase();
+      if (aName < bName) return -1;
+      if (aName > bName) return 1;
+      return 0;
+    });
+  }, [mentors, query, selectedDistance]);
+
 
   // compute layout: columns, contentWidth, placeholders to fill last row
   const { columns, contentWidth, placeholderCount } = useMemo(() => {
@@ -140,11 +191,56 @@ export default function MentorHub() {
             <Text style={styles.chev}>▾</Text>
           </Pressable>
 
-          <Pressable style={[styles.filterButton, { backgroundColor: theme.card }]}>
-            <Text style={[styles.filterText, {color: theme.text}]}>Distance...</Text>
-            <Text style={styles.chev}>▾</Text>
+          <Pressable 
+            style={[styles.filterButton, { backgroundColor: theme.card }]}
+            onPress={() => setShowDistanceOptions((s) => !s)}
+          >
+            <Text style={[styles.filterText, {color: theme.text}]}>
+              {selectedDistance ? `≤ ${selectedDistance} mi` : 'Distance...'}
+              </Text>
+            <Text style={styles.chev}>{showDistanceOptions ? '▴' : '▾' }</Text>
+
           </Pressable>
         </View>
+
+        {/* Distance options (10-mile intervals). Visible only when showDistanceOptions === true */}
+        {showDistanceOptions && (
+          <View style={{ marginTop: 8 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 2 }}>
+
+              <Pressable
+                onPress={() => {
+                  setSelectedDistance(null);
+                  setShowDistanceOptions(false);
+                }}
+                style={[styles.distanceOption, { marginLeft: 6 }]}
+              >
+                <Text style={styles.distanceOptionText}>Any</Text>
+              </Pressable>
+
+              {[10, 20, 30, 40, 50, 100].map((d) => {
+                const active = selectedDistance === d;
+                return (
+                  <Pressable
+                    key={d}
+                    onPress={() => {
+                      setSelectedDistance(d);
+                      setShowDistanceOptions(false);
+                    }}
+                    style={[
+                      styles.distanceOption,
+                      active ? styles.distanceOptionActive : undefined,
+                    ]}
+                  >
+                    <Text style={[styles.distanceOptionText, active ? styles.distanceOptionTextActive : undefined]}>
+                      {d} mi
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
       </View>
 
       {/* ScrollView centers the inner grid block via contentContainerStyle alignItems:'center' */}
@@ -163,9 +259,18 @@ export default function MentorHub() {
             const isLastColumn = (index % columns) === (columns - 1);
 
             return (
-              <View
+              <Pressable
                 key={key ?? index}
-                pointerEvents={isPlaceholder ? 'none' : 'auto'}
+                onPress={() => {
+                  if (!isPlaceholder) {
+                    router.push({
+                      pathname: '/(app)/profile-view',
+                      params: { userId: (item as Mentor).id },
+                    });
+                  }
+                }}
+                disabled={isPlaceholder}
+                accessibilityRole="button"
                 style={[
                   styles.card,
                   {
@@ -178,7 +283,7 @@ export default function MentorHub() {
               >
                 {isPlaceholder ? null : (
                   <>
-                    {(item as Mentor).photo_url ? (
+                    {item.photo_url ? (
                       <Image source={{ uri: (item as Mentor).photo_url }} style={styles.avatar} />
                     ) : (
                       <View style={styles.avatar} />
@@ -193,9 +298,19 @@ export default function MentorHub() {
                         {(item as Mentor).title}
                       </Text>
                     )}
+
+                    {/* When we add a price/tokens column, render it here */}
+                    {/* {m.tokens_rate && m.tokens_rate > 0 && (
+                    <View style={styles.priceTag}>
+                        <Text style={styles.priceEmoji}>💎</Text>
+                        <Text style={styles.priceText}>{m.tokens_rate}</Text>
+                        <Text style={styles.priceUnit}>/session</Text>
+                    </View>
+                    )} */}
+
                   </>
                 )}
-              </View>
+              </Pressable>
             );
           })}
         </View>
@@ -315,5 +430,25 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#333',
     marginLeft: 4,
+  },
+  distanceOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#efefef',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  distanceOptionActive: {
+    backgroundColor: '#333f5c', // Taskbar colour
+    borderColor: '#000000',
+  },
+  distanceOptionText: {
+    fontSize: 13,
+    color: '#333',
+  },
+  distanceOptionTextActive: {
+    color: '#fff',
   },
 });

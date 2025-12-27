@@ -122,19 +122,36 @@ export default function ProfileViewScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <View style={styles.avatarWrapper}>
+                    {/* Top cover image (large) */}
+          <View style={styles.topImageWrapper}>
             {profile.photo_url ? (
-              <Image source={{ uri: profile.photo_url }} style={styles.avatarImage} />
+              <Image source={{ uri: profile.photo_url }} style={styles.topImage} />
             ) : (
-              <View style={styles.avatarPlaceholder}>
+              <View style={styles.topImagePlaceholder}>
                 <Text style={styles.avatarInitial}>{firstName.charAt(0).toUpperCase()}</Text>
               </View>
             )}
           </View>
 
+          {/* Chips row: location (left) and title (right / full-width on small screens) */}
+          <View style={styles.chipsRow}>
+            {profile.location ? (
+              <View style={styles.chipBadge}>
+                <Text style={styles.chipBadgeText}>{profile.location}</Text>
+              </View>
+            ) : null}
+
+            {profile.title ? (
+              <View style={[styles.chipBadge, styles.chipBadgeTitle]}>
+                <Text style={styles.chipBadgeText}>{profile.title}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {/* Name (larger) */}
           <Text
             style={[
-              styles.name,
+              styles.nameLarge,
               font('GlacialIndifference', '800'),
               { color: theme.text },
             ]}
@@ -142,40 +159,19 @@ export default function ProfileViewScreen() {
             {profile.full_name ?? 'Member'}
           </Text>
 
-          {profile.location && (
-            <Text
-              style={[
-                styles.subtitle,
-                font('GlacialIndifference', '400'),
-              ]}
-            >
-              {profile.location}
-            </Text>
-          )}
+          {/* About section header */}
+          <Text
+            style={[
+              styles.aboutTitle,
+              font('GlacialIndifference', '800'),
+              { color: theme.text },
+            ]}
+          >
+            About Me
+          </Text>
 
-          {profile.title && (
-            <Text
-              style={[
-                styles.subtitle,
-                font('GlacialIndifference', '400'),
-              ]}
-            >
-              {profile.title}
-            </Text>
-          )}
-
-          {profile.industry && (
-            <Text
-              style={[
-                styles.subtitle,
-                font('GlacialIndifference', '400'),
-              ]}
-            >
-              {profile.industry}
-            </Text>
-          )}
-
-          {profile.bio && (
+          {/* Bio */}
+          {profile.bio ? (
             <Text
               style={[
                 styles.sectionBody,
@@ -184,7 +180,7 @@ export default function ProfileViewScreen() {
             >
               {profile.bio}
             </Text>
-          )}
+          ) : null}
 
           {(Array.isArray((profile as any).skills) && (profile as any).skills.length > 0) && (
             <View style={styles.section}>
@@ -248,6 +244,7 @@ export default function ProfileViewScreen() {
 const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
+    paddingTop: 20,
     paddingHorizontal: 18,
     paddingBottom: 120,
   },
@@ -278,25 +275,79 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 12,
   },
-  avatarImage: {
+    // Top large image
+  topImageWrapper: {
+    width: '99%',
+    aspectRatio: 1,
+    borderRadius: 14,
+    borderColor: '#000000',
+    borderWidth: 3,
+    overflow: 'hidden',
+    marginBottom: 12,
+    backgroundColor: '#e9e9e9',
+    alignSelf: 'stretch',
+    
+  },
+  topImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 48,
+    resizeMode: 'cover',
+    
   },
-  avatarPlaceholder: {
+  topImagePlaceholder: {
     flex: 1,
-    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#cfcfcf',
   },
+
   avatarInitial: {
     color: '#fff',
     fontSize: 36,
     fontWeight: '700',
   },
-  name: {
-    fontSize: 22,
-    marginBottom: 2,
+
+  // chips row under the top image
+  chipsRow: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  chipBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#333f5c',
+    borderWidth: 1,
+    borderColor: '#000000',
+    marginRight: 8,
+  },
+  chipBadgeTitle: {
+    // allow the title chip to visually stretch more on small screens
+    flex: 1,
+    alignItems: 'center',
+  },
+  chipBadgeText: {
+    fontSize: 13,
+    color: '#ffffff',
+  },
+
+  // larger name and about heading
+  nameLarge: {
+    fontSize: 28,
+    marginTop: 4,
+    marginBottom: 6,
+    textAlign: 'left',
+    width: '100%',
+  },
+  aboutTitle: {
+    fontSize: 18,
+    marginTop: 12,
+    marginBottom: 8,
+    alignSelf: 'flex-start',
+    width: '100%',
   },
   subtitle: {
     fontSize: 14,
