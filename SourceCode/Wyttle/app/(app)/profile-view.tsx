@@ -23,6 +23,8 @@ export default function ProfileViewScreen() {
   const [error, setError] = useState<string | null>(null);
   const [canDisconnect, setCanDisconnect] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  // measured width of the top image wrapper — used to size the chips container exactly
+  const [imageWrapperWidth, setImageWrapperWidth] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,6 +81,52 @@ export default function ProfileViewScreen() {
 
   const firstName = profile?.full_name?.split(' ')[0] ?? 'Member';
 
+  // Heuristic to map chip text length -> size class ('quarter'|'half'|'full')
+  // Tweak thresholds to taste. minWidth prevents quarters from becoming unusably small.
+  const getChipSize = (text?: string): 'quarter' | 'half' | 'full' => {
+    const len = (text ?? '').trim().length;
+    if (len === 0) return 'quarter';
+    if (len <= 9) return 'quarter'; // short text -> quarter (25%)
+    if (len <= 20) return 'half';    // medium text -> half (50%)
+    return 'full';                   // long text -> full (100%)
+  };
+
+  // Build packed rows so full/half/quarter chips fill rows predictably.
+  // Full (100) and half (50) will be prioritized; quarters (25) go later.
+  const sizeValue = (size: 'quarter' | 'half' | 'full') => (size === 'full' ? 100 : size === 'half' ? 50 : 25);
+
+  const buildChipRows = (p: Profile | null) => {
+    if (!p) return [] as Array<Array<{ key: string; text: string; size: 'quarter'|'half'|'full' }>>;
+
+    const raw: Array<{ key: string; text: string; size: 'quarter'|'half'|'full' }> = [];
+
+    if (p.location) raw.push({ key: 'location', text: p.location, size: getChipSize(p.location) });
+    if (p.industry) raw.push({ key: 'industry', text: p.industry, size: getChipSize(p.industry) });
+    if (p.title) raw.push({ key: 'title', text: p.title, size: getChipSize(p.title) });
+
+    // sort descending so full then half then quarter
+    raw.sort((a, b) => sizeValue(b.size) - sizeValue(a.size));
+
+    // pack into rows greedy: fill current row until adding next would exceed 100
+    const rows: Array<typeof raw> = [];
+    let current: typeof raw = [];
+    let currentSum = 0;
+    for (const item of raw) {
+      const v = sizeValue(item.size);
+      if (currentSum + v <= 100) {
+        current.push(item);
+        currentSum += v;
+      } else {
+        // commit current row and start a new one with item
+        if (current.length) rows.push(current);
+        current = [item];
+        currentSum = v;
+      }
+    }
+    if (current.length) rows.push(current);
+    return rows;
+  };
+
   const handleDisconnect = async () => {
     if (!userId) return;
     try {
@@ -122,8 +170,15 @@ export default function ProfileViewScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                    {/* Top cover image (large) */}
-          <View style={styles.topImageWrapper}>
+          {/* Top cover image (large) */}
+          <View
+            style={styles.topImageWrapper}
+            onLayout={(e) => {
+              const w = e.nativeEvent.layout.width;
+              // store measured width (only update if changed to avoid extra rerenders)
+              if (w && w !== imageWrapperWidth) setImageWrapperWidth(w);
+            }}
+          >
             {profile.photo_url ? (
               <Image source={{ uri: profile.photo_url }} style={styles.topImage} />
             ) : (
@@ -133,19 +188,51 @@ export default function ProfileViewScreen() {
             )}
           </View>
 
-          {/* Chips row: location (left) and title (right / full-width on small screens) */}
-          <View style={styles.chipsRow}>
-            {profile.location ? (
-              <View style={styles.chipBadge}>
-                <Text style={styles.chipBadgeText}>{profile.location}</Text>
-              </View>
-            ) : null}
+          {/* Packed chips: build rows so full/half/quarter combine predictably */}
+          {/* chips container sized to the image wrapper so rows never exceed image width */}
+          <View style={{ width: imageWrapperWidth ?? '100%', alignSelf: 'center' }}>
+            {(() => {
+              const rows = buildChipRows(profile);
+              return rows.map((row, ri) => {
+                // compute row total to decide centering behaviour
+                const rowSum = row.reduce((acc, it) => acc + (it.size === 'full' ? 100 : it.size === 'half' ? 50 : 25), 0);
+                const justify = rowSum < 100 ? 'center' : 'space-between';
 
-            {profile.title ? (
-              <View style={[styles.chipBadge, styles.chipBadgeTitle]}>
-                <Text style={styles.chipBadgeText}>{profile.title}</Text>
-              </View>
-            ) : null}
+                // small consistent gap when centered
+                const centeredGap = 4;
+
+                return (
+                  <View
+                    key={`row-${ri}`}
+                    style={[
+                      styles.packedRow,
+                      { justifyContent: justify, width: '100%' } // row fills container width
+                    ]}
+                  >
+                    {row.map((chip) => {
+                      const sizeStyle = chip.size === 'quarter' ? styles.chipQuarter
+                        : chip.size === 'half' ? styles.chipHalf
+                        : styles.chipFull;
+
+                      const centeredSpacingStyle = justify === 'center' ? { marginHorizontal: centeredGap / 2 } : {};
+
+                      return (
+                        <View
+                          key={chip.key}
+                          style={[
+                            styles.chipBadge,
+                            sizeStyle,
+                            centeredSpacingStyle,
+                          ]}
+                        >
+                          <Text style={styles.chipBadgeText}>{chip.text}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                );
+              });
+            })()}
           </View>
 
           {/* Name (larger) */}
@@ -277,7 +364,7 @@ const styles = StyleSheet.create({
   },
     // Top large image
   topImageWrapper: {
-    width: '99%',
+    width: '100%',
     aspectRatio: 1,
     borderRadius: 14,
     borderColor: '#000000',
@@ -307,14 +394,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // chips row under the top image
-  chipsRow: {
+  // ####################################### chips row under the top image
+  // rows of packed chips
+  packedRow: {
     width: '100%',
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 8,
   },
+
+  // base pill style
   chipBadge: {
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -322,17 +412,51 @@ const styles = StyleSheet.create({
     backgroundColor: '#333f5c',
     borderWidth: 1,
     borderColor: '#000000',
-    marginRight: 8,
-  },
-  chipBadgeTitle: {
-    // allow the title chip to visually stretch more on small screens
-    flex: 1,
+    marginBottom: 8,
     alignItems: 'center',
+    justifyContent: 'center',
   },
+
+  // explicit percent widths for reliable wrapping/alignment
+  chipQuarter: {
+    width: '24%',
+    minWidth: 72,
+  },
+  chipHalf: {
+    width: '49%', // slightly less than 50 to leave space for spacing
+    minWidth: 120,
+  },
+  chipFull: {
+    width: '100%',
+  },
+
+  // title-large helper if needed
+  chipBadgeTitleFull: {
+    minWidth: 160,
+    paddingHorizontal: 20,
+  },
+
   chipBadgeText: {
     fontSize: 13,
     color: '#ffffff',
+    textAlign: 'center',
   },
+
+
+
+
+
+  // bio text — force left alignment and ensure it stretches to the content width
+  sectionBody: {
+    fontSize: 14,
+    color: '#555',
+    textAlign: 'left',
+    marginTop: 12,
+    alignSelf: 'stretch',
+    width: '100%',
+    lineHeight: 20,
+  },
+  
 
   // larger name and about heading
   nameLarge: {
@@ -361,11 +485,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     marginBottom: 6,
-  },
-  sectionBody: {
-    fontSize: 14,
-    color: '#555',
-    marginTop: 12,
   },
   disconnectButton: {
     marginTop: 24,
