@@ -41,7 +41,7 @@ export default function MentorChatScreen() {
       : 'Member';
 
   const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
+  const theme = colorScheme === 'dark' ? Colors.dark : Colors.light;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -299,7 +299,7 @@ export default function MentorChatScreen() {
             onPress={() => {
               if (!otherId) return;
               router.push({
-                pathname: '/(app)/profile-view',
+                pathname: '/(app)/Mentor/profile-view',
                 params: { userId: otherId },
               });
             }}
@@ -352,9 +352,10 @@ export default function MentorChatScreen() {
   );
 }
 
+type AppTheme = typeof Colors[keyof typeof Colors];
 type MessageBubbleProps = {
   message: Message;
-  theme: ReturnType<typeof Colors[string]>;
+  theme: AppTheme;
   onLongPress?: (message: Message) => void;
 };
 

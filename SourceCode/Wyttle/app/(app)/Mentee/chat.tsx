@@ -41,9 +41,9 @@ export default function MenteeChatScreen() {
       : 'Peer';
 
   const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
+  const theme = colorScheme === 'dark' ? Colors.dark : Colors.light;
 
-  const displayName = otherProfile?.full_name ?? fallbackName;
+  
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -51,6 +51,7 @@ export default function MenteeChatScreen() {
   const [otherProfile, setOtherProfile] = useState<Profile | null>(null);
   const listRef = useRef<FlatList<Message>>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const displayName = otherProfile?.full_name ?? fallbackName;
 
   useEffect(() => {
     let isMounted = true;
@@ -301,7 +302,7 @@ export default function MenteeChatScreen() {
             onPress={() => {
               if (!otherId) return;
               router.push({
-                pathname: '/(app)/profile-view',
+                pathname: '/(app)/Mentee/profile-view',
                 params: { userId: otherId },
               });
             }}
@@ -367,9 +368,10 @@ export default function MenteeChatScreen() {
   );
 }
 
+type AppTheme = typeof Colors[keyof typeof Colors];
 type MessageBubbleProps = {
   message: Message;
-  theme: ReturnType<typeof Colors[string]>;
+  theme: AppTheme;
   onLongPress?: (message: Message) => void;
 };
 

@@ -274,7 +274,7 @@ export default function MenteeSettingsScreen() {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
               router.push({
-                pathname: '/(app)/profile-view',
+                pathname: '/(app)/Mentee/profile-view',
                 params: { userId: user.id },
               });
             }
@@ -333,7 +333,7 @@ export default function MenteeSettingsScreen() {
                   </View>
                 )}
 
-        <TouchableOpacity style={styles.itemRow} onPress={() => router.push('/(app)/profile' as any)}>
+        <TouchableOpacity style={styles.itemRow} onPress={() => router.push('/(app)/Mentee/profile-view' as any)}>
           <ThemedText style={styles.itemText}>Manage public info</ThemedText>
         </TouchableOpacity>
       </SettingsDropdown>

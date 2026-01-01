@@ -274,7 +274,7 @@ export default function MentorSettingsScreen() {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
               router.push({
-                pathname: '/(app)/profile-view',
+                pathname: '/(app)/Mentor/profile-view',
                 params: { userId: user.id },
               });
             }
@@ -333,7 +333,7 @@ export default function MentorSettingsScreen() {
                   </View>
                 )}
 
-        <TouchableOpacity style={styles.itemRow} onPress={() => router.push('/(app)/profile' as any)}>
+        <TouchableOpacity style={styles.itemRow} onPress={() => router.push('/(app)/Mentor/profile-view' as any)}>
           <ThemedText style={styles.itemText}>Manage public info</ThemedText>
         </TouchableOpacity>
       </SettingsDropdown>

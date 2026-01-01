@@ -20,10 +20,32 @@ export default function Profile() {
         const res = await supabase.auth.getUser();
         const user = (res as any)?.data?.user ?? null;
         if (user?.id) {
-          router.replace({
-            pathname: '/(app)/profile-view',
-            params: { userId: user.id },
-          });
+          try {
+            const { data: profile, error: profileError } = await supabase
+              .from('profiles')
+              .select('role')
+              .eq('id', user.id)
+              .maybeSingle();
+
+            const roleRaw = (profile as any)?.role ?? '';
+            const roleNormalised = typeof roleRaw === 'string' && 
+              roleRaw.toLocaleLowerCase().startsWith('mentor') ? 'Mentor' : 'Mentee';
+
+
+            router.replace({
+              pathname: `/${roleNormalised}/profile-view`,
+              params: {userId: user.id},
+            });
+
+          } catch (e) {
+
+            router.replace({
+              pathname: '/(app)/Mentee/profile-view',
+              params: { userId: user.id },
+            });
+
+          }
+
         }
       } catch (err) {
         // ignore redirect errors for now

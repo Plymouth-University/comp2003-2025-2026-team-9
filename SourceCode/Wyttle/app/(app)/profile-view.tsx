@@ -4,6 +4,7 @@ import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacit
 
 import { router } from 'expo-router';
 import { BackButton } from '@/components/ui/BackButton';
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../src/lib/fonts';
@@ -143,8 +144,10 @@ export default function ProfileViewScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      {/*
       <View style={styles.headerRow}>
-        <BackButton />
+        <BackButton /> --Removed, just press navbar icon again, is identical.
+        
         <Text
           style={[
             styles.headerTitle,
@@ -154,7 +157,11 @@ export default function ProfileViewScreen() {
         >
           Profile
         </Text>
-      </View>
+      </View>*/}
+
+      
+      <ScreenHeader title = "Profile"/>
+      
 
       {loading ? (
         <View style={styles.centerContent}>
@@ -331,7 +338,6 @@ export default function ProfileViewScreen() {
 const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
-    paddingTop: 20,
     paddingHorizontal: 18,
     paddingBottom: 120,
   },

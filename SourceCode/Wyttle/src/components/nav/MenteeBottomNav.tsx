@@ -1,5 +1,5 @@
 import { router, usePathname, type Href } from 'expo-router';
-import React, { JSX } from 'react';
+import React, { JSX, useEffect, useState} from 'react';
 import { Dimensions, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -47,6 +47,27 @@ export default function MenteeBottomNav(_: Props) {
   const segments = pathWithoutQuery.split('/').filter(Boolean);
   const lastSegment = segments[segments.length - 1] ?? 'connections';
 
+  type TabKey = (typeof tabs)[number]['key'];
+
+  const segmentToKey: Record<string, TabKey | undefined> = {
+    connections: 'connections',
+    discovery: 'discovery',
+    'mentor-hub': 'mentorHub',
+    settings: 'settings',
+  };
+
+  const [active, setActive] = useState<TabKey>('connections');
+
+  useEffect(() => {
+    const next = segmentToKey[lastSegment];
+    if (next) setActive(next); // default: do nothing so icon doesn't change
+  }, [lastSegment]);
+
+
+
+
+
+  /*
   let activeKey: (typeof tabs)[number]['key'] = 'connections';
   switch (lastSegment) {
     case 'connections':
@@ -65,12 +86,15 @@ export default function MenteeBottomNav(_: Props) {
       activeKey = 'connections';
   }
 
-  const active = activeKey;
+  const active = activeKey;*/
 
   const goTo = (path: string, key: (typeof tabs)[number]['key']) => {
     // If this tab is already active, do nothing to avoid re-running
     // the navigation animation or resetting the stack.
-    if (key === active) return;
+
+
+    // -------------- COMMENTED OUT TO ALLOW RE-CLICKING SAME TAB (helpful)
+    //if (key === active) return;
     router.replace(path as Href);
   };
 
