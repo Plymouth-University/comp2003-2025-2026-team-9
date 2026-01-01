@@ -87,8 +87,8 @@ export default function ProfileViewScreen() {
   const getChipSize = (text?: string): 'quarter' | 'half' | 'full' => {
     const len = (text ?? '').trim().length;
     if (len === 0) return 'quarter';
-    if (len <= 9) return 'quarter'; // short text -> quarter (25%)
-    if (len <= 20) return 'half';    // medium text -> half (50%)
+    if (len <= 5) return 'quarter'; // short text -> quarter (25%)
+    if (len <= 19) return 'half';    // medium text -> half (50%)
     return 'full';                   // long text -> full (100%)
   };
 
@@ -160,9 +160,6 @@ export default function ProfileViewScreen() {
       </View>*/}
 
       
-      <ScreenHeader title = "Profile"/>
-      
-
       {loading ? (
         <View style={styles.centerContent}>
           <ActivityIndicator />
@@ -176,7 +173,9 @@ export default function ProfileViewScreen() {
           <Text>No profile found.</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.scrollContent, {alignItems: 'stretch'}]} showsVerticalScrollIndicator={false}>
+          <ScreenHeader title="Profile" align='left' />
+
           {/* Top cover image (large) */}
           <View
             style={styles.topImageWrapper}
@@ -407,13 +406,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
   },
 
   // base pill style
   chipBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
     borderRadius: 999,
     backgroundColor: '#333f5c',
     borderWidth: 1,
@@ -427,6 +426,7 @@ const styles = StyleSheet.create({
   chipQuarter: {
     width: '24%',
     minWidth: 72,
+    wordWrap: 'contain',
   },
   chipHalf: {
     width: '49%', // slightly less than 50 to leave space for spacing

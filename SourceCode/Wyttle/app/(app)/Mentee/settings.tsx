@@ -26,6 +26,53 @@ import { commonStyles } from '../../../src/styles/common';
 import { TextInput } from 'react-native';
 import * as Location from 'expo-location';
 
+
+// Reusable component for rendering dropdowns
+function SettingsDropdown({
+  id,
+  title,
+  children,
+  openSection,
+  toggleSection,
+  theme,
+}: {
+  id: string;
+  title: string;
+  children?: React.ReactNode;
+  openSection: string | null;
+  toggleSection: (id: string) => void;
+  theme: any;
+}) {
+  const open = openSection === id;
+
+  return (
+    <View style={[styles.dropdownContainer, { backgroundColor: theme.card }]}>
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() => toggleSection(id)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        style={[styles.sectionHeader, { borderBottomColor: theme.text + '0F' }]}
+      >
+        <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
+          {title}
+        </ThemedText>
+
+        {/* icon rotates based on open/closed state */}
+        <Ionicons
+          name={open ? 'chevron-up' : 'chevron-down'}
+          size={20}
+          color={theme.text}
+          style={styles.chevron}
+        />
+      </TouchableOpacity>
+
+      {/* Show items only if the section is open */}
+      {open ? <View style={styles.itemsContainer}>{children}</View> : null}
+    </View>
+  );
+}
+
 // Declare constants for layout animation
 export default function MenteeSettingsScreen() {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -85,6 +132,52 @@ export default function MenteeSettingsScreen() {
     }
   };
 
+    //--------------------------------------------------------------------------
+
+    const fetchAndPrefillProfile = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+  
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('title, industry, location, bio')
+          .eq('id', user.id)
+          .maybeSingle();
+  
+        if (error) {
+          console.warn('Failed to load profile for editing', error);
+          return;
+        }
+  
+        // If any of these are null/undefined, fall back to empty string so inputs are controlled
+        setTitle(profile?.title ?? '');
+        setIndustry(profile?.industry ?? '');
+        setLocation(profile?.location ?? '');
+        setBio(profile?.bio ?? '');
+      } catch (err) {
+        console.warn('Error fetching profile for edit', err);
+      }
+    };
+  
+    const toggleEditProfile = async () => {
+      // If opening the editor, set state, then prefill.
+      if (!isEditingProfile) {
+        setIsEditingProfile(true);
+        await fetchAndPrefillProfile();
+      } else {
+        // closing editor
+        setIsEditingProfile(false);
+      }
+    };
+
+    //--------------------------------------------------------------------------
+
+
+
+
+
+
   // Toggle dropdown sections
   function toggleSection(id: string) {
     if (Platform.OS !== 'web') {
@@ -93,46 +186,7 @@ export default function MenteeSettingsScreen() {
     }
     setOpenSection((prev) => (prev === id ? null : id));
   }
-
-  // Reusable component for rendering dropdowns
-  function SettingsDropdown({
-    id,
-    title,
-    children,
-  }: {
-    id: string;
-    title: string;
-    children?: React.ReactNode;
-  }) {
-    const open = openSection === id;
-
-    return (
-      <View style={[styles.dropdownContainer, { backgroundColor: theme.card }]}>
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => toggleSection(id)}
-          accessibilityRole="button"
-          accessibilityState={{ expanded: open }}
-          style={[styles.sectionHeader, { borderBottomColor: theme.text + '0F' }]}
-        >
-          <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
-            {title}
-          </ThemedText>
-
-          {/* icon rotates based on open/closed state */}
-          <Ionicons
-            name={open ? 'chevron-up' : 'chevron-down'}
-            size={20}
-            color={theme.text}
-            style={styles.chevron}
-          />
-        </TouchableOpacity>
-
-        {/* Show items only if the section is open */}
-        {open ? <View style={styles.itemsContainer}>{children}</View> : null}
-      </View>
-    );
-  }
+  
 
   // Handlers used by toggles and accessibility items
   function handleOpenTextSize() {
@@ -151,21 +205,53 @@ export default function MenteeSettingsScreen() {
     setEmailEnabled(enabled);
   }
  
+  //--------------------------------------------------------------------------
   const handleSaveProfile = async () => {
+    //Behaviour: Null is ignored, whitespace clears field.
+    
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    // Build update object only with trimmed non-empty values
+    const updates: { [k: string]: any } = {};
+
+    // If trimmed value is empty, set to null to clear the field
+    if (title.length > 0) {
+      updates.title = title.trim().length > 0 ? title.trim() : null;
+    }
+    if (industry.length > 0) {
+      updates.industry = industry.trim().length > 0 ? industry.trim() : null;
+    }
+    if (location.length > 0) {
+      updates.location = location.trim().length > 0 ? location.trim() : null;
+    }
+    if (bio.length > 0) {
+      updates.bio = bio.trim().length > 0 ? bio.trim() : null;
+    }
+
+    // If there is nothing to update close editor
+    if (Object.keys(updates).length === 0) {
+      setIsEditingProfile(false);
+      return;
+    }
+
+    try {
     await supabase
       .from('profiles')
-      .update({
-        title: title.trim() || null,
-        industry: industry.trim() || null,
-        location: location.trim() || null,
-        bio: bio.trim() || null,
-      })
+      .update(updates)
       .eq('id', user.id);
+      console.log('Profile updated successfully');
+
+    } catch (err) {
+    console.warn('Failed to save profile', err);
+    } finally {
+    // close editor after save
+    setIsEditingProfile(false);
+    }
   };
-  
+  //--------------------------------------------------------------------------
+
+
   const handleUseMyLocation = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted')  return;
@@ -203,15 +289,15 @@ export default function MenteeSettingsScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <KeyboardAwareScrollView
         contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
         showsVerticalScrollIndicator={false}
         enableOnAndroid={true}
-        enableAutomaticScroll={true}
+        enableAutomaticScroll={false}
         extraScrollHeight={20}
       >
         <ScreenHeader
           title="Settings"
-          subtitle="Profile options, accessibility, switch account, and notifications will live here."
+          subtitle="Profile options, accessibility, switch account, and notifications will live here. Null is ignored, whitespace clears fields."
         />
 
         <View style={styles.profileSection}>
@@ -267,7 +353,13 @@ export default function MenteeSettingsScreen() {
       </View>
 
       {/* Settings dropdowns */}
-      <SettingsDropdown id="profiles" title="Profile Options">
+      <SettingsDropdown 
+        id="profiles" 
+        title="Profile Options"
+        openSection={openSection}
+        toggleSection={toggleSection}
+        theme={theme}
+      >
         <TouchableOpacity
           style={styles.itemRow}
           onPress={async () => {
@@ -285,60 +377,66 @@ export default function MenteeSettingsScreen() {
 
         <TouchableOpacity
           style={styles.itemRow}
-          onPress={() => setIsEditingProfile((prev) => !prev)}
+          onPress={toggleEditProfile}
           accessibilityRole="button"
           accessibilityState={{ expanded: isEditingProfile }}
         >
         
           <ThemedText style={styles.itemText}>Edit profile</ThemedText>
         </TouchableOpacity>
-                {isEditingProfile && (
-                  <View style={styles.profileDetailsSection}>
-                    <Text style={[styles.themeLabel, { color: theme.text }]}>Profile details</Text>
-                    <TextInput
-                      style={[styles.textInput, { color: theme.text }]}
-                      placeholder="Career / role title"
-                      placeholderTextColor="#7f8186"
-                      value={title}
-                      onChangeText={setTitle}
-                    />
-                    <TextInput
-                      style={[styles.textInput, { color: theme.text }]}
-                      placeholder="Industry"
-                      placeholderTextColor="#7f8186"
-                      value={industry}
-                      onChangeText={setIndustry}
-                    />
-                    <TextInput
-                      style={[styles.textInput, { color: theme.text }]}
-                      placeholder="Location"
-                      placeholderTextColor="#7f8186"
-                      value={location}
-                      onChangeText={setLocation}
-                    />
-                    <TouchableOpacity style={styles.locationButton} onPress={handleUseMyLocation}>
-                      <Text style={styles.locationButtonText}>Use my current location</Text>
-                    </TouchableOpacity>
-                    <TextInput
-                      style={[styles.textArea, { color: theme.text }]}
-                      placeholder="Short bio"
-                      placeholderTextColor="#7f8186"
-                      value={bio}
-                      onChangeText={setBio}
-                      multiline
-                    />
-                    <TouchableOpacity style={styles.saveButton} onPress={handleSaveProfile}>
-                      <Text style={styles.saveButtonText}>Save profile</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
+          {isEditingProfile && (
+            <View style={styles.profileDetailsSection}>
+              <Text style={[styles.themeLabel, { color: theme.text }]}>Profile details</Text>
+              <TextInput
+                style={[styles.textInput, { color: theme.text }]}
+                placeholder="Career / role title"
+                placeholderTextColor="#7f8186"
+                value={title}
+                onChangeText={setTitle}
+              />
+              <TextInput
+                style={[styles.textInput, { color: theme.text }]}
+                placeholder="Industry"
+                placeholderTextColor="#7f8186"
+                value={industry}
+                onChangeText={setIndustry}
+              />
+              <TextInput
+                style={[styles.textInput, { color: theme.text }]}
+                placeholder="Location"
+                placeholderTextColor="#7f8186"
+                value={location}
+                onChangeText={setLocation}
+              />
+              <TouchableOpacity style={styles.locationButton} onPress={handleUseMyLocation}>
+                <Text style={styles.locationButtonText}>Use my current location</Text>
+              </TouchableOpacity>
+              <TextInput
+                style={[styles.textArea, { color: theme.text }]}
+                placeholder="Short bio"
+                placeholderTextColor="#7f8186"
+                value={bio}
+                onChangeText={setBio}
+                multiline
+              />
+              <TouchableOpacity style={styles.saveButton} onPress={handleSaveProfile}>
+                <Text style={styles.saveButtonText}>Save profile</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
         <TouchableOpacity style={styles.itemRow} onPress={() => router.push('/(app)/Mentee/profile-view' as any)}>
           <ThemedText style={styles.itemText}>Manage public info</ThemedText>
         </TouchableOpacity>
       </SettingsDropdown>
 
-      <SettingsDropdown id="accessibility" title="Accessibility">
+      <SettingsDropdown 
+        id="accessibility" 
+        title="Accessibility"
+        openSection={openSection}
+        toggleSection={toggleSection}
+        theme={theme}
+      >
         <TouchableOpacity style={styles.itemRow} onPress={() => handleOpenTextSize()}>
           <ThemedText style={styles.itemText}>Text size</ThemedText>
           <ThemedText style={styles.itemSubText}>{largeText ? 'Large' : 'Default'}</ThemedText>
@@ -349,7 +447,13 @@ export default function MenteeSettingsScreen() {
         </TouchableOpacity>
       </SettingsDropdown>
 
-      <SettingsDropdown id="notifications" title="Notifications">
+      <SettingsDropdown 
+        id="notifications" 
+        title="Notifications"
+        openSection={openSection}
+        toggleSection={toggleSection}
+        theme={theme}
+      >
         <View style={styles.itemRowWithSwitch}>
           <ThemedText style={styles.itemText}>Push notifications</ThemedText>
           <Switch value={pushEnabled} onValueChange={handleTogglePush} />
@@ -362,7 +466,13 @@ export default function MenteeSettingsScreen() {
       </SettingsDropdown>
 
       {/* Switch accounts */}
-      <SettingsDropdown id="switch_accounts" title="Switch Accounts">
+      <SettingsDropdown 
+        id="switch_accounts" 
+        title="Switch Accounts"
+        openSection={openSection}
+        toggleSection={toggleSection}
+        theme={theme}
+      >
         <TouchableOpacity style={styles.itemRow} onPress={handleLogout}>
           <ThemedText style={styles.itemText}>Sign out</ThemedText>
         </TouchableOpacity>
