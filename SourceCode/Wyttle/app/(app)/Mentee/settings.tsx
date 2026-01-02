@@ -396,7 +396,7 @@ export default function MenteeSettingsScreen() {
               <Text style={[styles.themeLabel, { color: theme.text }]}>Profile details</Text>
               <TextInput
                 style={[styles.textInput, { color: theme.text }]}
-                placeholder="Career / role title"
+                placeholder="Career / Role Title"
                 placeholderTextColor="#7f8186"
                 value={title}
                 onChangeText={setTitle}
@@ -422,11 +422,12 @@ export default function MenteeSettingsScreen() {
 
               <TextInput
                 style={[styles.textArea, { color: theme.text }]}
-                placeholder="Short bio"
+                placeholder="Short Bio"
                 placeholderTextColor="#7f8186"
                 value={bio}
                 onChangeText={setBio}
                 multiline
+                maxLength={500}
               />
 
               {/* Skills Section */}
@@ -449,12 +450,12 @@ export default function MenteeSettingsScreen() {
 <View style={styles.addSkillRow}>
   <TextInput
     style={[styles.skillInput, { color: theme.text }]}
-    placeholder="Add a skill..."
+    placeholder="Add a skill (max 5)"
     placeholderTextColor="#7f8186"
     value={newSkill}
     onChangeText={setNewSkill}
     onSubmitEditing={() => {
-      if (newSkill.trim() && !skills.includes(newSkill.trim())) {
+      if (newSkill.trim() && !skills.includes(newSkill.trim()) && skills.length < 5) {
         setSkills([...skills, newSkill.trim()]);
         setNewSkill('');
       }
@@ -463,7 +464,7 @@ export default function MenteeSettingsScreen() {
   <TouchableOpacity
     style={styles.addSkillButton}
     onPress={() => {
-      if (newSkill.trim() && !skills.includes(newSkill.trim())) {
+      if (newSkill.trim() && !skills.includes(newSkill.trim()) && skills.length < 5) {
         setSkills([...skills, newSkill.trim()]);
         setNewSkill('');
       }
@@ -735,6 +736,17 @@ skillInput: {
 },
 addSkillButton: {
   padding: 4,
+},
+charCounter: {
+  fontSize: 12,
+  color: '#666',
+  textAlign: 'right',
+  marginTop: 4,
+},
+limitText: {
+  fontSize: 12,
+  color: '#d32f2f',
+  marginTop: 4,
 },
 });
 
