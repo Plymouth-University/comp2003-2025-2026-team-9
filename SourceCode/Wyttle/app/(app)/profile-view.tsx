@@ -12,6 +12,8 @@ import { supabase, disconnectPeer, getCurrentUser } from '../../src/lib/supabase
 import type { Profile } from '../../src/lib/supabase';
 import { commonStyles } from '../../src/styles/common';
 
+import { ThemedText } from '@/components/themed-text';
+
 export default function ProfileViewScreen() {
   const params = useLocalSearchParams<{ userId?: string }>();
   const userId = typeof params.userId === 'string' ? params.userId : null;
@@ -174,7 +176,7 @@ export default function ProfileViewScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={[styles.scrollContent, {alignItems: 'stretch'}]} showsVerticalScrollIndicator={false}>
-          <ScreenHeader title="Profile" align='left' />
+          {/* <ScreenHeader title="Profile" align='left' /> */}
 
           {/* Top cover image (large) */}
           <View
@@ -186,10 +188,12 @@ export default function ProfileViewScreen() {
             }}
           >
             {profile.photo_url ? (
-              <Image source={{ uri: profile.photo_url }} style={styles.topImage} />
+              <Image source={{ uri: profile.photo_url }} style={styles.topImage} resizeMode="cover" />
             ) : (
               <View style={styles.topImagePlaceholder}>
-                <Text style={styles.avatarInitial}>{firstName.charAt(0).toUpperCase()}</Text>
+                <ThemedText style={[styles.avatarInitial, font('GlacialIndifference', '700')]}>
+                  {firstName.charAt(0).toUpperCase()}
+                </ThemedText>
               </View>
             )}
           </View>
@@ -231,7 +235,9 @@ export default function ProfileViewScreen() {
                             centeredSpacingStyle,
                           ]}
                         >
-                          <Text style={styles.chipBadgeText}>{chip.text}</Text>
+                          <ThemedText style={[styles.chipBadgeText, font('GlacialIndifference', '400')]}>
+                            {chip.text}
+                          </ThemedText>
                         </View>
                       );
                     })}
@@ -242,42 +248,42 @@ export default function ProfileViewScreen() {
           </View>
 
           {/* Name (larger) */}
-          <Text
+          <ThemedText
             style={[
               styles.nameLarge,
               font('GlacialIndifference', '800'),
-              { color: theme.text },
+              //{ color: theme.text },
             ]}
           >
             {profile.full_name ?? 'Member'}
-          </Text>
+          </ThemedText>
 
           {/* About section header */}
-          <Text
+          <ThemedText
             style={[
               styles.aboutTitle,
               font('GlacialIndifference', '800'),
-              { color: theme.text },
+              //{ color: theme.text },
             ]}
           >
             About Me
-          </Text>
+          </ThemedText>
 
           {/* Bio */}
           {profile.bio ? (
-            <Text
+            <ThemedText
               style={[
                 styles.sectionBody,
                 font('GlacialIndifference', '400'),
               ]}
             >
               {profile.bio}
-            </Text>
+            </ThemedText>
           ) : null}
 
           {(Array.isArray((profile as any).skills) && (profile as any).skills.length > 0) && (
             <View style={styles.section}>
-              <Text
+              <ThemedText
                 style={[
                   styles.sectionTitle,
                   font('GlacialIndifference', '800'),
@@ -285,11 +291,11 @@ export default function ProfileViewScreen() {
                 ]}
               >
                 Skills / study
-              </Text>
+              </ThemedText>
               <View style={styles.chipRow}>
                 {(profile as any).skills.map((s: string) => (
                   <View key={s} style={styles.chip}>
-                    <Text style={styles.chipText}>{s}</Text>
+                    <ThemedText style={[styles.chipText, font('GlacialIndifference', '400')]}>{s}</ThemedText>
                   </View>
                 ))}
               </View>
@@ -323,9 +329,9 @@ export default function ProfileViewScreen() {
               onPress={handleDisconnect}
               disabled={disconnecting}
             >
-              <Text style={styles.disconnectButtonText}>
+              <ThemedText style={styles.disconnectButtonText}>
                 {disconnecting ? 'Disconnecting…' : 'Disconnect'}
-              </Text>
+              </ThemedText>
             </TouchableOpacity>
           )}
         </ScrollView>
@@ -339,6 +345,7 @@ const styles = StyleSheet.create({
     ...commonStyles.screen,
     paddingHorizontal: 18,
     paddingBottom: 120,
+    paddingTop: 8,
   },
   headerRow: {
     flexDirection: 'row',
@@ -383,7 +390,7 @@ const styles = StyleSheet.create({
   topImage: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
+    //resizeMode: 'cover', - deprecated, now set via prop
     
   },
   topImagePlaceholder: {
@@ -412,7 +419,7 @@ const styles = StyleSheet.create({
   // base pill style
   chipBadge: {
     paddingHorizontal: 4,
-    paddingVertical: 4,
+    paddingVertical: 8,
     borderRadius: 999,
     backgroundColor: '#333f5c',
     borderWidth: 1,
