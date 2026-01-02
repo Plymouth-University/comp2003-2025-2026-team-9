@@ -496,6 +496,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
     marginTop: 6,
+    marginBottom: -8,
   },
   filterButton: {
     flex: 1,
@@ -579,7 +580,8 @@ const styles = StyleSheet.create({
   },
   distanceOption: {
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingTop: 6,
+    paddingBottom: 6,
     borderRadius: 999,
     backgroundColor: '#efefef',
     marginRight: 8,

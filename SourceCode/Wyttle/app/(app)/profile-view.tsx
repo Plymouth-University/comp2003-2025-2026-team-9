@@ -11,6 +11,7 @@ import { font } from '../../src/lib/fonts';
 import { supabase, disconnectPeer, getCurrentUser } from '../../src/lib/supabase';
 import type { Profile } from '../../src/lib/supabase';
 import { commonStyles } from '../../src/styles/common';
+import { Ionicons } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
 
@@ -233,9 +234,28 @@ export default function ProfileViewScreen() {
                             styles.chipBadge,
                             sizeStyle,
                             centeredSpacingStyle,
+                            chip.key === 'location' ? styles.chipBadgeLocation : undefined,
+                            chip.key === 'industry' ? styles.chipBadgeIndustry : undefined,
                           ]}
                         >
-                          <ThemedText style={[styles.chipBadgeText, font('GlacialIndifference', '400')]}>
+
+                          {chip.key === 'location' && (
+                            <Ionicons name="location" size={14} color="#333333" style={{ marginRight: 4 }} />
+                          )}
+                          {chip.key === 'industry' && (
+                            <Ionicons name="business-outline" size={14} color="#ffffff" style={{ marginRight: 4 }} />
+                          )}
+                          {chip.key === 'title' && (
+                            <Ionicons name="briefcase-outline" size={14} color="#ffffff" style={{ marginRight: 4 }} />
+                          )}
+                          <ThemedText style={[
+                            styles.chipBadgeText, 
+                            font('GlacialIndifference', '400'),
+                            chip.key === 'location' ? { color: '#333333' } : undefined,
+                          
+                          
+                            
+                          ]}>
                             {chip.text}
                           </ThemedText>
                         </View>
@@ -387,6 +407,16 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     
   },
+  chipBadgeLocation: {
+    backgroundColor: '#edecf1', // Slightly different blue/grey color to distinguish it
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  chipBadgeIndustry: {
+    backgroundColor: '#968c6c', // Slightly different blue/grey color to distinguish it
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   topImage: {
     width: '100%',
     height: '100%',
@@ -427,6 +457,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
   },
 
   // explicit percent widths for reliable wrapping/alignment
@@ -474,17 +505,19 @@ const styles = StyleSheet.create({
   // larger name and about heading
   nameLarge: {
     fontSize: 28,
-    marginTop: 4,
+    marginTop: 1,
     marginBottom: 6,
     textAlign: 'left',
     width: '100%',
+    lineHeight: 34,
   },
   aboutTitle: {
     fontSize: 18,
     marginTop: 12,
-    marginBottom: 8,
+    marginBottom: 0,
     alignSelf: 'flex-start',
     width: '100%',
+    lineHeight: 20,
   },
   subtitle: {
     fontSize: 14,
@@ -493,7 +526,7 @@ const styles = StyleSheet.create({
   },
   section: {
     width: '100%',
-    marginTop: 16,
+    marginTop: 10,
   },
   sectionTitle: {
     fontSize: 14,
