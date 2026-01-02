@@ -430,9 +430,6 @@ export default function MenteeSettingsScreen() {
               />
 
               {/* Skills Section */}
-              <Text style={[styles.themeLabel, { color: theme.text, marginTop: 8}]}>
-              Skills 
-              </Text>
               {/* Display existing skill tags */}
 <View style={styles.skillsContainer}>
   {skills.map((skill, index) => (
