@@ -89,6 +89,8 @@ export default function MenteeSettingsScreen() {
   const theme = Colors[colorScheme ?? 'light'];
   const { resetHistory } = useNavigationHistory();
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [skills, setSkills] = useState<string[]>([]);
+  const [newSkill, setNewSkill] = useState('');
 
 
 
@@ -141,7 +143,7 @@ export default function MenteeSettingsScreen() {
   
         const { data: profile, error } = await supabase
           .from('profiles')
-          .select('title, industry, location, bio')
+          .select('title, industry, location, bio, skills')
           .eq('id', user.id)
           .maybeSingle();
   
@@ -155,6 +157,7 @@ export default function MenteeSettingsScreen() {
         setIndustry(profile?.industry ?? '');
         setLocation(profile?.location ?? '');
         setBio(profile?.bio ?? '');
+        setSkills(profile?.skills ?? []); 
       } catch (err) {
         console.warn('Error fetching profile for edit', err);
       }
@@ -227,6 +230,10 @@ export default function MenteeSettingsScreen() {
     }
     if (bio.length > 0) {
       updates.bio = bio.trim().length > 0 ? bio.trim() : null;
+    }
+
+    if (skills.length > 0) {
+      updates.skills = skills;
     }
 
     // If there is nothing to update close editor
@@ -411,6 +418,8 @@ export default function MenteeSettingsScreen() {
               <TouchableOpacity style={styles.locationButton} onPress={handleUseMyLocation}>
                 <Text style={styles.locationButtonText}>Use my current location</Text>
               </TouchableOpacity>
+
+
               <TextInput
                 style={[styles.textArea, { color: theme.text }]}
                 placeholder="Short bio"
@@ -419,10 +428,60 @@ export default function MenteeSettingsScreen() {
                 onChangeText={setBio}
                 multiline
               />
+
+              {/* Skills Section */}
+              <Text style={[styles.themeLabel, { color: theme.text, marginTop: 8}]}>
+              Skills 
+              </Text>
+              {/* Display existing skill tags */}
+<View style={styles.skillsContainer}>
+  {skills.map((skill, index) => (
+    <View key={index} style={styles.skillChip}>
+      <Text style={styles.skillText}>{skill}</Text>
+      <TouchableOpacity
+        onPress={() => setSkills(skills.filter((_, i) => i !== index))}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <Ionicons name="close-circle" size={18} color="#666" />
+      </TouchableOpacity>
+    </View>
+  ))}
+</View>
+
+{/* Add new skill input */}
+<View style={styles.addSkillRow}>
+  <TextInput
+    style={[styles.skillInput, { color: theme.text }]}
+    placeholder="Add a skill..."
+    placeholderTextColor="#7f8186"
+    value={newSkill}
+    onChangeText={setNewSkill}
+    onSubmitEditing={() => {
+      if (newSkill.trim() && !skills.includes(newSkill.trim())) {
+        setSkills([...skills, newSkill.trim()]);
+        setNewSkill('');
+      }
+    }}
+  />
+  <TouchableOpacity
+    style={styles.addSkillButton}
+    onPress={() => {
+      if (newSkill.trim() && !skills.includes(newSkill.trim())) {
+        setSkills([...skills, newSkill.trim()]);
+        setNewSkill('');
+      }
+    }}
+  >
+    <Ionicons name="add-circle" size={28} color="#333f5c" />
+  </TouchableOpacity>
+</View>
+              
+
               <TouchableOpacity style={styles.saveButton} onPress={handleSaveProfile}>
                 <Text style={styles.saveButtonText}>Save profile</Text>
               </TouchableOpacity>
             </View>
+            
           )}
 
         <TouchableOpacity style={styles.itemRow} onPress={() => router.push('/(app)/Mentee/profile-view' as any)}>
@@ -643,6 +702,42 @@ saveButton: {
 saveButtonText: {
   color: '#fff',
   fontWeight: '700',
+},
+skillsContainer: {
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  gap: 8,
+  marginBottom: 8,
+},
+skillChip: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#e0e0e0',
+  paddingHorizontal: 12,
+  paddingVertical: 6,
+  borderRadius: 16,
+  gap: 6,
+},
+skillText: {
+  fontSize: 14,
+  color: '#333',
+},
+addSkillRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 8,
+},
+skillInput: {
+  flex: 1,
+  borderWidth: 1,
+  borderColor: '#c6c1ae',
+  borderRadius: 10,
+  paddingHorizontal: 12,
+  paddingVertical: 10,
+  fontSize: 15,
+},
+addSkillButton: {
+  padding: 4,
 },
 });
 

@@ -264,7 +264,7 @@ export default function MentorHub() {
                 onPress={() => {
                   if (!isPlaceholder) {
                     router.push({
-                      pathname: '/(app)/Mentee/profile-view',
+                      pathname: '/(app)/profile-view',
                       params: { userId: (item as Mentor).id },
                     });
                   }
