@@ -193,10 +193,6 @@ export default function MenteeSettingsScreen() {
   
 
   // Handlers used by toggles and accessibility items
-  function toggleHighContrast() {
-    setThemeOverride(colorScheme === 'dark' ? 'light' : 'dark');
-  }
-
   function handleTogglePush(enabled: boolean) {
     setPushEnabled(enabled);
   }
@@ -316,44 +312,6 @@ export default function MenteeSettingsScreen() {
         <TouchableOpacity onPress={handleChangePhoto}>
           <Text style={[styles.changePhotoText, { color: theme.tint }]}>Change profile photo</Text>
         </TouchableOpacity>
-      </View>
-
-      <View style={styles.themeSection}>
-        <Text style={[styles.themeLabel, { color: theme.text }]}>Appearance</Text>
-        <View style={styles.themeButtonsRow}>
-          <TouchableOpacity
-            style={[
-              styles.themeChip,
-              colorScheme !== 'dark' && styles.themeChipActive,
-            ]}
-            onPress={() => setThemeOverride('light')}
-          >
-            <Text
-              style={[
-                styles.themeChipText,
-                colorScheme !== 'dark' && styles.themeChipTextActive,
-              ]}
-            >
-              Light
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.themeChip,
-              colorScheme === 'dark' && styles.themeChipActive,
-            ]}
-            onPress={() => setThemeOverride('dark')}
-          >
-            <Text
-              style={[
-                styles.themeChipText,
-                colorScheme === 'dark' && styles.themeChipTextActive,
-              ]}
-            >
-              Dark
-            </Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       {/* Settings dropdowns */}
@@ -509,9 +467,44 @@ export default function MenteeSettingsScreen() {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.itemRow} onPress={() => toggleHighContrast()}>
-          <ThemedText style={styles.itemText}>High contrast (theme)</ThemedText>
-        </TouchableOpacity>
+        <View style={styles.themeSection}>
+          <Text style={[styles.themeLabel, { color: theme.text }]}>Appearance</Text>
+          <View style={styles.themeButtonsRow}>
+            <TouchableOpacity
+              style={[
+                styles.themeChip,
+                colorScheme !== 'dark' && styles.themeChipActive,
+              ]}
+              onPress={() => setThemeOverride('light')}
+            >
+              <Text
+                style={[
+                  styles.themeChipText,
+                  colorScheme !== 'dark' && styles.themeChipTextActive,
+                ]}
+              >
+                Light
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.themeChip,
+                colorScheme === 'dark' && styles.themeChipActive,
+              ]}
+              onPress={() => setThemeOverride('dark')}
+            >
+              <Text
+                style={[
+                  styles.themeChipText,
+                  colorScheme === 'dark' && styles.themeChipTextActive,
+                ]}
+              >
+                Dark
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
       </SettingsDropdown>
 
       <SettingsDropdown 
