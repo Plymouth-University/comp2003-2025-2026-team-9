@@ -136,7 +136,8 @@ export default function MentorSettingsScreen() {
     }
   };
 
-  //--------------------------------------------------------------------------
+ 
+
 
   const fetchAndPrefillProfile = async () => {
     try {
@@ -176,7 +177,7 @@ export default function MentorSettingsScreen() {
       setIsEditingProfile(false);
     }
   };
-  //--------------------------------------------------------------------------
+ 
 
 
   // Toggle dropdown sections
@@ -202,7 +203,7 @@ export default function MentorSettingsScreen() {
     setEmailEnabled(enabled);
   }
  
-  //--------------------------------------------------------------------------
+ 
   
   const handleSaveProfile = async () => {
     //Behaviour: Null is ignored, whitespace clears field.  
@@ -254,8 +255,7 @@ export default function MentorSettingsScreen() {
     setIsEditingProfile(false);
     }
   };
-  //--------------------------------------------------------------------------
-  
+ 
   const handleUseMyLocation = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted')  return;
@@ -301,7 +301,7 @@ export default function MentorSettingsScreen() {
       >
         <ScreenHeader
           title="Settings"
-          subtitle="Profile options, accessibility, account options and notifications."
+          subtitle="Profile options, accessibility, switch account, and notifications will live here. Null is ignored, whitespace clears fields."
         />
 
         <View style={styles.profileSection}>

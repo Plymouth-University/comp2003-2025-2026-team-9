@@ -253,8 +253,7 @@ export default function MenteeSettingsScreen() {
     setIsEditingProfile(false);
     }
   };
-  //--------------------------------------------------------------------------
-
+ 
 
   const handleUseMyLocation = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -301,7 +300,7 @@ export default function MenteeSettingsScreen() {
       >
         <ScreenHeader
           title="Settings"
-          subtitle="Profile options, accessibility, account options and notifications"
+          subtitle="Profile options, accessibility, switch account, and notifications will live here. Null is ignored, whitespace clears fields"
         />
 
         <View style={styles.profileSection}>
