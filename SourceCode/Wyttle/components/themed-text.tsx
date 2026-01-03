@@ -1,6 +1,7 @@
 import { StyleSheet, Text, type TextProps } from 'react-native';
 
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { useTextSize } from '@/hooks/theme-store';
 
 export type ThemedTextProps = TextProps & {
   lightColor?: string;
@@ -16,17 +17,31 @@ export function ThemedText({
   ...rest
 }: ThemedTextProps) {
   const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
+  const baseTextSize = useTextSize();
+
+  // Calculate scaled font size
+  const getFontSize = () => {
+    switch (type) {
+      case 'title':
+        return baseTextSize * 2; // 32px when base is 16px
+      case 'subtitle':
+        return baseTextSize * 1.25; // 20px when base is 16px
+      default:
+        return baseTextSize;
+    }
+  };
 
   return (
     <Text
       style={[
         { color },
         type === 'default' ? styles.default : undefined,
-        type === 'title' ? styles.title : undefined,
         type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
+        type === 'title' ? styles.title : undefined,
         type === 'subtitle' ? styles.subtitle : undefined,
         type === 'link' ? styles.link : undefined,
         style,
+        { fontSize: getFontSize() },
       ]}
       {...rest}
     />
@@ -35,26 +50,21 @@ export function ThemedText({
 
 const styles = StyleSheet.create({
   default: {
-    fontSize: 16,
     lineHeight: 24,
   },
   defaultSemiBold: {
-    fontSize: 16,
     lineHeight: 24,
     fontWeight: '600',
   },
   title: {
-    fontSize: 32,
     fontWeight: 'bold',
     lineHeight: 32,
   },
   subtitle: {
-    fontSize: 20,
     fontWeight: 'bold',
   },
   link: {
     lineHeight: 30,
-    fontSize: 16,
     color: '#0a7ea4',
   },
 });

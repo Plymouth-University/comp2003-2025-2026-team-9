@@ -18,13 +18,14 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import { ThemedText } from '@/components/themed-text';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
-import { setThemeOverride } from '@/hooks/theme-store';
+import { setThemeOverride, setTextSize, useTextSize } from '@/hooks/theme-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useNavigationHistory } from '../../../src/lib/navigation-history';
 import { supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 import { TextInput } from 'react-native';
 import * as Location from 'expo-location';
+import Slider from '@react-native-community/slider';
 
 
 // Reusable component for rendering dropdowns
@@ -79,7 +80,7 @@ export default function MenteeSettingsScreen() {
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [pushEnabled, setPushEnabled] = useState<boolean>(true);
   const [emailEnabled, setEmailEnabled] = useState<boolean>(false);
-  const [largeText, setLargeText] = useState<boolean>(false);
+  const textSize = useTextSize();
 
   const [title, setTitle] = useState('');
   const [industry, setIndustry] = useState('');
@@ -192,10 +193,6 @@ export default function MenteeSettingsScreen() {
   
 
   // Handlers used by toggles and accessibility items
-  function handleOpenTextSize() {
-    setLargeText((s) => !s);
-  }
-
   function toggleHighContrast() {
     setThemeOverride(colorScheme === 'dark' ? 'light' : 'dark');
   }
@@ -494,10 +491,23 @@ export default function MenteeSettingsScreen() {
         toggleSection={toggleSection}
         theme={theme}
       >
-        <TouchableOpacity style={styles.itemRow} onPress={() => handleOpenTextSize()}>
+        <View style={styles.itemRow}>
           <ThemedText style={styles.itemText}>Text size</ThemedText>
-          <ThemedText style={styles.itemSubText}>{largeText ? 'Large' : 'Default'}</ThemedText>
-        </TouchableOpacity>
+          <View style={styles.sliderContainer}>
+            <ThemedText style={styles.sliderValue}>{textSize}px</ThemedText>
+            <Slider
+              style={styles.slider}
+              minimumValue={12}
+              maximumValue={24}
+              step={1}
+              value={textSize}
+              onValueChange={setTextSize}
+              minimumTrackTintColor="#007AFF"
+              maximumTrackTintColor="#E5E5EA"
+              thumbTintColor="#007AFF"
+            />
+          </View>
+        </View>
 
         <TouchableOpacity style={styles.itemRow} onPress={() => toggleHighContrast()}>
           <ThemedText style={styles.itemText}>High contrast (theme)</ThemedText>
@@ -747,6 +757,22 @@ limitText: {
   fontSize: 12,
   color: '#d32f2f',
   marginTop: 4,
+},
+sliderContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 10,
+  flex: 1,
+  marginLeft: 12,
+},
+slider: {
+  flex: 1,
+  height: 40,
+},
+sliderValue: {
+  fontSize: 14,
+  minWidth: 45,
+  textAlign: 'right',
 },
 });
 
