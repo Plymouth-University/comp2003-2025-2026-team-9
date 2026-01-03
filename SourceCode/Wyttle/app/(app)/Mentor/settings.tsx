@@ -296,7 +296,7 @@ export default function MentorSettingsScreen() {
       >
         <ScreenHeader
           title="Settings"
-          subtitle="Profile options, accessibility, switch account, and notifications will live here. Null is ignored, whitespace clears fields."
+          subtitle="Profile options, accessibility, account options and notifications."
         />
 
         <View style={styles.profileSection}>
