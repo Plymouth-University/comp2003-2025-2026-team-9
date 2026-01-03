@@ -86,6 +86,7 @@ export default function MentorSettingsScreen() {
   const [industry, setIndustry] = useState('');
   const [location, setLocation] = useState('');
   const [bio, setBio] = useState('');
+  const [workExperience, setWorkExperience] = useState('');
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   const { resetHistory } = useNavigationHistory();
@@ -144,7 +145,7 @@ export default function MentorSettingsScreen() {
 
       const { data: profile, error } = await supabase
         .from('profiles')
-        .select('title, industry, location, bio, skills')
+        .select('title, industry, location, bio, skills, work_experience')
         .eq('id', user.id)
         .maybeSingle();
 
@@ -158,6 +159,7 @@ export default function MentorSettingsScreen() {
       setIndustry(profile?.industry ?? '');
       setLocation(profile?.location ?? '');
       setBio(profile?.bio ?? '');
+      setWorkExperience(profile?.work_experience ?? '');
       setSkills(profile?.skills ?? []);
     } catch (err) {
       console.warn('Error fetching profile for edit', err);
@@ -223,6 +225,9 @@ export default function MentorSettingsScreen() {
     }
     if (bio.length > 0) {
       updates.bio = bio.trim().length > 0 ? bio.trim() : null;
+    }
+    if (workExperience.length > 0) {
+      updates.work_experience = workExperience.trim().length > 0 ? workExperience.trim() : null;
     }
 
     if (skills.length > 0) {
@@ -381,6 +386,15 @@ export default function MentorSettingsScreen() {
                       onChangeText={setBio}
                       multiline
                       maxLength={500}
+                    />
+
+                    {/* Work Experience text input */}
+                    <TextInput
+                      style={[styles.textInput, { color: theme.text }]}
+                      placeholder="Previous work experience"
+                      placeholderTextColor="#7f8186"
+                      value={workExperience}
+                      onChangeText={setWorkExperience}
                     />
 
                     {/* Skills Section */}

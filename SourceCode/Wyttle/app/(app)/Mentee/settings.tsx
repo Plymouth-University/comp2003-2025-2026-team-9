@@ -86,6 +86,7 @@ export default function MenteeSettingsScreen() {
   const [industry, setIndustry] = useState('');
   const [location, setLocation] = useState('');
   const [bio, setBio] = useState('');
+  const [workExperience, setWorkExperience] = useState('');
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   const { resetHistory } = useNavigationHistory();
@@ -135,7 +136,7 @@ export default function MenteeSettingsScreen() {
     }
   };
 
-    //--------------------------------------------------------------------------
+    
 
     const fetchAndPrefillProfile = async () => {
       try {
@@ -144,7 +145,7 @@ export default function MenteeSettingsScreen() {
   
         const { data: profile, error } = await supabase
           .from('profiles')
-          .select('title, industry, location, bio, skills')
+          .select('title, industry, location, bio, skills, work_experience')
           .eq('id', user.id)
           .maybeSingle();
   
@@ -153,11 +154,12 @@ export default function MenteeSettingsScreen() {
           return;
         }
   
-        // If any of these are null/undefined, fall back to empty string so inputs are controlled
+        // If any of these are undefined then fall back to empty string so inputs are controlled
         setTitle(profile?.title ?? '');
         setIndustry(profile?.industry ?? '');
         setLocation(profile?.location ?? '');
         setBio(profile?.bio ?? '');
+        setWorkExperience(profile?.work_experience ?? '');  
         setSkills(profile?.skills ?? []); 
       } catch (err) {
         console.warn('Error fetching profile for edit', err);
@@ -175,7 +177,7 @@ export default function MenteeSettingsScreen() {
       }
     };
 
-    //--------------------------------------------------------------------------
+    
 
 
 
@@ -201,7 +203,7 @@ export default function MenteeSettingsScreen() {
     setEmailEnabled(enabled);
   }
  
-  //--------------------------------------------------------------------------
+ 
   const handleSaveProfile = async () => {
     //Behaviour: Null is ignored, whitespace clears field.
     
@@ -224,7 +226,9 @@ export default function MenteeSettingsScreen() {
     if (bio.length > 0) {
       updates.bio = bio.trim().length > 0 ? bio.trim() : null;
     }
-
+    if (workExperience.length > 0) { 
+      updates.work_experience = workExperience.trim().length > 0 ? workExperience.trim() : null;
+    }
     if (skills.length > 0) {
       updates.skills = skills;
     }
@@ -384,6 +388,16 @@ export default function MenteeSettingsScreen() {
                 multiline
                 maxLength={500}
               />
+
+              {/* Work Experience text input */}
+              <TextInput
+                style={[styles.textInput, { color: theme.text }]}
+                placeholder="Previous work experience"
+                placeholderTextColor="#7f8186"
+                value={workExperience}
+                onChangeText={setWorkExperience}
+              />
+
 
               {/* Skills Section */}
               {/* Display existing skill tags */}

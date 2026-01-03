@@ -33,6 +33,7 @@ export type Profile = {
   title: string | null;      // career / role title
   industry: string | null;
   bio: string | null;
+  erience: string | null;
   photo_url: string | null;
   role: 'member' | 'mentor' | 'admin' | null;
   location?: string | null;  // optional location field
