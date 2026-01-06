@@ -39,6 +39,8 @@ export type Profile = {
   location?: string | null;  // optional location field
   skills?: string[] | null;
   interests?: string[] | null;
+  tokens_balance?: number | null;
+  mentor_session_rate?: number | null;
 };
 
 
@@ -169,7 +171,8 @@ export async function uploadProfilePhoto(fileUri: string): Promise<string> {
     .from('avatars')
     .getPublicUrl(filePath);
 
-  const publicUrl = publicData.publicUrl;
+  // Append a cache-busting query string so React Native refetches updated avatars
+  const publicUrl = `${publicData.publicUrl}?v=${Date.now()}`;
 
   // Store that URL in the user's profile row
   const { error: profileError } = await supabase
