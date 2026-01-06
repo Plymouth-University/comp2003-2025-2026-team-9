@@ -1,7 +1,7 @@
 import { StyleSheet, Text, type TextProps } from 'react-native';
 
+import { useTextScale } from '@/hooks/theme-store';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { useTextSize } from '@/hooks/theme-store';
 
 export type ThemedTextProps = TextProps & {
   lightColor?: string;
@@ -17,19 +17,31 @@ export function ThemedText({
   ...rest
 }: ThemedTextProps) {
   const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
-  const baseTextSize = useTextSize();
+  const textScale = useTextScale();
 
-  // Calculate scaled font size
-  const getFontSize = () => {
+  // Extract fontSize from style prop if it exists
+  const styleArray = Array.isArray(style) ? style : [style];
+  let existingFontSize: number | undefined;
+  
+  for (const s of styleArray) {
+    if (s && typeof s === 'object' && 'fontSize' in s) {
+      existingFontSize = s.fontSize as number;
+    }
+  }
+
+  // If there's an existing fontSize, scale it; otherwise use type-based defaults
+  const baseFontSize = existingFontSize ?? (() => {
     switch (type) {
       case 'title':
-        return baseTextSize * 2; // 32px when base is 16px
+        return 32;
       case 'subtitle':
-        return baseTextSize * 1.25; // 20px when base is 16px
+        return 20;
       default:
-        return baseTextSize;
+        return 16;
     }
-  };
+  })();
+
+  const scaledFontSize = baseFontSize * textScale;
 
   return (
     <Text
@@ -41,7 +53,7 @@ export function ThemedText({
         type === 'subtitle' ? styles.subtitle : undefined,
         type === 'link' ? styles.link : undefined,
         style,
-        { fontSize: getFontSize() },
+        { fontSize: scaledFontSize },
       ]}
       {...rest}
     />

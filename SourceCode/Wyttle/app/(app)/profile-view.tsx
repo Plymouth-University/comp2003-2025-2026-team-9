@@ -277,7 +277,7 @@ export default function ProfileViewScreen() {
             style={[
               styles.nameLarge,
               font('GlacialIndifference', '800'),
-              { color: theme.text, fontSize: textSize * 2 }, // 2x base text size
+              { color: theme.text, fontSize: 32 * textSize }, // 32px base * scale
             ]}
           >
             {profile.full_name ?? 'Member'}

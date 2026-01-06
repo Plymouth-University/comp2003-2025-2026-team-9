@@ -445,12 +445,12 @@ export default function MentorSettingsScreen() {
         <View style={styles.itemRow}>
           <ThemedText style={styles.itemText}>Text size</ThemedText>
           <View style={styles.sliderContainer}>
-            <ThemedText style={styles.sliderValue}>{textSize}px</ThemedText>
+            <ThemedText style={styles.sliderValue}>{Math.round(textSize * 100)}%</ThemedText>
             <Slider
               style={styles.slider}
-              minimumValue={12}
-              maximumValue={24}
-              step={1}
+              minimumValue={0.8}
+              maximumValue={1.2}
+              step={0.05}
               value={textSize}
               onValueChange={setTextSize}
               minimumTrackTintColor="#007AFF"
@@ -590,6 +590,7 @@ const styles = StyleSheet.create({
   themeSection: {
     marginTop: 24,
     marginBottom: 8,
+    paddingHorizontal: 12,
   },
   themeLabel: {
     fontSize: 14,
