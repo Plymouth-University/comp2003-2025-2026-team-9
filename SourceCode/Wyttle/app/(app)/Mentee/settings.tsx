@@ -385,7 +385,7 @@ export default function MenteeSettingsScreen() {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
               router.push({
-                pathname: '/(app)/Mentee/profile-view',
+                pathname: '/(app)/Mentee/profile-view' as any,
                 params: { userId: user.id },
               });
             }
