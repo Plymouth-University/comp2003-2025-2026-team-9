@@ -93,8 +93,7 @@ export default function MenteeSettingsScreen() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [skills, setSkills] = useState<string[]>([]);
   const [newSkill, setNewSkill] = useState('');
-
-
+  const [tokensBalance, setTokensBalance] = useState<number | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -103,11 +102,12 @@ export default function MenteeSettingsScreen() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('photo_url')
+        .select('photo_url, tokens_balance')
         .eq('id', user.id)
         .maybeSingle();
 
       setPhotoUrl(profile?.photo_url ?? null);
+      setTokensBalance(profile?.tokens_balance ?? null);
     })();
   }, []);
 
@@ -203,6 +203,9 @@ export default function MenteeSettingsScreen() {
     setEmailEnabled(enabled);
   }
  
+  function handleBuyTokensPlaceholder() {
+    router.push('/(app)/Mentee/buy-tokens' as any);
+  }
  
   const handleSaveProfile = async () => {
     //Behaviour: Null is ignored, whitespace clears field.
@@ -452,6 +455,23 @@ export default function MenteeSettingsScreen() {
 
         <TouchableOpacity style={styles.itemRow} onPress={() => router.push('/(app)/Mentee/profile-view' as any)}>
           <ThemedText style={styles.itemText}>Manage public info</ThemedText>
+        </TouchableOpacity>
+      </SettingsDropdown>
+
+      <SettingsDropdown 
+        id="tokens" 
+        title="Tokens"
+        openSection={openSection}
+        toggleSection={toggleSection}
+        theme={theme}
+      >
+        <View style={styles.itemRow}>
+          <ThemedText style={styles.itemText}>
+            Token balance: {tokensBalance ?? 0}
+          </ThemedText>
+        </View>
+        <TouchableOpacity style={styles.itemRow} onPress={handleBuyTokensPlaceholder}>
+          <ThemedText style={styles.itemText}>Buy tokens (coming soon)</ThemedText>
         </TouchableOpacity>
       </SettingsDropdown>
 

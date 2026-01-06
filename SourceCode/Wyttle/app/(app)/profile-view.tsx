@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { router } from 'expo-router';
 import { BackButton } from '@/components/ui/BackButton';
@@ -23,12 +23,18 @@ export default function ProfileViewScreen() {
   const theme = Colors[colorScheme ?? 'light'];
 
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [viewerProfile, setViewerProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [canDisconnect, setCanDisconnect] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   // measured width of the top image wrapper — used to size the chips container exactly
   const [imageWrapperWidth, setImageWrapperWidth] = useState<number | null>(null);
+  const [bookingModalVisible, setBookingModalVisible] = useState(false);
+  const [bookingDate, setBookingDate] = useState('');
+  const [bookingTime, setBookingTime] = useState('');
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +88,29 @@ export default function ProfileViewScreen() {
       cancelled = true;
     };
   }, [userId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadViewer = async () => {
+      try {
+        const me = await getCurrentUser();
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, full_name, tokens_balance, role')
+          .eq('id', me.id)
+          .maybeSingle();
+        if (!cancelled && !error && data) {
+          setViewerProfile(data as Profile);
+        }
+      } catch (e) {
+        console.warn('Failed to load viewer profile', e);
+      }
+    };
+    loadViewer();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const firstName = profile?.full_name?.split(' ')[0] ?? 'Member';
 
@@ -144,6 +173,63 @@ export default function ProfileViewScreen() {
       setDisconnecting(false);
     }
   };
+
+  const handleBookSession = async () => {
+    if (!profile || !userId) return;
+    if (!bookingDate || !bookingTime) {
+      setBookingError('Please enter a date and time');
+      return;
+    }
+    try {
+      setBookingLoading(true);
+      setBookingError(null);
+
+      // Basic ISO construction; assumes bookingDate is YYYY-MM-DD and bookingTime is HH:MM in local time
+      const scheduled = new Date(`${bookingDate}T${bookingTime}:00`);
+      if (isNaN(scheduled.getTime())) {
+        setBookingError('Invalid date or time');
+        setBookingLoading(false);
+        return;
+      }
+
+      const { error } = await supabase.rpc('book_mentor_session', {
+        p_mentor_id: userId,
+        p_scheduled_start: scheduled.toISOString(),
+      });
+      if (error) {
+        console.error('Failed to book mentor session', error);
+        setBookingError(error.message ?? 'Failed to book session');
+        setBookingLoading(false);
+        return;
+      }
+
+      // Optimistically refresh viewer token balance if rate is known
+      if (viewerProfile && typeof profile.mentor_session_rate === 'number') {
+        setViewerProfile({
+          ...viewerProfile,
+          tokens_balance:
+            typeof viewerProfile.tokens_balance === 'number'
+              ? viewerProfile.tokens_balance - profile.mentor_session_rate
+              : viewerProfile.tokens_balance ?? null,
+        });
+      }
+
+      setBookingModalVisible(false);
+      setBookingLoading(false);
+    } catch (e: any) {
+      console.error('Failed to book mentor session', e);
+      setBookingError(e.message ?? 'Failed to book session');
+      setBookingLoading(false);
+    }
+  };
+
+  const canShowBooking =
+    !!profile &&
+    profile.role === 'mentor' &&
+    typeof profile.mentor_session_rate === 'number' &&
+    profile.mentor_session_rate > 0 &&
+    viewerProfile &&
+    viewerProfile.id !== profile.id;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -278,6 +364,28 @@ export default function ProfileViewScreen() {
             {profile.full_name ?? 'Member'}
           </ThemedText>
 
+          {canShowBooking && (
+            <TouchableOpacity
+              style={styles.bookButton}
+              onPress={() => {
+                setBookingError(null);
+                setBookingDate('');
+                setBookingTime('');
+                setBookingModalVisible(true);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.bookButtonTitle}>
+                {`Connect for a video session (${profile.mentor_session_rate} tokens)`}
+              </Text>
+              {viewerProfile && typeof viewerProfile.tokens_balance === 'number' && (
+                <Text style={styles.bookButtonSubtitle}>
+                  {`Your balance: ${viewerProfile.tokens_balance} tokens`}
+                </Text>
+              )}
+            </TouchableOpacity>
+          )}
+
           {/* About section header */}
           <ThemedText
             style={[
@@ -353,6 +461,60 @@ export default function ProfileViewScreen() {
                 {disconnecting ? 'Disconnecting…' : 'Disconnect'}
               </ThemedText>
             </TouchableOpacity>
+          )}
+
+          {canShowBooking && (
+            <Modal
+              transparent
+              visible={bookingModalVisible}
+              animationType="fade"
+              onRequestClose={() => setBookingModalVisible(false)}
+            >
+              <View style={styles.bookingOverlay}>
+                <View style={[styles.bookingCard, { backgroundColor: theme.card }]}>
+                  <Text style={[styles.bookingTitle, { color: theme.text }]}> 
+                    Schedule a video session
+                  </Text>
+                  <Text style={[styles.bookingLabel, { color: theme.text }]}>Date (YYYY-MM-DD)</Text>
+                  <TextInput
+                    style={[styles.bookingInput, { color: theme.text }]}
+                    placeholder="2026-01-15"
+                    placeholderTextColor="#7f8186"
+                    value={bookingDate}
+                    onChangeText={setBookingDate}
+                  />
+                  <Text style={[styles.bookingLabel, { color: theme.text }]}>Time (HH:MM, 24h)</Text>
+                  <TextInput
+                    style={[styles.bookingInput, { color: theme.text }]}
+                    placeholder="14:30"
+                    placeholderTextColor="#7f8186"
+                    value={bookingTime}
+                    onChangeText={setBookingTime}
+                  />
+                  {bookingError && (
+                    <Text style={styles.bookingErrorText}>{bookingError}</Text>
+                  )}
+                  <View style={styles.bookingButtonsRow}>
+                    <TouchableOpacity
+                      style={[styles.bookingButton, styles.bookingButtonSecondary]}
+                      onPress={() => setBookingModalVisible(false)}
+                      disabled={bookingLoading}
+                    >
+                      <Text style={styles.bookingButtonSecondaryText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.bookingButton, styles.bookingButtonPrimary]}
+                      onPress={handleBookSession}
+                      disabled={bookingLoading}
+                    >
+                      <Text style={styles.bookingButtonPrimaryText}>
+                        {bookingLoading ? 'Booking…' : 'Confirm'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </Modal>
           )}
         </ScrollView>
       )}
@@ -532,6 +694,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 6,
   },
+  bookButton: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#333f5c',
+  },
+  bookButtonTitle: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  bookButtonSubtitle: {
+    color: '#e0dfd5',
+    fontSize: 12,
+    marginTop: 2,
+  },
   disconnectButton: {
     marginTop: 24,
     alignSelf: 'flex-start',
@@ -541,6 +721,68 @@ const styles = StyleSheet.create({
     backgroundColor: '#c43b3b',
   },
   disconnectButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  bookingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bookingCard: {
+    width: '88%',
+    borderRadius: 18,
+    padding: 16,
+  },
+  bookingTitle: {
+    fontSize: 18,
+    marginBottom: 8,
+  },
+  bookingLabel: {
+    fontSize: 13,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  bookingInput: {
+    borderWidth: 1,
+    borderColor: '#c6c1ae',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 14,
+  },
+  bookingErrorText: {
+    marginTop: 6,
+    color: '#c43b3b',
+    fontSize: 12,
+  },
+  bookingButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 14,
+    columnGap: 8,
+  },
+  bookingButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 999,
+    alignItems: 'center',
+  },
+  bookingButtonSecondary: {
+    borderWidth: 1,
+    borderColor: '#968c6c',
+    backgroundColor: 'transparent',
+  },
+  bookingButtonSecondaryText: {
+    color: '#968c6c',
+    fontSize: 14,
+  },
+  bookingButtonPrimary: {
+    backgroundColor: '#333f5c',
+  },
+  bookingButtonPrimaryText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',

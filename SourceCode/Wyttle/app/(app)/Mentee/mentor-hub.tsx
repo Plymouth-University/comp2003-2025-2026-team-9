@@ -26,6 +26,7 @@ type Mentor = {
   industry?: string;
   photo_url?: string;
   role?: string;
+  mentor_session_rate?: number | null;
 };
 
 /**
@@ -130,7 +131,7 @@ export default function MentorHub() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, title, industry, photo_url') //price when column is added
+        .select('id, full_name, title, industry, photo_url, mentor_session_rate')
         .eq('role', 'mentor');
 
       if (error) {
@@ -435,7 +436,16 @@ export default function MentorHub() {
                       <View style={styles.avatar} />
                     )}
 
-                    <Text style={[styles.name, { color: theme.text }]}>
+                    {typeof (item as Mentor).mentor_session_rate === 'number' &&
+                      (item as Mentor).mentor_session_rate! > 0 && (
+                        <View style={styles.priceTag}>
+                        <Text style={styles.priceEmoji}>💎</Text>
+                        <Text style={styles.priceText}>{(item as Mentor).mentor_session_rate}</Text>
+                        <Text style={styles.priceUnit}>/session</Text>
+                    </View>
+                      )}
+
+                    <Text style={[styles.name, { color: theme.text, top: -12 }]}>
                       {(item as Mentor).full_name ?? 'Unnamed mentor'}
                     </Text>
 
@@ -444,15 +454,6 @@ export default function MentorHub() {
                         {(item as Mentor).title}
                       </Text>
                     )}
-
-                    {/* When we add a price/tokens column, render it here */}
-                    {/* {m.tokens_rate && m.tokens_rate > 0 && (
-                    <View style={styles.priceTag}>
-                        <Text style={styles.priceEmoji}>💎</Text>
-                        <Text style={styles.priceText}>{m.tokens_rate}</Text>
-                        <Text style={styles.priceUnit}>/session</Text>
-                    </View>
-                    )} */}
 
                   </>
                 )}
@@ -541,7 +542,13 @@ const styles = StyleSheet.create({
     height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
     backgroundColor: '#d9d9d9',
-    marginBottom: 6,
+    marginBottom: 4,
+  },
+  tokenRate: {
+    fontSize: 10,
+    color: '#777',
+    textAlign: 'center',
+    marginBottom: 2,
   },
   name: {
     fontSize: 12,
@@ -551,13 +558,15 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 11,
     textAlign: 'center',
+    fontStyle: 'italic',
+    top: -20,
     marginBottom: 6,
     opacity: 0.7,
   },
   priceTag: {
-    position: 'absolute',
-    right: 4,
-    top: 8,
+    position: 'relative',
+    right: 0,
+    top: -10,
     backgroundColor: '#ffd24d',
     borderRadius: 999,
     paddingHorizontal: 6,
