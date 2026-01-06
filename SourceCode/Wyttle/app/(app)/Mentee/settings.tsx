@@ -18,14 +18,14 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import { ThemedText } from '@/components/themed-text';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
-import { setThemeOverride, setTextSize, useTextSize } from '@/hooks/theme-store';
+import { setTextSize, setThemeOverride, useTextSize } from '@/hooks/theme-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import Slider from '@react-native-community/slider';
+import * as Location from 'expo-location';
+import { TextInput } from 'react-native';
 import { useNavigationHistory } from '../../../src/lib/navigation-history';
 import { supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
-import { TextInput } from 'react-native';
-import * as Location from 'expo-location';
-import Slider from '@react-native-community/slider';
 
 
 // Reusable component for rendering dropdowns
@@ -205,52 +205,35 @@ export default function MenteeSettingsScreen() {
  
  
   const handleSaveProfile = async () => {
-    //Behaviour: Null is ignored, whitespace clears field.
-    
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Build update object only with trimmed non-empty values
-    const updates: { [k: string]: any } = {};
-
-    // If trimmed value is empty, set to null to clear the field
-    if (title.length > 0) {
-      updates.title = title.trim().length > 0 ? title.trim() : null;
-    }
-    if (industry.length > 0) {
-      updates.industry = industry.trim().length > 0 ? industry.trim() : null;
-    }
-    if (location.length > 0) {
-      updates.location = location.trim().length > 0 ? location.trim() : null;
-    }
-    if (bio.length > 0) {
-      updates.bio = bio.trim().length > 0 ? bio.trim() : null;
-    }
-    if (workExperience.length > 0) { 
-      updates.work_experience = workExperience.trim().length > 0 ? workExperience.trim() : null;
-    }
-    if (skills.length > 0) {
-      updates.skills = skills;
-    }
-
-    // If there is nothing to update close editor
-    if (Object.keys(updates).length === 0) {
-      setIsEditingProfile(false);
-      return;
-    }
+    // Build update object - trim values and set to null if empty
+    const updates: { [k: string]: any } = {
+      title: title.trim().length > 0 ? title.trim() : null,
+      industry: industry.trim().length > 0 ? industry.trim() : null,
+      location: location.trim().length > 0 ? location.trim() : null,
+      bio: bio.trim().length > 0 ? bio.trim() : null,
+      work_experience: workExperience.trim().length > 0 ? workExperience.trim() : null,
+      skills: skills.length > 0 ? skills : null,
+    };
 
     try {
-    await supabase
-      .from('profiles')
-      .update(updates)
-      .eq('id', user.id);
-      console.log('Profile updated successfully');
-
+      const { error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', user.id);
+      
+      if (error) {
+        console.error('Failed to save profile:', error);
+      } else {
+        console.log('Profile updated successfully');
+      }
     } catch (err) {
-    console.warn('Failed to save profile', err);
+      console.warn('Failed to save profile', err);
     } finally {
-    // close editor after save
-    setIsEditingProfile(false);
+      // close editor after save
+      setIsEditingProfile(false);
     }
   };
  
@@ -303,22 +286,8 @@ export default function MenteeSettingsScreen() {
           subtitle="Profile options, accessibility, switch account, and notifications will live here. Null is ignored, whitespace clears fields"
         />
 
-        <View style={styles.profileSection}>
-        <Image
-          source={
-            photoUrl
-              ? { uri: photoUrl }
-              : { uri: 'https://placehold.co/96x96?text=Me' }
-          }
-          style={styles.avatar}
-        />
-        <TouchableOpacity onPress={handleChangePhoto}>
-          <Text style={[styles.changePhotoText, { color: theme.tint }]}>Change profile photo</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Settings dropdowns */}
-      <SettingsDropdown 
+        {/* Settings dropdowns */}
+        <SettingsDropdown 
         id="profiles" 
         title="Profile Options"
         openSection={openSection}
@@ -352,6 +321,21 @@ export default function MenteeSettingsScreen() {
           {isEditingProfile && (
             <View style={styles.profileDetailsSection}>
               <Text style={[styles.themeLabel, { color: theme.text }]}>Profile details</Text>
+              
+              <View style={styles.profilePhotoSection}>
+                <Image
+                  source={
+                    photoUrl
+                      ? { uri: photoUrl }
+                      : { uri: 'https://placehold.co/96x96?text=Me' }
+                  }
+                  style={styles.avatar}
+                />
+                <TouchableOpacity onPress={handleChangePhoto}>
+                  <Text style={[styles.changePhotoText, { color: theme.tint }]}>Change profile photo</Text>
+                </TouchableOpacity>
+              </View>
+              
               <TextInput
                 style={[styles.textInput, { color: theme.text }]}
                 placeholder="Career / Role Title"
@@ -590,6 +574,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
+  },
+  profilePhotoSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 10,
   },
   avatar: {
     width: 64,
