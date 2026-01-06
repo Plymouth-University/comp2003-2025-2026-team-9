@@ -311,6 +311,11 @@ export default function MenteeConnectionsScreen() {
         ListHeaderComponent={
           <ThemedText style={[styles.chatsTitle, font('GlacialIndifference', '800')]}>Chats</ThemedText>
         }
+        ListEmptyComponent={
+          chats.length === 0 && !loading ? (
+            <Text style={styles.emptyText}>No chats yet – start a conversation with your matches!</Text>
+          ) : null
+        }
         renderItem={({ item }) => (
           <ConversationRow
             name={item.name}
