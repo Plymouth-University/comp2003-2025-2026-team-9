@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
+  Animated,
   Image,
   LayoutAnimation,
   Platform,
@@ -8,6 +9,7 @@ import {
   Switch,
   Text,
   TouchableOpacity,
+  UIManager,
   View
 } from 'react-native';
 
@@ -28,6 +30,11 @@ import { supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 
 
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 // Reusable component for rendering dropdowns
 function SettingsDropdown({
   id,
@@ -45,6 +52,40 @@ function SettingsDropdown({
   theme: any;
 }) {
   const open = openSection === id;
+  const animatedHeight = useRef(new Animated.Value(0)).current;
+  const animatedOpacity = useRef(new Animated.Value(0)).current;
+  const [contentHeight, setContentHeight] = useState(0);
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    if (open && contentHeight > 0 && isReady) {
+      Animated.parallel([
+        Animated.timing(animatedHeight, {
+          toValue: contentHeight,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+        Animated.timing(animatedOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    } else if (!open && isReady) {
+      Animated.parallel([
+        Animated.timing(animatedHeight, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: false,
+        }),
+        Animated.timing(animatedOpacity, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    }
+  }, [open, contentHeight, isReady]);
 
   return (
     <View style={[styles.dropdownContainer, { backgroundColor: theme.card }]}>
@@ -68,8 +109,38 @@ function SettingsDropdown({
         />
       </TouchableOpacity>
 
-      {/* Show items only if the section is open */}
-      {open ? <View style={styles.itemsContainer}>{children}</View> : null}
+      {/* Hidden view to measure content height */}
+      <View
+        style={[styles.measureContainer, { position: 'absolute', opacity: 0 }]}
+        onLayout={(e) => {
+          const height = e.nativeEvent.layout.height;
+          if (height > 0 && contentHeight === 0) {
+            setContentHeight(height);
+            setIsReady(true);
+          }
+        }}
+      >
+        <View style={styles.itemsContainer}>
+          {children}
+        </View>
+      </View>
+
+      {/* Animated dropdown content */}
+      {isReady && (
+        <Animated.View
+          style={[
+            styles.animatedContainer,
+            {
+              height: animatedHeight,
+              opacity: animatedOpacity,
+            },
+          ]}
+        >
+          <View style={styles.itemsContainer}>
+            {children}
+          </View>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -182,10 +253,6 @@ export default function MentorSettingsScreen() {
 
   // Toggle dropdown sections
   function toggleSection(id: string) {
-    if (Platform.OS !== 'web') {
-      // enable smooth layout
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    }
     setOpenSection((prev) => (prev === id ? null : id));
   }
 
@@ -519,24 +586,14 @@ export default function MentorSettingsScreen() {
         </View>
       </SettingsDropdown>
 
-      {/* Switch accounts */}
-      <SettingsDropdown 
-        id="switch_accounts" 
-        title="Switch Accounts"
-        openSection={openSection}
-        toggleSection={toggleSection}
-        theme={theme}
+      {/* Log out button */}
+      <TouchableOpacity 
+        style={[styles.logoutButton, { backgroundColor: '#dc2626' }]} 
+        onPress={handleLogout}
+        activeOpacity={0.8}
       >
-        <TouchableOpacity style={styles.itemRow} onPress={handleLogout}>
-          <ThemedText style={styles.itemText}>Sign out</ThemedText>
-        </TouchableOpacity>
-
-
-      {/* Add account */}
-        <TouchableOpacity style={styles.itemRow} onPress={() => router.push('/(auth)/sign-up' as any)}>
-          <ThemedText style={styles.itemText}>Add account</ThemedText>
-        </TouchableOpacity>
-      </SettingsDropdown>
+        <ThemedText style={styles.logoutButtonText}>Log out</ThemedText>
+      </TouchableOpacity>
       </KeyboardAwareScrollView>
     </View>
   );
@@ -637,6 +694,14 @@ sectionTitle: {
 },
 chevron: {
   marginLeft: 12,
+},
+animatedContainer: {
+  overflow: 'hidden',
+},
+measureContainer: {
+  position: 'absolute',
+  opacity: 0,
+  zIndex: -1,
 },
 itemsContainer: {
   paddingVertical: 6,
@@ -767,6 +832,19 @@ sliderValue: {
   fontSize: 14,
   minWidth: 45,
   textAlign: 'right',
+},
+logoutButton: {
+  marginTop: 20,
+  marginBottom: 12,
+  paddingVertical: 16,
+  borderRadius: 10,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+logoutButtonText: {
+  color: '#fff',
+  fontWeight: '700',
+  fontSize: 16,
 },
 });
 
