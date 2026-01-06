@@ -49,7 +49,7 @@ export default function ProfileViewScreen() {
         setLoading(true);
         const { data, error: profileError } = await supabase
           .from('profiles')
-          .select('id, full_name, title, industry, bio, photo_url, role, location, skills, interests')
+          .select('id, full_name, title, industry, bio, photo_url, role, location, skills, interests, work_experience')
           .eq('id', userId)
           .single();
         if (cancelled) return;
@@ -390,6 +390,29 @@ export default function ProfileViewScreen() {
             >
               {profile.bio}
             </ThemedText>
+          ) : null}
+
+          {/* Work Experience */}
+          {(profile as any).work_experience ? (
+            <View style={styles.section}>
+              <ThemedText
+                style={[
+                  styles.sectionTitle,
+                  font('GlacialIndifference', '800'),
+                  { color: theme.text },
+                ]}
+              >
+                Work Experience
+              </ThemedText>
+              <ThemedText
+                style={[
+                  styles.sectionBody,
+                  font('GlacialIndifference', '400'),
+                ]}
+              >
+                {(profile as any).work_experience}
+              </ThemedText>
+            </View>
           ) : null}
 
           {(Array.isArray((profile as any).skills) && (profile as any).skills.length > 0) && (
