@@ -39,6 +39,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 function SettingsDropdown({
   id,
   title,
+  icon,
   children,
   openSection,
   toggleSection,
@@ -46,6 +47,7 @@ function SettingsDropdown({
 }: {
   id: string;
   title: string;
+  icon?: string;
   children?: React.ReactNode;
   openSection: string | null;
   toggleSection: (id: string) => void;
@@ -96,9 +98,19 @@ function SettingsDropdown({
         accessibilityState={{ expanded: open }}
         style={[styles.sectionHeader, { borderBottomColor: theme.text + '0F' }]}
       >
-        <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
-          {title}
-        </ThemedText>
+        <View style={styles.headerContent}>
+          {icon && (
+            <Ionicons
+              name={icon as any}
+              size={22}
+              color={theme.text}
+              style={styles.headerIcon}
+            />
+          )}
+          <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
+            {title}
+          </ThemedText>
+        </View>
 
         {/* icon rotates based on open/closed state */}
         <Ionicons
@@ -114,9 +126,11 @@ function SettingsDropdown({
         style={[styles.measureContainer, { position: 'absolute', opacity: 0 }]}
         onLayout={(e) => {
           const height = e.nativeEvent.layout.height;
-          if (height > 0 && contentHeight === 0) {
+          if (height > 0) {
             setContentHeight(height);
-            setIsReady(true);
+            if (!isReady) {
+              setIsReady(true);
+            }
           }
         }}
       >
@@ -360,6 +374,7 @@ export default function MenteeSettingsScreen() {
         <SettingsDropdown 
         id="profiles" 
         title="Profile Options"
+        icon="person-outline"
         openSection={openSection}
         toggleSection={toggleSection}
         theme={theme}
@@ -503,15 +518,12 @@ export default function MenteeSettingsScreen() {
             </View>
             
           )}
-
-        <TouchableOpacity style={styles.itemRow} onPress={() => router.push('/(app)/Mentee/profile-view' as any)}>
-          <ThemedText style={styles.itemText}>Manage public info</ThemedText>
-        </TouchableOpacity>
       </SettingsDropdown>
 
       <SettingsDropdown 
         id="tokens" 
         title="Tokens"
+        icon="wallet-outline"
         openSection={openSection}
         toggleSection={toggleSection}
         theme={theme}
@@ -529,6 +541,7 @@ export default function MenteeSettingsScreen() {
       <SettingsDropdown 
         id="accessibility" 
         title="Accessibility"
+        icon="eye-outline"
         openSection={openSection}
         toggleSection={toggleSection}
         theme={theme}
@@ -594,6 +607,7 @@ export default function MenteeSettingsScreen() {
       <SettingsDropdown 
         id="notifications" 
         title="Notifications"
+        icon="notifications-outline"
         openSection={openSection}
         toggleSection={toggleSection}
         theme={theme}
@@ -711,6 +725,14 @@ sectionHeader: {
   paddingVertical: 16,
   paddingHorizontal: 12,
   borderBottomWidth: 1,
+},
+headerContent: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 10,
+},
+headerIcon: {
+  marginRight: 2,
 },
 sectionTitle: {
   fontSize: 16,
