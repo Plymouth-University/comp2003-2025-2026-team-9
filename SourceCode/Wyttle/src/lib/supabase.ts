@@ -150,13 +150,17 @@ export async function uploadProfilePhoto(fileUri: string): Promise<string> {
 
   const filePath = `profiles/${user.id}.${fileExt}`;
 
-  // Read the picked image and convert to Blob (works in modern Expo)
-  const response = await fetch(fileUri);
-  const blob = await response.blob();
+  // Read the file as base64 using expo-file-system
+  const base64 = await FileSystem.readAsStringAsync(fileUri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+
+  // Convert base64 to ArrayBuffer
+  const arrayBuffer = decode(base64);
 
   const { error: uploadError } = await supabase.storage
     .from('avatars')
-    .upload(filePath, blob as any, {
+    .upload(filePath, arrayBuffer, {
       upsert: true,
       contentType,
     });
