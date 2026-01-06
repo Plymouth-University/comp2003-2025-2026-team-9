@@ -2,18 +2,18 @@ import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-import { router } from 'expo-router';
-import { BackButton } from '@/components/ui/BackButton';
-import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { font } from '../../src/lib/fonts';
-import { supabase, disconnectPeer, getCurrentUser } from '../../src/lib/supabase';
-import type { Profile } from '../../src/lib/supabase';
-import { commonStyles } from '../../src/styles/common';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { font } from '../../src/lib/fonts';
+import type { Profile } from '../../src/lib/supabase';
+import { disconnectPeer, getCurrentUser, supabase } from '../../src/lib/supabase';
+import { commonStyles } from '../../src/styles/common';
 
 import { ThemedText } from '@/components/themed-text';
+import { BackButton } from '@/components/ui/BackButton';
+import { useTextSize } from '@/hooks/theme-store';
 
 export default function ProfileViewScreen() {
   const params = useLocalSearchParams<{ userId?: string }>();
@@ -21,6 +21,7 @@ export default function ProfileViewScreen() {
 
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
+  const textSize = useTextSize();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [viewerProfile, setViewerProfile] = useState<Profile | null>(null);
@@ -283,11 +284,15 @@ export default function ProfileViewScreen() {
                 </ThemedText>
               </View>
             )}
+            
+            {/* Floating back button */}
+            <BackButton style={styles.floatingBackButton} />
           </View>
 
+          <View style={styles.subPicContainter}>
           {/* Packed chips: build rows so full/half/quarter combine predictably */}
-          {/* chips container sized to the image wrapper so rows never exceed image width */}
-          <View style={{ width: imageWrapperWidth ?? '100%', alignSelf: 'center' }}>
+          {/* chips container sized to fill the padded container width */}
+          <View style={{ width: '100%' }}>
             {(() => {
               const rows = buildChipRows(profile);
               return rows.map((row, ri) => {
@@ -354,40 +359,18 @@ export default function ProfileViewScreen() {
           </View>
 
           {/* Name (larger) */}
-          <ThemedText
+          <Text
             style={[
               styles.nameLarge,
               font('GlacialIndifference', '800'),
-              //{ color: theme.text },
+              { color: theme.text, fontSize: textSize * 2 }, // 2x base text size
             ]}
           >
             {profile.full_name ?? 'Member'}
-          </ThemedText>
-
-          {canShowBooking && (
-            <TouchableOpacity
-              style={styles.bookButton}
-              onPress={() => {
-                setBookingError(null);
-                setBookingDate('');
-                setBookingTime('');
-                setBookingModalVisible(true);
-              }}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.bookButtonTitle}>
-                {`Connect for a video session (${profile.mentor_session_rate} tokens)`}
-              </Text>
-              {viewerProfile && typeof viewerProfile.tokens_balance === 'number' && (
-                <Text style={styles.bookButtonSubtitle}>
-                  {`Your balance: ${viewerProfile.tokens_balance} tokens`}
-                </Text>
-              )}
-            </TouchableOpacity>
-          )}
+          </Text>
 
           {/* About section header */}
-          <ThemedText
+          <Text
             style={[
               styles.aboutTitle,
               font('GlacialIndifference', '800'),
@@ -395,7 +378,7 @@ export default function ProfileViewScreen() {
             ]}
           >
             About Me
-          </ThemedText>
+          </Text>
 
           {/* Bio */}
           {profile.bio ? (
@@ -462,60 +445,7 @@ export default function ProfileViewScreen() {
               </ThemedText>
             </TouchableOpacity>
           )}
-
-          {canShowBooking && (
-            <Modal
-              transparent
-              visible={bookingModalVisible}
-              animationType="fade"
-              onRequestClose={() => setBookingModalVisible(false)}
-            >
-              <View style={styles.bookingOverlay}>
-                <View style={[styles.bookingCard, { backgroundColor: theme.card }]}>
-                  <Text style={[styles.bookingTitle, { color: theme.text }]}> 
-                    Schedule a video session
-                  </Text>
-                  <Text style={[styles.bookingLabel, { color: theme.text }]}>Date (YYYY-MM-DD)</Text>
-                  <TextInput
-                    style={[styles.bookingInput, { color: theme.text }]}
-                    placeholder="2026-01-15"
-                    placeholderTextColor="#7f8186"
-                    value={bookingDate}
-                    onChangeText={setBookingDate}
-                  />
-                  <Text style={[styles.bookingLabel, { color: theme.text }]}>Time (HH:MM, 24h)</Text>
-                  <TextInput
-                    style={[styles.bookingInput, { color: theme.text }]}
-                    placeholder="14:30"
-                    placeholderTextColor="#7f8186"
-                    value={bookingTime}
-                    onChangeText={setBookingTime}
-                  />
-                  {bookingError && (
-                    <Text style={styles.bookingErrorText}>{bookingError}</Text>
-                  )}
-                  <View style={styles.bookingButtonsRow}>
-                    <TouchableOpacity
-                      style={[styles.bookingButton, styles.bookingButtonSecondary]}
-                      onPress={() => setBookingModalVisible(false)}
-                      disabled={bookingLoading}
-                    >
-                      <Text style={styles.bookingButtonSecondaryText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.bookingButton, styles.bookingButtonPrimary]}
-                      onPress={handleBookSession}
-                      disabled={bookingLoading}
-                    >
-                      <Text style={styles.bookingButtonPrimaryText}>
-                        {bookingLoading ? 'Booking…' : 'Confirm'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            </Modal>
-          )}
+          </View>
         </ScrollView>
       )}
     </View>
@@ -525,9 +455,13 @@ export default function ProfileViewScreen() {
 const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
-    paddingHorizontal: 18,
+    paddingHorizontal: 0,
     paddingBottom: 120,
     paddingTop: 8,
+  },
+  subPicContainter: {
+    paddingTop: 12,
+    paddingHorizontal: 18,
   },
   headerRow: {
     flexDirection: 'row',
@@ -560,14 +494,24 @@ const styles = StyleSheet.create({
   topImageWrapper: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: 14,
-    borderColor: '#000000',
-    borderWidth: 3,
-    overflow: 'hidden',
+    borderRadius: 0,
+    overflow: 'visible',
     marginBottom: 12,
     backgroundColor: '#e9e9e9',
     alignSelf: 'stretch',
-    
+    // iOS shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    // Android shadow
+    elevation: 8,
+  },
+  floatingBackButton: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    zIndex: 10,
   },
   chipBadgeLocation: {
     backgroundColor: '#edecf1', // Slightly different blue/grey color to distinguish it
@@ -614,12 +558,17 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
     backgroundColor: '#333f5c',
-    borderWidth: 1,
-    borderColor: '#000000',
     marginBottom: 8,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
+    // iOS shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    // Android shadow
+    elevation: 4,
   },
 
   // explicit percent widths for reliable wrapping/alignment
@@ -666,12 +615,11 @@ const styles = StyleSheet.create({
 
   // larger name and about heading
   nameLarge: {
-    fontSize: 28,
     marginTop: 1,
     marginBottom: 6,
     textAlign: 'left',
     width: '100%',
-    lineHeight: 34,
+    fontWeight: '800',
   },
   aboutTitle: {
     fontSize: 18,
