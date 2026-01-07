@@ -424,7 +424,7 @@ export default function ProfileViewScreen() {
                   { color: theme.text },
                 ]}
               >
-                Skills / study
+                Skills / Study
               </ThemedText>
               <View style={styles.chipRow}>
                 {(profile as any).skills.map((s: string) => (
@@ -500,7 +500,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     alignItems: 'center',
-    paddingBottom: 40,
+    paddingBottom: 120,
   },
   avatarWrapper: {
     width: 96,
@@ -627,7 +627,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#555',
     textAlign: 'left',
-    marginTop: 12,
+    marginTop: 0,
     alignSelf: 'stretch',
     width: '100%',
     lineHeight: 20,
@@ -636,11 +636,12 @@ const styles = StyleSheet.create({
 
   // larger name and about heading
   nameLarge: {
-    marginTop: 1,
+    marginTop: 18,
     marginBottom: 6,
     textAlign: 'left',
     width: '100%',
     fontWeight: '800',
+    lineHeight: 36,
   },
   aboutTitle: {
     fontSize: 18,
@@ -660,8 +661,8 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   sectionTitle: {
-    fontSize: 14,
-    marginBottom: 6,
+    fontSize: 18,
+    marginBottom: 2,
   },
   bookButton: {
     marginTop: 12,

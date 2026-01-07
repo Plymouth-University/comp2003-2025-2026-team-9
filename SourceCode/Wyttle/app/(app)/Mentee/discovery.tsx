@@ -256,6 +256,12 @@ export default function DiscoveryStackScreen() {
               profile={current}
               nextProfile={nextProfile}
               remaining={remaining}
+              onOpenProfile={(id: string) => {
+                router.push({
+                  pathname: '/(app)/Mentee/profile-view' as any,
+                  params: { userId: id },
+                });
+              }}
               onSwipeLeft={() => {
                 if (!current) return;
                 const swipedId = current.id;
@@ -452,6 +458,7 @@ type ProfileCardProps = {
   swipeCommand?: 'left' | 'right' | null;
   onSwipeCommandHandled?: () => void;
   swiping: boolean;
+  onOpenProfile?: (id: string) => void;
 };
 
 function ProfileCard({
@@ -464,6 +471,7 @@ function ProfileCard({
   swipeCommand,
   onSwipeCommandHandled,
   swiping,
+  onOpenProfile,
 }: ProfileCardProps) {
   const translateX = useSharedValue(0);
   const colorScheme = useColorScheme();
@@ -583,7 +591,7 @@ function ProfileCard({
                   font('GlacialIndifference', '400'),
                   { color: isDark ? theme.text : '#555' },
                 ]}
-                numberOfLines={3}
+                numberOfLines={2}
               >
                 {p.bio}
               </Text>
@@ -592,7 +600,7 @@ function ProfileCard({
             {chips.length > 0 && (
               <View style={styles.chipsRow}>
                 {chips.map((chip) => (
-                  <View key={chip} style={styles.chip}>
+                  <View key={chip} style={[styles.chip, isDark && styles.chipDark]}>
                     <Text
                       style={[
                         styles.chipText,
@@ -615,7 +623,7 @@ function ProfileCard({
                 { color: isDark ? '#cfd3ff' : '#777' },
               ]}
             >
-              Tap connect if you&apos;d like to meet {firstName}.
+              Swipe to connect if you&apos;d like to meet {firstName}, tap {firstName}&apos;s card to view their profile.
             </Text>
           </View>
 
@@ -763,15 +771,25 @@ function ProfileCard({
             isDark && styles.cardDark,
           ]}
         >
-          {/* YES / NO badges */}
-          <Animated.View style={[styles.badge, styles.badgeYes, yesLabelStyle]}>
-            <Text style={styles.badgeText}>YES</Text>
-          </Animated.View>
-          <Animated.View style={[styles.badge, styles.badgeNo, noLabelStyle]}>
-            <Text style={styles.badgeText}>NO</Text>
-          </Animated.View>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            style={{ flex: 1 }}
+            onPress={() => {
+              if (!swiping && profile && onOpenProfile) {
+                onOpenProfile(profile.id);
+              }
+            }}
+          >
+            {/* YES / NO badges */}
+            <Animated.View style={[styles.badge, styles.badgeYes, yesLabelStyle]}>
+              <Text style={styles.badgeText}>YES</Text>
+            </Animated.View>
+            <Animated.View style={[styles.badge, styles.badgeNo, noLabelStyle]}>
+              <Text style={styles.badgeText}>NO</Text>
+            </Animated.View>
 
-          {renderProfileCardBody(profile, remaining)}
+            {renderProfileCardBody(profile, remaining)}
+          </TouchableOpacity>
         </Animated.View>
       </GestureDetector>
     </View>
@@ -819,7 +837,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#f4f4f4',
     overflow: 'hidden',
-    minHeight: 260,
+    minHeight: 340,
   },
   cardDark: {
     backgroundColor: '#111524',
@@ -898,10 +916,10 @@ const styles = StyleSheet.create({
   },
   cardShadow: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 10,
   },
   cardBehind1: {
     position: 'absolute',
@@ -1013,6 +1031,10 @@ const styles = StyleSheet.create({
     marginRight: 6,
     marginBottom: 4,
   },
+  chipDark: {
+    backgroundColor: 'rgba(157, 168, 255, 0.18)',
+    borderColor: '#9da8ff',
+  },
   chipText: {
     fontSize: 12,
     color: '#4a4a4a',
@@ -1061,7 +1083,7 @@ const styles = StyleSheet.create({
     color: '#555',
   },
   belowCardInfo: {
-    marginTop: 76,
+    marginTop: 56,
     marginBottom: 2,
     alignItems: 'center',
   },
