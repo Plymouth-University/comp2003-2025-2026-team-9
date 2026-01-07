@@ -396,7 +396,6 @@ const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
     paddingHorizontal: 18,
-    paddingBottom: 120,
   },
   matchesSection: {
     marginBottom: 16,

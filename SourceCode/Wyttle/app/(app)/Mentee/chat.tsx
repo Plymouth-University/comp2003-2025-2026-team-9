@@ -13,14 +13,14 @@ import {
   View,
 } from 'react-native';
 
-import { router } from 'expo-router';
 import { BackButton } from '@/components/ui/BackButton';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { router } from 'expo-router';
 import { font } from '../../../src/lib/fonts';
-import { commonStyles } from '../../../src/styles/common';
-import { getCurrentUser, supabase } from '../../../src/lib/supabase';
 import type { Profile } from '../../../src/lib/supabase';
+import { getCurrentUser, supabase } from '../../../src/lib/supabase';
+import { commonStyles } from '../../../src/styles/common';
 type Message = {
   id: string;
   from: 'me' | 'them';
@@ -415,7 +415,6 @@ const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
     paddingHorizontal: 18,
-    paddingBottom: 120,
   },
   headerRow: {
     flexDirection: 'row',

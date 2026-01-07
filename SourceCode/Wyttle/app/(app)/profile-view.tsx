@@ -474,12 +474,10 @@ export default function ProfileViewScreen() {
     </View>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
     paddingHorizontal: 0,
-    paddingBottom: 120,
     paddingTop: 8,
   },
   subPicContainter: {

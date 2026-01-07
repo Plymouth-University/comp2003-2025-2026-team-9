@@ -796,7 +796,6 @@ const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
     paddingHorizontal: 20,
-    paddingBottom: 48,
   },
   header: {
     marginTop: 16,

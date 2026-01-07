@@ -357,7 +357,8 @@ export default function MenteeSettingsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <KeyboardAwareScrollView
-        contentContainerStyle={styles.scrollContent}
+        style={{ flex: 1, backgroundColor: theme.background }}
+        contentContainerStyle={[styles.scrollContent, { backgroundColor: theme.background, minHeight: '100%' }]}
         keyboardShouldPersistTaps="always"
         showsVerticalScrollIndicator={false}
         enableOnAndroid={true}
@@ -643,7 +644,6 @@ const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
     paddingHorizontal: 18,
-    paddingBottom: 120,
   },
   scrollContent: {
     flexGrow: 1,
