@@ -117,10 +117,21 @@ export default function DiscoveryStackScreen() {
 
   const handleLike = useCallback(async (id: string) => {
     try {
-      const match = await likeProfile(id);
+      // Register the like and attempt mutual match via RPC
+      await likeProfile(id);
 
-      // If a peer_match row was returned, we have a mutual match.
-      if (match) {
+      // Verify an actual match row exists between me and the other user
+      const me = await getCurrentUser();
+      const { data: rows, error } = await supabase
+        .from('peer_matches')
+        .select('id')
+        .or(
+          `and(member_a.eq.${me.id},member_b.eq.${id}),` +
+            `and(member_a.eq.${id},member_b.eq.${me.id})`,
+        )
+        .limit(1);
+
+      if (!error && rows && rows.length > 0) {
         const other = profiles.find((p) => p.id === id);
         if (other) {
           setMatchIntro('');

@@ -3,6 +3,7 @@ import {
   Alert,
   FlatList,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -10,17 +11,17 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Animated,
 } from 'react-native';
 
-import { router, useLocalSearchParams } from 'expo-router';
 import { BackButton } from '@/components/ui/BackButton';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { font } from '../../../src/lib/fonts';
-import { commonStyles } from '../../../src/styles/common';
-import { getCurrentUser, supabase } from '../../../src/lib/supabase';
+import { router, useLocalSearchParams } from 'expo-router';
 import type { Profile } from '../../../src/lib/supabase';
+import { getCurrentUser, supabase } from '../../../src/lib/supabase';
+import { commonStyles } from '../../../src/styles/common';
 type Message = {
   id: string;
   from: 'me' | 'them';
@@ -49,8 +50,46 @@ export default function MentorChatScreen() {
   const [otherProfile, setOtherProfile] = useState<Profile | null>(null);
   const listRef = useRef<FlatList<Message>>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const composerMargin = useRef(new Animated.Value(110)).current;
+  const [composerHeight, setComposerHeight] = useState(0);
+  const [bottomGap, setBottomGap] = useState(110);
 
   const displayName = otherProfile?.full_name ?? fallbackName;
+
+  useEffect(() => {
+    const onShow = () => {
+      setKeyboardVisible(true);
+      setBottomGap(0);
+      Animated.timing(composerMargin, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: false,
+      }).start();
+      if (listRef.current) {
+        listRef.current.scrollToEnd({ animated: true });
+      }
+    };
+    const onHide = () => {
+      setKeyboardVisible(false);
+      setBottomGap(110);
+      Animated.timing(composerMargin, {
+        toValue: 110,
+        duration: 150,
+        useNativeDriver: false,
+      }).start();
+    };
+    const willShowSub = Keyboard.addListener('keyboardWillShow', onShow);
+    const didShowSub = Keyboard.addListener('keyboardDidShow', onShow);
+    const willHideSub = Keyboard.addListener('keyboardWillHide', onHide);
+    const didHideSub = Keyboard.addListener('keyboardDidHide', onHide);
+    return () => {
+      willShowSub.remove();
+      didShowSub.remove();
+      willHideSub.remove();
+      didHideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -286,7 +325,7 @@ export default function MentorChatScreen() {
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={80}
+      keyboardVerticalOffset={keyboardVisible ? 0 : 80}
     >
       <View style={[styles.container, { backgroundColor: theme.background }]}> 
         {/* Header */}
@@ -335,7 +374,10 @@ export default function MentorChatScreen() {
         />
 
         {/* Composer */}
-        <View style={[styles.composer, { backgroundColor: theme.card }]}> 
+        <Animated.View style={[
+          styles.composer,
+          { backgroundColor: theme.card, marginBottom: composerMargin },
+        ]}> 
           <TextInput
             style={[styles.input, { color: theme.text }]}
             placeholder="Message..."
@@ -346,7 +388,7 @@ export default function MentorChatScreen() {
           <TouchableOpacity style={styles.sendButton} activeOpacity={0.8} onPress={handleSend}>
             <Text style={styles.sendButtonText}>Send</Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -399,7 +441,7 @@ const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
     paddingHorizontal: 18,
-    paddingBottom: 120,
+    
   },
   headerRow: {
     flexDirection: 'row',

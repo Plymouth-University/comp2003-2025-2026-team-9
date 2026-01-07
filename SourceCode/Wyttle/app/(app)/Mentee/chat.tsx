@@ -4,6 +4,7 @@ import {
   Alert,
   FlatList,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -11,6 +12,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Animated,
 } from 'react-native';
 
 import { BackButton } from '@/components/ui/BackButton';
@@ -51,7 +53,45 @@ export default function MenteeChatScreen() {
   const [otherProfile, setOtherProfile] = useState<Profile | null>(null);
   const listRef = useRef<FlatList<Message>>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const composerMargin = useRef(new Animated.Value(110)).current;
+  const [composerHeight, setComposerHeight] = useState(0);
+  const [bottomGap, setBottomGap] = useState(110);
   const displayName = otherProfile?.full_name ?? fallbackName;
+
+  useEffect(() => {
+    const onShow = () => {
+      setKeyboardVisible(true);
+      setBottomGap(0);
+      Animated.timing(composerMargin, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: false,
+      }).start();
+      if (listRef.current) {
+        listRef.current.scrollToEnd({ animated: true });
+      }
+    };
+    const onHide = () => {
+      setKeyboardVisible(false);
+      setBottomGap(110);
+      Animated.timing(composerMargin, {
+        toValue: 110,
+        duration: 150,
+        useNativeDriver: false,
+      }).start();
+    };
+    const willShowSub = Keyboard.addListener('keyboardWillShow', onShow);
+    const didShowSub = Keyboard.addListener('keyboardDidShow', onShow);
+    const willHideSub = Keyboard.addListener('keyboardWillHide', onHide);
+    const didHideSub = Keyboard.addListener('keyboardDidHide', onHide);
+    return () => {
+      willShowSub.remove();
+      didShowSub.remove();
+      willHideSub.remove();
+      didHideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -289,7 +329,7 @@ export default function MenteeChatScreen() {
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={80}
+      keyboardVerticalOffset={keyboardVisible ? 0 : 80}
     >
       <View style={[styles.container, { backgroundColor: theme.background }]}> 
         {/* Header */}
@@ -343,7 +383,10 @@ export default function MenteeChatScreen() {
           ref={listRef}
           data={messages}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.messagesContent}
+          contentContainerStyle={[
+            styles.messagesContent,
+            { paddingBottom: composerHeight + bottomGap + 16 },
+          ]}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
             <MessageBubble message={item} theme={theme} onLongPress={handleMessageLongPress} />
@@ -351,7 +394,13 @@ export default function MenteeChatScreen() {
         />
 
         {/* Composer */}
-        <View style={[styles.composer, { backgroundColor: theme.card }]}> 
+        <Animated.View
+          onLayout={(e) => setComposerHeight(e.nativeEvent.layout.height)}
+          style={[
+          styles.composer,
+          { backgroundColor: theme.card, marginBottom: composerMargin },
+        ]}
+        > 
           <TextInput
             style={[styles.input, { color: theme.text }]}
             placeholder="Message..."
@@ -362,7 +411,7 @@ export default function MenteeChatScreen() {
           <TouchableOpacity style={styles.sendButton} activeOpacity={0.8} onPress={handleSend}>
             <Text style={styles.sendButtonText}>Send</Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -495,7 +544,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 24,
-    marginTop: 4,
+    marginTop: 0,
+    marginBottom: 110,
   },
   input: {
     flex: 1,
