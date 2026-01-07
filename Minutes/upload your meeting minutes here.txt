@@ -1,0 +1,120 @@
+Meeting 1 - Initial Client Brief & Project Foundations
+Date: 20th October 2025
+Attendees:
+    Client: Henry Singer
+    Team: Josh Pinder, Alex Banfield, Roman Grixti, Alex McCormick
+Purpose:
+    To introduce the project, establish legal agreements, and gather initial requirements for the Wyttle application.
+
+Discussion Summary:
+    Henry provided an overview of the Wyttle concept as a peer-mentoring and connection application.
+    The following legal documentation was issued to the team:
+        Non-Disclosure Agreements (NDAs)
+        Intellectual Property (IP) agreements
+    The purpose and importance of these documents were explained, ensuring:
+        Confidentiality of project ideas and materials.
+        Clear ownership and protection of intellectual property.
+    High-level requirements for the application were discussed, including:
+        Mentor and member user roles.
+        User authentication.
+        A swipe-based discovery mechanism.
+        In-app communication following successful connections.
+    Henry emphasised the importance of:
+        A clean, intuitive user experience.
+        A scalable architecture that could support future development.
+
+Key Outcomes:
+    All team members acknowledged and agreed to sign the NDA and IP agreements.
+    A shared understanding was established regarding:
+        The app’s goals.
+        Target users.
+        Core functionality.
+    The team was tasked with researching suitable frontend and backend frameworks to support the project requirements.
+
+Actions Agreed:
+    Team to:
+        Sign and return NDA and IP agreements.
+        Conduct research into appropriate technologies for frontend and backend development.
+        Begin planning initial UI wireframes and system architecture.
+
+#####################################################################
+
+Meeting 2 - Design Review & Technical Direction
+Date: 13th November 2025
+Attendees:
+    Client: Henry Singer
+    Team: Josh Pinder, Alex Banfield, Roman Grixti, Alex McCormick
+Purpose:
+    To review early design work, present technical decisions, and gather client feedback.
+
+Discussion Summary:
+    The team presented initial wireframes and mockups created using Canva.
+    Navigation flow and layout were explained, including:
+        Bottom navigation bar structure.
+        Discovery and connection screens.
+    Feedback from Henry led to:
+        Minor changes to the navigation bar layout to improve usability and clarity.
+    The team presented findings from their framework research, explaining:
+        The decision to use React with Expo for frontend development.
+        The choice of Supabase for backend services, including authentication and database management.
+    These technologies were selected due to:
+        Rapid development capabilities.
+        Scalability.
+        Strong support for authentication and real-time features.
+
+Key Outcomes:
+    Henry approved:
+        The overall UI design direction.
+        The proposed frontend and backend technology stack.
+    Agreement on a clear development roadmap moving forward.
+
+Actions Agreed:
+    Team to:
+        Update wireframes based on feedback.
+        Update navigation-bar based on feedback.
+        Begin implementing authentication functionality.
+        Start development of the discovery feature.
+
+#####################################################################
+
+Meeting 3 - Prototype Demonstration & Next Steps
+Date: 8th December 2025
+Attendees:
+    Client: Henry Singer
+    Team: Josh Pinder, Alex Banfield, Roman Grixti, Alex McCormick
+Purpose:
+    To demonstrate current progress and align expectations for the next development phase.
+
+Discussion Summary:
+    The team demonstrated a semi-functional prototype, including:
+        Working login and signup pages.
+        A basic discovery stack.
+    It was communicated that:
+        Several features were still in early development.
+        The prototype served as a proof-of-concept rather than a final product.
+    Henry provided positive feedback on:
+        The visual design.
+        The overall structure and direction of the application.
+    The meeting focused on:
+        Defining priorities for the next iteration.
+        Planning features to be demonstrated in January.
+
+Key Outcomes:
+    Client expressed satisfaction with the progress achieved.
+    Clear expectations were set for future functionality and development milestones.
+
+Actions Agreed:
+    Team to focus on:
+        Expanding discovery functionality.
+        Implementing connections and messaging features.
+        Further backend integration using Supabase.
+    Prepare a more feature-complete prototype for the next review in January.
+
+#####################################################################
+
+Overall Reflection:
+    These meetings enabled the team to:
+        Establish clear legal and professional foundations at the start of the project.
+        Make informed technical decisions based on research and client needs.
+        Progress iteratively from conceptual discussion to a working prototype with regular client feedback.
+    
