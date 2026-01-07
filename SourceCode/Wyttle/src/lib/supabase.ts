@@ -1,8 +1,8 @@
-import 'react-native-url-polyfill/auto';
-import Constants from 'expo-constants';
 import { createClient } from '@supabase/supabase-js';
-import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
+import Constants from 'expo-constants';
+import * as FileSystem from 'expo-file-system/legacy';
+import 'react-native-url-polyfill/auto';
 
 // Avoid referencing `window` (and AsyncStorage's web shim) during SSR
 const isServer = typeof window === 'undefined';

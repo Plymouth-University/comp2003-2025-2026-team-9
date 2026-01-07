@@ -16,7 +16,12 @@ export function AuthBackButton({ style }: AuthBackButtonProps) {
   const tint = '#fff';
 
   const handlePress = () => {
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      // Fallback to the main chooser when there is no back stack (e.g., Android direct entry)
+      router.replace('/');
+    }
   };
 
   return (

@@ -1,6 +1,6 @@
 import { router, usePathname, type Href } from 'expo-router';
-import React, { JSX, useEffect, useState} from 'react';
-import { Dimensions, StyleSheet, TouchableOpacity, View } from 'react-native';
+import React, { JSX } from 'react';
+import { Dimensions, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Logo } from '../../../components/Logo';
@@ -32,7 +32,12 @@ export default function MenteeBottomNav(_: Props) {
   const widthScale = (width / VIEWBOX_WIDTH) * NAV_SCALE;
   const designScale = (BASE_NAV_WIDTH / VIEWBOX_WIDTH) * NAV_SCALE;
   const scale = Math.min(widthScale, designScale);
+  const svgHeight = VIEWBOX_HEIGHT * scale / 1.42;
   const circleCenterOffset = (VIEWBOX_HEIGHT - VIEWBOX_CIRCLE_CENTER_Y) * scale - 45;
+  const contentMaxWidth = Platform.OS === 'web' ? 600 : width;
+  const contentWidth = Math.min(width, contentMaxWidth);
+  const fillerExtra = Platform.OS === 'web' ? 50 : 0;
+  const fillerWidth = Platform.OS === 'web' ? Math.max(0, (width - contentWidth) / 2 + fillerExtra) : 0;
 
   const tabs = [
     { key: 'connections', label: 'Connections', path: '/(app)/Mentee/connections', Icon: UsersAltIcon },
@@ -47,27 +52,6 @@ export default function MenteeBottomNav(_: Props) {
   const segments = pathWithoutQuery.split('/').filter(Boolean);
   const lastSegment = segments[segments.length - 1] ?? 'connections';
 
-  type TabKey = (typeof tabs)[number]['key'];
-
-  const segmentToKey: Record<string, TabKey | undefined> = {
-    connections: 'connections',
-    discovery: 'discovery',
-    'mentor-hub': 'mentorHub',
-    settings: 'settings',
-  };
-
-  const [active, setActive] = useState<TabKey>('connections');
-
-  useEffect(() => {
-    const next = segmentToKey[lastSegment];
-    if (next) setActive(next); // default: do nothing so icon doesn't change
-  }, [lastSegment]);
-
-
-
-
-
-  /*
   let activeKey: (typeof tabs)[number]['key'] = 'connections';
   switch (lastSegment) {
     case 'connections':
@@ -86,15 +70,12 @@ export default function MenteeBottomNav(_: Props) {
       activeKey = 'connections';
   }
 
-  const active = activeKey;*/
+  const active = activeKey;
 
   const goTo = (path: string, key: (typeof tabs)[number]['key']) => {
     // If this tab is already active, do nothing to avoid re-running
     // the navigation animation or resetting the stack.
-
-
-    // -------------- COMMENTED OUT TO ALLOW RE-CLICKING SAME TAB (helpful)
-    //if (key === active) return;
+    if (key === active) return;
     router.replace(path as Href);
   };
 
@@ -122,37 +103,48 @@ export default function MenteeBottomNav(_: Props) {
       {/* SVG background shape */}
       <NavBlankShape style={styles.background} width={navWidth} />
 
-      {/* main bar content (tabs) */}
-      <View style={styles.bar}>
-        {/* left group */}
-        <View style={styles.sideGroup}>
-          <NavItem
-            Icon={UsersAltIcon}
-            active={active === 'connections'}
-            onPress={() => goTo('/(app)/Mentee/connections', 'connections')}
-          />
-          <NavItem
-            Icon={StackIcon}
-            active={active === 'discovery'}
-            onPress={() => goTo('/(app)/Mentee/discovery', 'discovery')}
-          />
-        </View>
+      {/* Side fills for web to extend to edges */}
+      {Platform.OS === 'web' && (
+        <>
+          <View style={[styles.leftFill, { height: svgHeight, width: fillerWidth }]} />
+          <View style={[styles.rightFill, { height: svgHeight, width: fillerWidth }]} />
+        </>
+      )}
 
-        {/* gap for diamond */}
-        <View style={{ width: 80 }} />
+      {/* Centered content wrapper constrained to max SVG-like width */}
+      <View style={styles.contentWrapper}>
+        {/* main bar content (tabs) */}
+        <View style={styles.bar}>
+          {/* left group */}
+          <View style={styles.sideGroup}>
+            <NavItem
+              Icon={UsersAltIcon}
+              active={active === 'connections'}
+              onPress={() => goTo('/(app)/Mentee/connections', 'connections')}
+            />
+            <NavItem
+              Icon={StackIcon}
+              active={active === 'discovery'}
+              onPress={() => goTo('/(app)/Mentee/discovery', 'discovery')}
+            />
+          </View>
 
-        {/* right group */}
-        <View style={styles.sideGroup}>
-          <NavItem
-            Icon={GraduationIcon}
-            active={active === 'mentorHub'}
-            onPress={() => goTo('/(app)/Mentee/mentor-hub', 'mentorHub')}
-          />
-          <NavItem
-            Icon={SettingIcon}
-            active={active === 'settings'}
-            onPress={() => goTo('/(app)/Mentee/settings', 'settings')}
-          />
+          {/* gap for diamond */}
+          <View style={{ width: 80 }} />
+
+          {/* right group */}
+          <View style={styles.sideGroup}>
+            <NavItem
+              Icon={GraduationIcon}
+              active={active === 'mentorHub'}
+              onPress={() => goTo('/(app)/Mentee/mentor-hub', 'mentorHub')}
+            />
+            <NavItem
+              Icon={SettingIcon}
+              active={active === 'settings'}
+              onPress={() => goTo('/(app)/Mentee/settings', 'settings')}
+            />
+          </View>
         </View>
       </View>
 
@@ -199,6 +191,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    backgroundColor: 'transparent',
   },
   bottomFill: {
     position: 'absolute',
@@ -207,13 +200,31 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: '#333f5c',
   },
-  bar: {
+  leftFill: {
+    position: 'absolute',
+    left: 0,
+    bottom: 0,
+    width: '30%',
+    backgroundColor: '#333f5c',
+  },
+  rightFill: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: '30%',
+    backgroundColor: '#333f5c',
+  },  contentWrapper: {
+    width: '100%',
+    maxWidth: Platform.OS === 'web' ? 600 : undefined,
+    alignSelf: 'center',
+  },  bar: {
     width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
     paddingVertical: 0,
     alignItems: 'center',
+    marginBottom: Platform.OS === 'android' ? 10 : Platform.OS === 'web' ? 15 : 0,
   },
   sideGroup: {
     flexDirection: 'row',

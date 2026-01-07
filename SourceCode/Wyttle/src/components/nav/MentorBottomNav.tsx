@@ -1,6 +1,6 @@
 import { router, usePathname, type Href } from 'expo-router';
-import React, { JSX, useState, useEffect} from 'react';
-import { Dimensions, StyleSheet, TouchableOpacity, View } from 'react-native';
+import React, { JSX } from 'react';
+import { Dimensions, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Logo } from '../../../components/Logo';
@@ -26,7 +26,12 @@ export default function MentorBottomNav() {
   const widthScale = (width / VIEWBOX_WIDTH) * NAV_SCALE;
   const designScale = (BASE_NAV_WIDTH / VIEWBOX_WIDTH) * NAV_SCALE;
   const scale = Math.min(widthScale, designScale);
+  const svgHeight = VIEWBOX_HEIGHT * scale / 1.42;
   const circleCenterOffset = (VIEWBOX_HEIGHT - VIEWBOX_CIRCLE_CENTER_Y) * scale - 40;
+  const contentMaxWidth = Platform.OS === 'web' ? 600 : width;
+  const contentWidth = Math.min(width, contentMaxWidth);
+  const fillerExtra = Platform.OS === 'web' ? 50 : 0;
+  const fillerWidth = Platform.OS === 'web' ? Math.max(0, (width - contentWidth) / 2 + fillerExtra) : 0;
 
   const tabs = [
     { key: 'waiting', label: 'Waiting', path: '/(app)/Mentor/waiting-room', Icon: VideoIcon },
@@ -41,26 +46,6 @@ export default function MentorBottomNav() {
   const segments = pathWithoutQuery.split('/').filter(Boolean);
   const lastSegment = segments[segments.length - 1] ?? 'connections';
 
-
-  type TabKey = (typeof tabs)[number]['key'];
-
-  const segmentToKey: Record<string, TabKey | undefined> = {
-    'waiting-room': 'waiting',
-    connections: 'connections',
-    calendar: 'calendar',
-    settings: 'settings',
-  };
-
-  const [active, setActive] = useState<TabKey>('connections');
-
-  useEffect(() => {
-    const next = segmentToKey[lastSegment];
-    if (next) setActive(next); // default: do nothing so icon doesn't change
-  }, [lastSegment]);
-
-
-
-  /*
   let activeKey: (typeof tabs)[number]['key'] = 'connections';
   switch (lastSegment) {
     case 'waiting-room':
@@ -79,16 +64,12 @@ export default function MentorBottomNav() {
       activeKey = 'connections';
   }
 
-  const active = activeKey;*/
+  const active = activeKey;
 
   const goTo = (path: string, key: (typeof tabs)[number]['key']) => {
     // If this tab is already active, do nothing to avoid re-running
     // the navigation animation or resetting the stack.
-
-
-
-    // --------------COMMENTED OUT TO ALLOW RE-CLICKING SAME TAB (helpful)
-    //if (key === active) return;
+    if (key === active) return;
     router.replace(path as Href);
   };
 
@@ -116,38 +97,49 @@ export default function MentorBottomNav() {
       {/* SVG background shape */}
       <NavBlankShape style={styles.background} width={navWidth} />
 
-      {/* main bar content (tabs) */}
-      <View style={styles.bar}>
-        {/* left group */}
-        <View style={styles.sideGroup}>
-          <NavItem
-            Icon={VideoIcon}
-            active={active === 'waiting'}
-            onPress={() => goTo('/(app)/Mentor/waiting-room', 'waiting')}
-            size={40}
-          />
-          <NavItem
-            Icon={ChatIcon}
-            active={active === 'connections'}
-            onPress={() => goTo('/(app)/Mentor/connections', 'connections')}
-          />
-        </View>
+      {/* Side fills for web to extend to edges */}
+      {Platform.OS === 'web' && (
+        <>
+          <View style={[styles.leftFill, { height: svgHeight, width: fillerWidth }]} />
+          <View style={[styles.rightFill, { height: svgHeight, width: fillerWidth }]} />
+        </>
+      )}
 
-        {/* gap for diamond */}
-        <View style={{ width: 80 }} />
+      {/* Centered content wrapper constrained to max SVG-like width */}
+      <View style={styles.contentWrapper}>
+        {/* main bar content (tabs) */}
+        <View style={styles.bar}>
+          {/* left group */}
+          <View style={styles.sideGroup}>
+            <NavItem
+              Icon={VideoIcon}
+              active={active === 'waiting'}
+              onPress={() => goTo('/(app)/Mentor/waiting-room', 'waiting')}
+              size={40}
+            />
+            <NavItem
+              Icon={ChatIcon}
+              active={active === 'connections'}
+              onPress={() => goTo('/(app)/Mentor/connections', 'connections')}
+            />
+          </View>
 
-        {/* right group */}
-        <View style={styles.sideGroup}>
-          <NavItem
-            Icon={CalendarIcon}
-            active={active === 'calendar'}
-            onPress={() => goTo('/(app)/Mentor/calendar', 'calendar')}
-          />
-          <NavItem
-            Icon={SettingIcon}
-            active={active === 'settings'}
-            onPress={() => goTo('/(app)/Mentor/settings', 'settings')}
-          />
+          {/* gap for diamond */}
+          <View style={{ width: 80 }} />
+
+          {/* right group */}
+          <View style={styles.sideGroup}>
+            <NavItem
+              Icon={CalendarIcon}
+              active={active === 'calendar'}
+              onPress={() => goTo('/(app)/Mentor/calendar', 'calendar')}
+            />
+            <NavItem
+              Icon={SettingIcon}
+              active={active === 'settings'}
+              onPress={() => goTo('/(app)/Mentor/settings', 'settings')}
+            />
+          </View>
         </View>
       </View>
 
@@ -195,6 +187,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    backgroundColor: 'transparent',
   },
   bottomFill: {
     position: 'absolute',
@@ -203,6 +196,25 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: '#333f5c',
   },
+  leftFill: {
+    position: 'absolute',
+    left: 0,
+    bottom: 0,
+    width: '30%',
+    backgroundColor: '#333f5c',
+  },
+  rightFill: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: '30%',
+    backgroundColor: '#333f5c',
+  },
+  contentWrapper: {
+    width: '100%',
+    maxWidth: Platform.OS === 'web' ? 600 : undefined,
+    alignSelf: 'center',
+  },
   bar: {
     width: '100%',
     flexDirection: 'row',
@@ -210,6 +222,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 0,
     alignItems: 'center',
+    marginBottom: Platform.OS === 'android' ? 10 : Platform.OS === 'web' ? 15 : 0,
   },
   sideGroup: {
     flexDirection: 'row',

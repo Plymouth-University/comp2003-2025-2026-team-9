@@ -1,15 +1,15 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  Image,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 
 import * as ImagePicker from 'expo-image-picker';
@@ -30,6 +30,8 @@ export default function SignUpMember() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [goals, setGoals] = useState('');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -173,26 +175,42 @@ export default function SignUpMember() {
         />
 
         <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>PASSWORD</ThemedText>
-        <TextInput
-          placeholder="Password"
-          secureTextEntry
-          style={styles.input}
-          onChangeText={setPassword}
-          value={password}
-        />
+          <View style={styles.passwordField}>
+            <TextInput
+              placeholder="Password"
+              secureTextEntry={!showPassword}
+              style={[styles.input, styles.passwordInput]}
+              onChangeText={setPassword}
+              value={password}
+            />
+            <TouchableOpacity
+              style={styles.passwordToggle}
+              onPress={() => setShowPassword((prev) => !prev)}
+            >
+              <Text style={styles.passwordToggleText}>{showPassword ? 'Hide' : 'Show'}</Text>
+            </TouchableOpacity>
+          </View>
 
         <ThemedText
           style={[styles.labelText, font('GlacialIndifference', '400')]}
         >
           CONFIRM PASSWORD
         </ThemedText>
-        <TextInput
-          placeholder="Confirm password"
-          secureTextEntry
-          style={styles.input}
-          onChangeText={setConfirmPassword}
-          value={confirmPassword}
-        />
+          <View style={styles.passwordField}>
+            <TextInput
+              placeholder="Confirm password"
+              secureTextEntry={!showConfirmPassword}
+              style={[styles.input, styles.passwordInput]}
+              onChangeText={setConfirmPassword}
+              value={confirmPassword}
+            />
+            <TouchableOpacity
+              style={styles.passwordToggle}
+              onPress={() => setShowConfirmPassword((prev) => !prev)}
+            >
+              <Text style={styles.passwordToggleText}>{showConfirmPassword ? 'Hide' : 'Show'}</Text>
+            </TouchableOpacity>
+          </View>
 
         <ThemedText
           style={[styles.labelText, font('GlacialIndifference', '400')]}
@@ -296,6 +314,25 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     ...commonStyles.primaryButtonText,
   },
+    passwordField: {
+      position: 'relative',
+      width: '100%',
+    },
+    passwordInput: {
+      paddingRight: 72,
+    },
+    passwordToggle: {
+      position: 'absolute',
+      right: 12,
+      top: 14,
+      paddingHorizontal: 6,
+      paddingVertical: 4,
+    },
+    passwordToggleText: {
+      fontSize: 14,
+      color: '#333f5c',
+      fontWeight: '600',
+    },
   spacer: {
     height: 24,
   },

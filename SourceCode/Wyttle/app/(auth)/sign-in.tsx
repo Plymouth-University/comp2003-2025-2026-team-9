@@ -1,14 +1,14 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { supabase } from '../../src/lib/supabase';
 import { commonStyles } from '../../src/styles/common';
@@ -16,6 +16,7 @@ import { commonStyles } from '../../src/styles/common';
 import { Logo } from '@/components/Logo';
 import { ThemedText } from '@/components/themed-text';
 import { AuthBackButton } from '@/components/ui/AuthBackButton';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Toast } from '@/components/ui/Toast';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -29,6 +30,7 @@ export default function SignIn() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   const colorScheme = useColorScheme();
@@ -110,13 +112,25 @@ export default function SignIn() {
           />
 
           <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>PASSWORD</ThemedText>
-          <TextInput
-            placeholder="Password"
-            secureTextEntry
-            style={styles.input}
-            onChangeText={setPassword}
-            value={password}
-          />
+          <View style={styles.passwordField}>
+            <TextInput
+              placeholder="Password"
+              secureTextEntry={!showPassword}
+              style={[styles.input, styles.passwordInput]}
+              onChangeText={setPassword}
+              value={password}
+            />
+            <TouchableOpacity
+              style={styles.passwordToggle}
+              onPress={() => setShowPassword((prev) => !prev)}
+            >
+              <IconSymbol
+                name={showPassword ? 'eye.slash' : 'eye'}
+                size={20}
+                color="#333f5c"
+              />
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.spacer} />
           <TouchableOpacity
@@ -219,6 +233,25 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     ...commonStyles.primaryButtonText,
+  },
+  passwordField: {
+    position: 'relative',
+    width: '100%',
+  },
+  passwordInput: {
+    paddingRight: 72,
+  },
+  passwordToggle: {
+    position: 'absolute',
+    right: 12,
+    top: 14,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  passwordToggleText: {
+    fontSize: 14,
+    color: '#333f5c',
+    fontWeight: '600',
   },
   error: {
     color: '#c00',

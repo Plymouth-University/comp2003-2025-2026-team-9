@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -359,7 +359,7 @@ export default function ProfileViewScreen() {
           </View>
 
           {/* Name (larger) */}
-          <Text
+          <ThemedText
             style={[
               styles.nameLarge,
               font('GlacialIndifference', '800'),
@@ -367,10 +367,10 @@ export default function ProfileViewScreen() {
             ]}
           >
             {profile.full_name ?? 'Member'}
-          </Text>
+          </ThemedText>
 
           {/* About section header */}
-          <Text
+          <ThemedText
             style={[
               styles.aboutTitle,
               font('GlacialIndifference', '800'),
@@ -378,7 +378,7 @@ export default function ProfileViewScreen() {
             ]}
           >
             About Me
-          </Text>
+          </ThemedText>
 
           {/* Bio */}
           {profile.bio ? (

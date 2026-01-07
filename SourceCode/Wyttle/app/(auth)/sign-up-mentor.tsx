@@ -1,15 +1,15 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  Image,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 
 import * as ImagePicker from 'expo-image-picker';
@@ -20,6 +20,7 @@ import { commonStyles } from '../../src/styles/common';
 import { Logo } from '@/components/Logo';
 import { ThemedText } from '@/components/themed-text';
 import { AuthBackButton } from '@/components/ui/AuthBackButton';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Toast } from '@/components/ui/Toast';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -30,6 +31,8 @@ export default function SignUpMentor() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [expertise, setExpertise] = useState('');
   const [experienceYears, setExperienceYears] = useState('');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
@@ -173,26 +176,50 @@ export default function SignUpMentor() {
           />
 
           <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>PASSWORD</ThemedText>
-          <TextInput
-            placeholder="Password"
-            secureTextEntry
-            style={styles.input}
-            onChangeText={setPassword}
-            value={password}
-          />
+          <View style={styles.passwordField}>
+            <TextInput
+              placeholder="Password"
+              secureTextEntry={!showPassword}
+              style={[styles.input, styles.passwordInput]}
+              onChangeText={setPassword}
+              value={password}
+            />
+            <TouchableOpacity
+              style={styles.passwordToggle}
+              onPress={() => setShowPassword((prev) => !prev)}
+            >
+              <IconSymbol
+                name={showPassword ? 'eye.slash' : 'eye'}
+                size={20}
+                color="#333f5c"
+              />
+            </TouchableOpacity>
+          </View>
 
           <ThemedText
             style={[styles.labelText, font('GlacialIndifference', '400')]}
           >
             CONFIRM PASSWORD
           </ThemedText>
-          <TextInput
-            placeholder="Confirm password"
-            secureTextEntry
-            style={styles.input}
-            onChangeText={setConfirmPassword}
-            value={confirmPassword}
-          />
+          <View style={styles.passwordField}>
+            <TextInput
+              placeholder="Confirm password"
+              secureTextEntry={!showConfirmPassword}
+              style={[styles.input, styles.passwordInput]}
+              onChangeText={setConfirmPassword}
+              value={confirmPassword}
+            />
+            <TouchableOpacity
+              style={styles.passwordToggle}
+              onPress={() => setShowConfirmPassword((prev) => !prev)}
+            >
+              <IconSymbol
+                name={showConfirmPassword ? 'eye.slash' : 'eye'}
+                size={20}
+                color="#333f5c"
+              />
+            </TouchableOpacity>
+          </View>
 
           <ThemedText
             style={[styles.labelText, font('GlacialIndifference', '400')]}
@@ -296,6 +323,25 @@ const styles = StyleSheet.create({
   },
   input: {
     ...commonStyles.input,
+  },
+  passwordField: {
+    position: 'relative',
+    width: '100%',
+  },
+  passwordInput: {
+    paddingRight: 72,
+  },
+  passwordToggle: {
+    position: 'absolute',
+    right: 12,
+    top: 14,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  passwordToggleText: {
+    fontSize: 14,
+    color: '#333f5c',
+    fontWeight: '600',
   },
   primaryButton: {
     ...commonStyles.primaryButton,
