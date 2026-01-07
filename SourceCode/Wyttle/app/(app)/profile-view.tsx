@@ -167,7 +167,10 @@ export default function ProfileViewScreen() {
       setDisconnecting(true);
       await disconnectPeer(userId);
       setCanDisconnect(false);
-      router.back();
+      const dest = viewerProfile?.role === 'mentor'
+        ? '/(app)/Mentor/connections'
+        : '/(app)/Mentee/connections';
+      router.replace(dest as any);
     } catch (err) {
       console.error('Failed to disconnect', err);
     } finally {

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   FlatList,
   Image,
   Keyboard,
@@ -11,7 +12,6 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Animated,
 } from 'react-native';
 
 import { BackButton } from '@/components/ui/BackButton';
