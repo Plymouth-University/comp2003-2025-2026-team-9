@@ -13,6 +13,7 @@
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-community/datetimepicker": "8.4.4",
     "@react-native-community/slider": "^5.1.1",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
@@ -39,6 +40,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
+    "react-native-big-calendar": "^4.19.0",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-keyboard-aware-scroll-view": "^0.9.5",
     "react-native-reanimated": "~4.1.1",
