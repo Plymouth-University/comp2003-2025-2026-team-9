@@ -1,15 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View, Platform } from 'react-native';
-import { Calendar as BigCalendar, ICalendarEventBase } from 'react-native-big-calendar';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Alert, LayoutAnimation, Modal, Platform, Pressable, StyleSheet, Text, TextInput, UIManager, View } from 'react-native';
+import { Calendar as BigCalendar, ICalendarEventBase } from 'react-native-big-calendar';
 
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { supabase } from '@/src/lib/supabase';
 import { commonStyles } from '@/src/styles/common';
-import { Background } from '@react-navigation/elements';
 
 type CalendarRow = {
   id: string;
@@ -29,6 +28,16 @@ type CalendarEvent = ICalendarEventBase & {
 };
 
 //const CALENDAR_HEIGHT = 520;
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const pickerAnim = LayoutAnimation.create(
+  250,
+  LayoutAnimation.Types.easeInEaseOut,
+  LayoutAnimation.Properties.opacity,
+);
 
 export default function MentorCalendarScreen() {
   const colorScheme = useColorScheme();
@@ -57,14 +66,22 @@ export default function MentorCalendarScreen() {
   const [loading, setLoading] = useState(false);
   const [calendarHeight, setCalendarHeight] = useState(0);
 
+  type ViewMode = 'day' | '3days' | 'week';
+  const [viewMode, setViewMode] = useState<ViewMode>('week');
+  const stepDays: Record<ViewMode, number> = { day: 1, '3days': 3, week: 7 };
+  const modeLabels: { key: ViewMode; label: string }[] = [
+    { key: 'day', label: 'Day' },
+    { key: '3days', label: '3 Day' },
+    { key: 'week', label: 'Week' },
+  ];
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
 
   const [title, setTitle] = useState('Blocked');
   const [startAt, setStartAt] = useState<Date>(() => new Date());
   const [endAt, setEndAt] = useState<Date>(() => new Date(Date.now() + 60 * 60 * 1000));
-  const [showStartPicker, setShowStartPicker] = useState(false);
-  const [showEndPicker, setShowEndPicker] = useState(false);
+
 
   const [visibleStart, setVisibleStart] = useState(new Date());
   const formatMonth = (d: Date) =>
@@ -73,10 +90,25 @@ export default function MentorCalendarScreen() {
   const addDays = (d: Date, days: number) =>
     new Date(d.getTime() + days * 24 * 60 * 60 * 1000);
 
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+
+  // Android-only: two-step date→time flow
   const [pickerTarget, setPickerTarget] = useState<'start' | 'end' | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [tempDate, setTempDate] = useState<Date | null>(null);
+
+  // Month/year picker state (kept in component scope)
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  const [monthPickerYear, setMonthPickerYear] = useState(() => visibleStart.getFullYear());
+  const [monthPickerMonth, setMonthPickerMonth] = useState(() => visibleStart.getMonth());
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  const minYear = 2020;
+  const maxYear = 2035;
 
   const canSubmit = useMemo(() => endAt > startAt, [startAt, endAt]);
 
@@ -124,6 +156,8 @@ export default function MentorCalendarScreen() {
     setStartAt(new Date());
     setEndAt(new Date(Date.now() + 60 * 60 * 1000));
     setEditingEvent(null);
+    setShowStartPicker(false);
+    setShowEndPicker(false);
   };
 
   const openCreateBlock = () => {
@@ -212,25 +246,102 @@ export default function MentorCalendarScreen() {
         <Pressable style={[styles.addButton, { backgroundColor: theme.tint }]} onPress={openCreateBlock}>
           <Text style={styles.addButtonText}>+ Block time</Text>
         </Pressable>
+
+        <View style={styles.modeSelector}>
+          {modeLabels.map(({ key, label }) => (
+            <Pressable
+              key={key}
+              style={[
+                styles.modePill,
+                { backgroundColor: viewMode === key ? theme.tint : (isDark ? '#1f2937' : '#e5e7eb') },
+              ]}
+              onPress={() => setViewMode(key)}
+            >
+              <Text style={[
+                styles.modePillText,
+                { color: viewMode === key ? '#fff' : theme.text },
+              ]}>
+                {label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
 
       <View style={styles.monthHeader}>
         <Pressable
           style={styles.monthNav}
-          onPress={() => setVisibleStart(addDays(visibleStart, -7))}
+          onPress={() => setVisibleStart(addDays(visibleStart, -stepDays[viewMode]))}
         >
           <Text style={styles.monthNavText}>‹</Text>
         </Pressable>
 
-        <Text style={[styles.monthText, { color: theme.text }]}>{formatMonth(visibleStart)}</Text>
+        <Pressable onPress={() => {
+          setMonthPickerYear(visibleStart.getFullYear());
+          setMonthPickerMonth(visibleStart.getMonth());
+          setMonthPickerOpen(true);
+        }}>
+          <Text style={[styles.monthText, { color: theme.text }]}>{formatMonth(visibleStart)}</Text>
+        </Pressable>
 
         <Pressable
           style={styles.monthNav}
-          onPress={() => setVisibleStart(addDays(visibleStart, 7))}
+          onPress={() => setVisibleStart(addDays(visibleStart, stepDays[viewMode]))}
         >
           <Text style={styles.monthNavText}>›</Text>
         </Pressable>
       </View>
+
+      <Modal visible={monthPickerOpen} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: theme.card, minWidth: 280, alignItems: 'center' }]}> 
+            <Text style={[styles.modalTitle, { color: theme.text, marginBottom: 8 }]}>Select Month & Year</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+              <Pressable onPress={() => setMonthPickerYear(y => Math.max(minYear, y - 1))} style={{ padding: 8 }}>
+                <Text style={{ fontSize: 20, color: theme.text }}>‹</Text>
+              </Pressable>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: theme.text, minWidth: 60, textAlign: 'center' }}>{monthPickerYear}</Text>
+              <Pressable onPress={() => setMonthPickerYear(y => Math.min(maxYear, y + 1))} style={{ padding: 8 }}>
+                <Text style={{ fontSize: 20, color: theme.text }}>›</Text>
+              </Pressable>
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginBottom: 16 }}>
+              {monthNames.map((m, i) => (
+                <Pressable
+                  key={m}
+                  onPress={() => setMonthPickerMonth(i)}
+                  style={{
+                    margin: 4,
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 8,
+                    backgroundColor: monthPickerMonth === i ? theme.tint : (isDark ? '#1f2937' : '#e5e7eb'),
+                  }}
+                >
+                  <Text style={{ color: monthPickerMonth === i ? '#fff' : theme.text }}>{m}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <Pressable
+                style={[styles.cancelButton, { minWidth: 80 }]}
+                onPress={() => setMonthPickerOpen(false)}
+              >
+                <Text style={styles.cancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.saveButton, { minWidth: 80 }]}
+                onPress={() => {
+                  setVisibleStart(new Date(monthPickerYear, monthPickerMonth, 1));
+                  setMonthPickerOpen(false);
+                }}
+              >
+                <Text style={styles.saveText}>Go</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <View
         style={[styles.calendarWrap, {
@@ -243,7 +354,7 @@ export default function MentorCalendarScreen() {
         <BigCalendar
           events={events}
           height={calendarHeight || 420}
-          mode="week"
+          mode={viewMode}
           date={visibleStart}
           onChangeDate={(range: Date[] | Date) => {
             const next = Array.isArray(range) ? range[0] : range;
@@ -299,42 +410,52 @@ export default function MentorCalendarScreen() {
             <Pressable
               style={styles.pickerButton}
               onPress={() => {
-                setPickerTarget('start');
-                setShowDatePicker(true);
+                if (Platform.OS === 'ios') {
+                  LayoutAnimation.configureNext(pickerAnim);
+                  setShowStartPicker((prev) => !prev);
+                } else {
+                  setPickerTarget('start');
+                  setShowDatePicker(true);
+                }
               }}
             >
               <Text style={styles.pickerLabel}>Start</Text>
               <Text style={styles.pickerValue}>{startAt.toLocaleString()}</Text>
             </Pressable>
 
+            {Platform.OS === 'ios' && showStartPicker && (
+              <DateTimePicker
+                value={startAt}
+                mode="datetime"
+                display="spinner"
+                onChange={(_event: DateTimePickerEvent, date?: Date) => {
+                  if (date) setStartAt(date);
+                }}
+              />
+            )}
+
             <Pressable
               style={styles.pickerButton}
               onPress={() => {
-                setPickerTarget('end');
-                setShowDatePicker(true);
+                if (Platform.OS === 'ios') {
+                  LayoutAnimation.configureNext(pickerAnim);
+                  setShowEndPicker((prev) => !prev);
+                } else {
+                  setPickerTarget('end');
+                  setShowDatePicker(true);
+                }
               }}
             >
               <Text style={styles.pickerLabel}>End</Text>
               <Text style={styles.pickerValue}>{endAt.toLocaleString()}</Text>
             </Pressable>
 
-            {Platform.OS === 'ios' && showStartPicker && (
-              <DateTimePicker
-                value={startAt}
-                mode="datetime"
-                onChange={(_event: DateTimePickerEvent, date?: Date) => {
-                  setShowStartPicker(false);
-                  if (date) setStartAt(date);
-                }}
-              />
-            )}
-
             {Platform.OS === 'ios' && showEndPicker && (
               <DateTimePicker
                 value={endAt}
                 mode="datetime"
+                display="spinner"
                 onChange={(_event: DateTimePickerEvent, date?: Date) => {
-                  setShowEndPicker(false);
                   if (date) setEndAt(date);
                 }}
               />
@@ -418,7 +539,22 @@ const styles = StyleSheet.create({
   toolbarBelow: {
     marginBottom: 8,
     marginTop: 0,
-    alignItems: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modeSelector: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  modePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  modePillText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   monthHeader: {
     paddingVertical: 6,
