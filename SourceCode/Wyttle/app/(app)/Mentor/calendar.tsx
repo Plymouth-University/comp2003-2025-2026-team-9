@@ -242,31 +242,7 @@ export default function MentorCalendarScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScreenHeader title="Mentor" highlight="Calendar" />
 
-      <View style={styles.toolbarBelow}>
-        <Pressable style={[styles.addButton, { backgroundColor: theme.tint }]} onPress={openCreateBlock}>
-          <Text style={styles.addButtonText}>+ Block time</Text>
-        </Pressable>
-
-        <View style={styles.modeSelector}>
-          {modeLabels.map(({ key, label }) => (
-            <Pressable
-              key={key}
-              style={[
-                styles.modePill,
-                { backgroundColor: viewMode === key ? theme.tint : (isDark ? '#1f2937' : '#e5e7eb') },
-              ]}
-              onPress={() => setViewMode(key)}
-            >
-              <Text style={[
-                styles.modePillText,
-                { color: viewMode === key ? '#fff' : theme.text },
-              ]}>
-                {label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
+      
 
       <View style={styles.monthHeader}>
         <Pressable
@@ -343,6 +319,8 @@ export default function MentorCalendarScreen() {
         </View>
       </Modal>
 
+    
+
       <View
         style={[styles.calendarWrap, {
           borderWidth: StyleSheet.hairlineWidth,
@@ -389,6 +367,40 @@ export default function MentorCalendarScreen() {
           }}
         />
       </View>
+
+      
+
+      <View style={styles.toolbarBelow}>
+
+        <Pressable style={[styles.addButton, { backgroundColor: theme.tint }]} onPress={openCreateBlock}>
+          <Text style={styles.addButtonText}>+ Block time</Text>
+        </Pressable>
+        
+        <View style={styles.modeSelector}>
+          {modeLabels.map(({ key, label }) => (
+            <Pressable
+              key={key}
+              style={[
+                styles.modePill,
+                { backgroundColor: viewMode === key ? theme.tint : (isDark ? '#1f2937' : '#e5e7eb') },
+              ]}
+              onPress={() => setViewMode(key)}
+            >
+              <Text style={[
+                styles.modePillText,
+                { color: viewMode === key ? '#fff' : theme.text },
+              ]}>
+                {label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
+      
+
+
+      
 
       
 
@@ -537,8 +549,8 @@ const styles = StyleSheet.create({
     //paddingBottom: 120,
   },
   toolbarBelow: {
-    marginBottom: 8,
-    marginTop: 0,
+    marginTop: 8,
+    marginBottom: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
