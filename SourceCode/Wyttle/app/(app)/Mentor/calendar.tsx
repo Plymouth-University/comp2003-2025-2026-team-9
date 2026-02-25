@@ -49,8 +49,8 @@ export default function MentorCalendarScreen() {
   const borderColor = lineColor;
   const todayHighlightColor = isDark ? undefined : theme.tint; // preserve dark "today", use tint in light
   const calendarBlueBase = isDark ? '#122b57' : '#eaf2ff';
-  const checkerBlueA = isDark ? '#1b3d78' : '#dbe8ff';
-  const checkerBlueB = isDark ? '#24508f' : '#cfe0ff';
+  const checkerBlueA = isDark ? '#24508f' : '#cfe0ff'; //'#1b3d78' : '#dbe8ff'
+  const checkerBlueB = isDark ? '#000000' : '#ffffff'; //'#24508f' : '#cfe0ff'
 
   const calendarTheme = {
     palette: {
