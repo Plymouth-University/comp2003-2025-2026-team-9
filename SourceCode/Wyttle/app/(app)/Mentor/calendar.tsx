@@ -9,6 +9,8 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { supabase } from '@/src/lib/supabase';
 import { commonStyles } from '@/src/styles/common';
+import { Background } from '@react-navigation/elements';
+import { setStatusBarBackgroundColor } from 'expo-status-bar';
 
 type CalendarRow = {
   id: string;
@@ -46,13 +48,16 @@ export default function MentorCalendarScreen() {
   const lineColor = isDark ? '#2f3948' : '#444444'; // darker-but-subtle on dark, stronger on light
   const borderColor = lineColor;
   const todayHighlightColor = isDark ? undefined : theme.tint; // preserve dark "today", use tint in light
+  const calendarBlueBase = isDark ? '#122b57' : '#eaf2ff';
+  const checkerBlueA = isDark ? '#1b3d78' : '#dbe8ff';
+  const checkerBlueB = isDark ? '#24508f' : '#cfe0ff';
 
   const calendarTheme = {
     palette: {
       primary: { main: theme.tint, contrastText: '#fff' },
       nowIndicator: '#ff3b30',
       gray: {
-        '100': isDark ? '#111827' : '#f3f4f6',
+        '100': isDark ? '#111827' : '#f3f4f6', 
         '200': isDark ? '#1f2937' : '#8b8b8b',
         '300': isDark ? '#374151' : '#cbd5e1',
         '500': isDark ? '#2f3948' : '#2e2e2e', //cell borders for light mode
@@ -334,6 +339,12 @@ export default function MentorCalendarScreen() {
           height={calendarHeight || 420}
           mode={viewMode}
           date={visibleStart}
+          calendarCellStyle={(date, hourRowIndex ) => {
+            const day = date ? date.getDay() : 0;
+            const row = hourRowIndex ?? 0;
+            const useA = (day + row) % 2 === 0;
+            return { backgroundColor: useA ? checkerBlueA : checkerBlueB };
+          }}
           onChangeDate={(range: Date[] | Date) => {
             const next = Array.isArray(range) ? range[0] : range;
             if (next) setVisibleStart(new Date(next));
@@ -344,15 +355,15 @@ export default function MentorCalendarScreen() {
             paddingRight: 18,
             borderRightWidth: StyleSheet.hairlineWidth,
             borderRightColor: borderColor,
-            backgroundColor: theme.card,
+            backgroundColor: calendarBlueBase,
           }}
-          bodyContainerStyle={{ paddingRight: 0, marginRight: 0 }}
+          bodyContainerStyle={{ paddingRight: 0, marginRight: 0, backgroundColor: calendarBlueBase, }}
           headerContainerStyle={{ height: 40 }}
           headerContentStyle={{ paddingTop: 0, paddingBottom: 0 }}
           dayHeaderStyle={{ marginTop: -2, fontSize: 12, color: theme.text }}
           dayHeaderHighlightColor={todayHighlightColor}
           weekDayHeaderHighlightColor={todayHighlightColor}
-          hourStyle={{ color: theme.text }}
+          hourStyle={{ color: isDark ? '#eaf2ff' : '#1e3a8a'  }}
           theme={calendarTheme}
           isLoading={loading}
           onPressEvent={(event: CalendarEvent) => {
