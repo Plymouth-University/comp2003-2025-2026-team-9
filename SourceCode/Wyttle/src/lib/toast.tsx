@@ -1,5 +1,5 @@
-import React, { ReactNode, useCallback, useState } from 'react';
 import { Toast, ToastVariant } from '@/components/ui/Toast';
+import React, { ReactNode, useCallback, useState } from 'react';
 
 let _show: ((message: string, variant?: ToastVariant, duration?: number) => void) | null = null;
 
