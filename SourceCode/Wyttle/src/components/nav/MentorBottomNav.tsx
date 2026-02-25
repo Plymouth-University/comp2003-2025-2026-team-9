@@ -3,7 +3,6 @@ import React, { JSX } from 'react';
 import { Dimensions, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Logo } from '../../../components/Logo';
 import { CalendarIcon, ChatIcon, SettingIcon, VideoIcon } from './MentorNavIcons';
 import { NavBlankShape } from './NavBlankShape';
 
@@ -95,7 +94,7 @@ export default function MentorBottomNav() {
       />
 
       {/* SVG background shape */}
-      <NavBlankShape style={styles.background} width={navWidth} />
+      <NavBlankShape style={styles.background} width={navWidth} showCenter={false} />
 
       {/* Side fills for web to extend to edges */}
       {Platform.OS === 'web' && (
@@ -144,13 +143,7 @@ export default function MentorBottomNav() {
       </View>
 
       {/* floating middle logo circle */}
-      <View style={[styles.diamondWrapper, { bottom: circleCenterOffset }]}>
-        <View style={styles.diamondOuter}>
-          <View style={styles.diamondInner}>
-            <Logo size={54} fill="#968c6c" />
-          </View>
-        </View>
-      </View>
+     
     </View>
   );
 }
@@ -231,28 +224,5 @@ const styles = StyleSheet.create({
   },
   navItem: {
     alignItems: 'center',
-  },
-  diamondWrapper: {
-    position: 'absolute',
-    // `bottom` is set inline using `circleCenterOffset` so the circle
-    // tracks the SVG bump center across device sizes.
-    alignItems: 'center',
-  },
-  diamondOuter: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 6,
-  },
-  diamondInner: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#333f5c',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Dimensions, type StyleProp, type ViewStyle } from 'react-native';
-import Svg, { G, Path, Circle } from 'react-native-svg';
+import Svg, { Circle, G, Path } from 'react-native-svg';
 
 const VIEWBOX_WIDTH = 200.27968;
 const VIEWBOX_HEIGHT = 53.78904;
@@ -18,6 +18,11 @@ export type NavBlankShapeProps = {
    * matches the actual nav bar width on web / tablets.
    */
   width?: number;
+  /**
+   * Whether to render the center circle bump. Defaults to true.
+   * Set to false to render a flat nav without the floating circle.
+   */
+  showCenter?: boolean;
 };
 
 /**
@@ -27,7 +32,7 @@ export type NavBlankShapeProps = {
  * the initial window width so the bar doesn't become excessively tall. This
  * makes it "flatter but longer" on large screens while keeping phone height.
  */
-export function NavBlankShape({ color = '#333f5c', style, width }: NavBlankShapeProps) {
+export function NavBlankShape({ color = '#333f5c', style, width, showCenter = true }: NavBlankShapeProps) {
   const windowWidth = Dimensions.get('window').width;
   const effectiveWidth = width ?? windowWidth;
 
@@ -53,10 +58,12 @@ export function NavBlankShape({ color = '#333f5c', style, width }: NavBlankShape
           fill={color}
         />
       </G>
-      <G transform="translate(0,15.83455)">
-        {/* Center the circle horizontally based on the viewbox width */}
-        <Circle cx={VIEWBOX_WIDTH / 2} cy={2.423655} r={18.258205} fill={color} />
-      </G>
+      {showCenter && (
+        <G transform="translate(0,15.83455)">
+          {/* Center the circle horizontally based on the viewbox width */}
+          <Circle cx={VIEWBOX_WIDTH / 2} cy={2.423655} r={18.258205} fill={color} />
+        </G>
+      )}
     </Svg>
   );
 }
