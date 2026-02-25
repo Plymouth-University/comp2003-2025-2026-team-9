@@ -584,7 +584,9 @@ export default function MenteeSettingsScreen() {
               <Text
                 style={[
                   styles.themeChipText,
-                  colorScheme !== 'dark' && styles.themeChipTextActive,
+                  colorScheme !== 'dark'
+                    ? { color: '#fff' }
+                    : { color: theme.text },
                 ]}
               >
                 Light
@@ -600,7 +602,9 @@ export default function MenteeSettingsScreen() {
               <Text
                 style={[
                   styles.themeChipText,
-                  colorScheme === 'dark' && styles.themeChipTextActive,
+                  colorScheme === 'dark'
+                    ? { color: '#fff' }
+                    : { color: theme.text },
                 ]}
               >
                 Dark

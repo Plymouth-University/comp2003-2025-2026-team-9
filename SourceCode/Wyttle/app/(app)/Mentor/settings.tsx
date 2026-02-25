@@ -582,7 +582,10 @@ export default function MentorSettingsScreen() {
               <Text
                 style={[
                   styles.themeChipText,
-                  colorScheme !== 'dark' && styles.themeChipTextActive,
+                  // active when not dark
+                  colorScheme !== 'dark'
+                    ? { color: '#fff' }
+                    : { color: theme.text },
                 ]}
               >
                 Light
@@ -598,7 +601,10 @@ export default function MentorSettingsScreen() {
               <Text
                 style={[
                   styles.themeChipText,
-                  colorScheme === 'dark' && styles.themeChipTextActive,
+                  // active when dark
+                  colorScheme === 'dark'
+                    ? { color: '#fff' }
+                    : { color: theme.text },
                 ]}
               >
                 Dark
