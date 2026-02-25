@@ -339,7 +339,7 @@ export default function MentorCalendarScreen() {
           height={calendarHeight || 420}
           mode={viewMode}
           date={visibleStart}
-          calendarCellStyle={(date, hourRowIndex ) => {
+          calendarCellStyle={(date?: Date, hourRowIndex?: number) => {
             const day = date ? date.getDay() : 0;
             const row = hourRowIndex ?? 0;
             const useA = (day + row) % 2 === 0;
