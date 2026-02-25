@@ -5,17 +5,20 @@ import {
   Alert,
   Image,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
+  Animated,
+  Easing,
 } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { font } from '../../src/lib/fonts';
 import type { Profile } from '../../src/lib/supabase';
@@ -48,8 +51,42 @@ export default function ProfileViewScreen() {
   const [bookingModalVisible, setBookingModalVisible] = useState(false);
   const [bookingDate, setBookingDate] = useState('');
   const [bookingTime, setBookingTime] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [bookingDateObj, setBookingDateObj] = useState<Date | null>(null);
+  const [pickerTarget, setPickerTarget] = useState<'date' | 'time' | null>(null);
+  const [tempDate, setTempDate] = useState<Date | null>(null);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
+
+  // Animated heights for iOS inline pickers
+  const datePickerHeight = React.useRef(new Animated.Value(0)).current;
+  const timePickerHeight = React.useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    Animated.timing(datePickerHeight, {
+      toValue: showDatePicker ? 180 : 0,
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [showDatePicker, datePickerHeight]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    Animated.timing(timePickerHeight, {
+      toValue: showTimePicker ? 140 : 0,
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [showTimePicker, timePickerHeight]);
+
+  // Helpers to format date/time strings used elsewhere in the code
+  const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+  const formatDateYYYYMMDD = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  const formatTimeHHMM = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 
   useEffect(() => {
     let cancelled = false;
@@ -549,25 +586,157 @@ export default function ProfileViewScreen() {
                   Book a session
                 </ThemedText>
 
-                <Text style={[styles.bookingLabel, { color: theme.text }]}>Date (YYYY-MM-DD)</Text>
-                <TextInput
-                  value={bookingDate}
-                  onChangeText={setBookingDate}
-                  placeholder="2026-03-01"
-                  placeholderTextColor="#7f8186"
-                  style={[styles.bookingInput, { color: theme.text, borderColor: '#c6c1ae' }]}
-                  autoCapitalize="none"
-                />
+                <Text style={[styles.bookingLabel, { color: theme.text }]}>Date</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    // initialize picker value from current bookingDate if available
+                    const initial = bookingDate ? new Date(`${bookingDate}T00:00:00`) : new Date();
+                    setBookingDateObj(initial);
+                    if (Platform.OS === 'ios') {
+                      // inline spinner under the button
+                      setShowDatePicker((s) => !s);
+                    } else {
+                      // Android: open date dialog then time dialog (two-step)
+                      setPickerTarget('date');
+                      setShowDatePicker(true);
+                    }
+                  }}
+                  style={styles.bookingPickerButton}
+                >
+                  <Text style={styles.bookingPickerText}>{bookingDate || 'Select a date'}</Text>
+                </TouchableOpacity>
+                {/* iOS: inline spinner below the Date button and above the Time section */}
+                {Platform.OS === 'ios' && (
+                  <Animated.View
+                    style={{
+                      overflow: 'hidden',
+                      height: datePickerHeight,
+                      opacity: datePickerHeight.interpolate({ inputRange: [0, 180], outputRange: [0, 1] }),
+                    }}
+                  >
+                    {showDatePicker && (
+                      <DateTimePicker
+                        value={bookingDateObj ?? new Date()}
+                        mode="date"
+                        display="spinner"
+                        onChange={(_e, date) => {
+                          if (date) {
+                            setBookingDateObj(date);
+                            setBookingDate(formatDateYYYYMMDD(date));
+                          }
+                        }}
+                      />
+                    )}
+                  </Animated.View>
+                )}
 
-                <Text style={[styles.bookingLabel, { color: theme.text }]}>Time (24h HH:MM)</Text>
-                <TextInput
-                  value={bookingTime}
-                  onChangeText={setBookingTime}
-                  placeholder="14:30"
-                  placeholderTextColor="#7f8186"
-                  style={[styles.bookingInput, { color: theme.text, borderColor: '#c6c1ae' }]}
-                  autoCapitalize="none"
-                />
+                <Text style={[styles.bookingLabel, { color: theme.text, marginTop: 12 }]}>Time</Text>
+
+                <TouchableOpacity
+                  onPress={() => {
+                    const now = new Date();
+                    // if bookingTime exists, parse it into a Date object for initial value
+                    let initial = now;
+                    if (bookingTime) {
+                      const [hh, mm] = bookingTime.split(':').map((s) => parseInt(s, 10));
+                      if (!isNaN(hh) && !isNaN(mm)) {
+                        initial = new Date();
+                        initial.setHours(hh, mm, 0, 0);
+                      }
+                    }
+                    setBookingDateObj(initial);
+                    if (Platform.OS === 'ios') {
+                      setShowTimePicker((s) => !s);
+                    } else {
+                      // on Android, prefer date→time flow; allow opening time dialog directly too
+                      setPickerTarget('time');
+                      setShowTimePicker(true);
+                    }
+                  }}
+                  style={styles.bookingPickerButton}
+                >
+                  <Text style={styles.bookingPickerText}>{bookingTime || 'Select a time'}</Text>
+                </TouchableOpacity>
+
+                {Platform.OS === 'ios' && (
+                  <Animated.View
+                    style={{
+                      overflow: 'hidden',
+                      height: timePickerHeight,
+                      opacity: timePickerHeight.interpolate({ inputRange: [0, 140], outputRange: [0, 1] }),
+                    }}
+                  >
+                    {showTimePicker && (
+                      <DateTimePicker
+                        value={bookingDateObj ?? new Date()}
+                        mode="time"
+                        is24Hour={true}
+                        display="spinner"
+                        onChange={(_e, date) => {
+                          if (date) {
+                            setBookingDateObj(date);
+                            setBookingTime(formatTimeHHMM(date));
+                          }
+                        }}
+                      />
+                    )}
+                  </Animated.View>
+                )}
+
+                {Platform.OS === 'android' && showDatePicker && pickerTarget === 'date' && (
+                  <DateTimePicker
+                    value={bookingDateObj ?? new Date()}
+                    mode="date"
+                    display="default"
+                    onChange={(_e, date) => {
+                      setShowDatePicker(false);
+                      if (!date) return;
+                      const merged = new Date(date);
+                      // preserve time portion from bookingDateObj if present
+                      const base = bookingDateObj ?? new Date();
+                      merged.setHours(base.getHours(), base.getMinutes(), 0, 0);
+                      setTempDate(merged);
+                      setShowTimePicker(true);
+                    }}
+                  />
+                )}
+
+                {Platform.OS === 'android' && showTimePicker && pickerTarget === 'date' && (
+                  <DateTimePicker
+                    value={tempDate ?? bookingDateObj ?? new Date()}
+                    mode="time"
+                    display="default"
+                    onChange={(_e, date) => {
+                      setShowTimePicker(false);
+                      if (!date) return;
+                      const merged = new Date(tempDate ?? date);
+                      merged.setHours(date.getHours(), date.getMinutes(), 0, 0);
+                      setBookingDateObj(merged);
+                      setBookingDate(formatDateYYYYMMDD(merged));
+                      setBookingTime(formatTimeHHMM(merged));
+                      setTempDate(null);
+                      setPickerTarget(null);
+                    }}
+                  />
+                )}
+
+                {Platform.OS === 'android' && showTimePicker && pickerTarget === 'time' && (
+                  <DateTimePicker
+                    value={bookingDateObj ?? new Date()}
+                    mode="time"
+                    display="default"
+                    onChange={(_e, date) => {
+                      setShowTimePicker(false);
+                      if (!date) return;
+                      const picked = date;
+                      const base = bookingDateObj ?? new Date();
+                      const merged = new Date(base);
+                      merged.setHours(picked.getHours(), picked.getMinutes(), 0, 0);
+                      setBookingDateObj(merged);
+                      setBookingTime(formatTimeHHMM(merged));
+                    }}
+                  />
+                )}
 
                 {bookingError ? (
                   <Text style={styles.bookingErrorText}>{bookingError}</Text>
@@ -897,6 +1066,21 @@ const styles = StyleSheet.create({
   bookingButtonPrimaryText: {
     color: '#fff',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  bookingPickerButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#d0d0d0',
+  },
+  bookingPickerText: {
+    color: '#222',
     fontWeight: '600',
   },
   chipRow: {
