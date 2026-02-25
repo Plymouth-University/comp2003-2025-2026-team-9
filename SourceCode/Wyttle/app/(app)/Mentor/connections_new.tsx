@@ -46,10 +46,10 @@ export default function MentorConnectionsScreen() {
         // 1) All mentor_requests for this mentor that have an associated thread
         const { data: requests, error: reqError } = await supabase
           .from('mentor_requests')
-          .select('id, mentee, mentor, thread_id, requested_at')
+          .select('id, mentee, mentor, thread_id, proposed_at')
           .eq('mentor', user.id)
           .not('thread_id', 'is', null)
-          .order('requested_at', { ascending: false });
+          .order('proposed_at', { ascending: false });
 
         if (reqError) throw reqError;
 
