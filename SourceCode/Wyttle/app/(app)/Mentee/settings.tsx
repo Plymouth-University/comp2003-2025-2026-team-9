@@ -4,6 +4,7 @@ import {
   Animated,
   Image,
   Platform,
+  Pressable,
   StyleSheet,
   Switch,
   Text,
@@ -11,6 +12,7 @@ import {
   UIManager,
   View
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -24,6 +26,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import Slider from '@react-native-community/slider';
 import * as Location from 'expo-location';
 import { TextInput } from 'react-native';
+import { font } from '../../../src/lib/fonts';
 import { useNavigationHistory } from '../../../src/lib/navigation-history';
 import { supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
@@ -89,15 +92,15 @@ function SettingsDropdown({
   }, [open, contentHeight, isReady]);
 
   return (
-    <View style={[styles.dropdownContainer, { backgroundColor: theme.card }]}>
+    <View style={[styles.dropdownContainer, { backgroundColor: 'transparent' }]}>
       <TouchableOpacity
         activeOpacity={0.8}
         onPress={() => toggleSection(id)}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
-        style={[styles.sectionHeader, { borderBottomColor: theme.text + '0F' }]}
+        style={styles.sectionHeaderRow}
       >
-        <View style={styles.headerContent}>
+        <View style={[styles.headerContentRow, { flex: 1, borderBottomWidth: 1, borderBottomColor: theme.text + '22' }]}> 
           {icon && (
             <Ionicons
               name={icon as any}
@@ -106,15 +109,17 @@ function SettingsDropdown({
               style={styles.headerIcon}
             />
           )}
-          <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
+          <ThemedText
+            type="defaultSemiBold"
+            style={[styles.sectionTitle, font('GlacialIndifference', '400')]}
+          >
             {title}
           </ThemedText>
         </View>
 
-        {/* icon rotates based on open/closed state */}
         <Ionicons
           name={open ? 'chevron-up' : 'chevron-down'}
-          size={20}
+          size={22}
           color={theme.text}
           style={styles.chevron}
         />
@@ -122,7 +127,7 @@ function SettingsDropdown({
 
       {/* Hidden view to measure content height */}
       <View
-        style={[styles.measureContainer, { position: 'absolute', opacity: 0 }]}
+        style={[styles.measureContainer, { position: 'absolute', opacity: 0, left: 0, right: 0 }]}
         onLayout={(e) => {
           const height = e.nativeEvent.layout.height;
           if (height > 0) {
@@ -146,6 +151,9 @@ function SettingsDropdown({
             {
               height: animatedHeight,
               opacity: animatedOpacity,
+              left: 0,
+              right: 0,
+              width: '100%',
             },
           ]}
         >
@@ -161,6 +169,7 @@ function SettingsDropdown({
 // Declare constants for layout animation
 export default function MenteeSettingsScreen() {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [pushEnabled, setPushEnabled] = useState<boolean>(true);
   const [emailEnabled, setEmailEnabled] = useState<boolean>(false);
@@ -367,7 +376,7 @@ export default function MenteeSettingsScreen() {
       >
         <ScreenHeader
           title="Settings"
-          subtitle="Profile options, accessibility, switch account, and notifications will live here. Null is ignored, whitespace clears fields"
+          subtitle="Manage your profile, preferences, and notifications."
         />
 
         {/* Settings dropdowns */}
@@ -391,7 +400,7 @@ export default function MenteeSettingsScreen() {
             }
           }}
         >
-          <ThemedText style={styles.itemText}>View profile</ThemedText>
+          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400')]}>View profile</ThemedText>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -401,7 +410,7 @@ export default function MenteeSettingsScreen() {
           accessibilityState={{ expanded: isEditingProfile }}
         >
         
-          <ThemedText style={styles.itemText}>Edit profile</ThemedText>
+          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400')]}>Edit profile</ThemedText>
         </TouchableOpacity>
           {isEditingProfile && (
             <View style={styles.profileDetailsSection}>
@@ -529,12 +538,10 @@ export default function MenteeSettingsScreen() {
         theme={theme}
       >
         <View style={styles.itemRow}>
-          <ThemedText style={styles.itemText}>
-            Token balance: {tokensBalance ?? 0}
-          </ThemedText>
+          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400')]}>Token balance: {tokensBalance ?? 0}</ThemedText>
         </View>
         <TouchableOpacity style={styles.itemRow} onPress={handleBuyTokensPlaceholder}>
-          <ThemedText style={styles.itemText}>Buy tokens (coming soon)</ThemedText>
+          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400')]}>Buy tokens (coming soon)</ThemedText>
         </TouchableOpacity>
       </SettingsDropdown>
 
@@ -547,7 +554,7 @@ export default function MenteeSettingsScreen() {
         theme={theme}
       >
         <View style={styles.itemRow}>
-          <ThemedText style={styles.itemText}>Text size</ThemedText>
+          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400')]}>Text size</ThemedText>
           <View style={styles.sliderContainer}>
             <ThemedText style={styles.sliderValue}>{Math.round(textSize * 100)}%</ThemedText>
             <Slider
@@ -613,24 +620,30 @@ export default function MenteeSettingsScreen() {
         theme={theme}
       >
         <View style={styles.itemRowWithSwitch}>
-          <ThemedText style={styles.itemText}>Push notifications</ThemedText>
+          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400')]}>Push notifications</ThemedText>
           <Switch value={pushEnabled} onValueChange={handleTogglePush} />
         </View>
 
         <View style={styles.itemRowWithSwitch}>
-          <ThemedText style={styles.itemText}>Email notifications</ThemedText>
+          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400')]}>Email notifications</ThemedText>
           <Switch value={emailEnabled} onValueChange={handleToggleEmail} />
         </View>
       </SettingsDropdown>
 
-      {/* Log out button */}
-      <TouchableOpacity 
-        style={[styles.logoutButton, { backgroundColor: '#dc2626' }]} 
-        onPress={handleLogout}
-        activeOpacity={0.8}
-      >
-        <ThemedText style={styles.logoutButtonText}>Log out</ThemedText>
-      </TouchableOpacity>
+      {/* Log out button - hide while editing profile inside the Profiles dropdown */}
+      {!(isEditingProfile && openSection === 'profiles') && (
+        <Pressable
+          style={({ pressed }) => [
+            styles.logoutButton,
+            { bottom: 24 + insets.bottom + 56 },
+            pressed && styles.logoutButtonPressed,
+          ]}
+          onPress={handleLogout}
+          android_ripple={{ color: '#00000008' }}
+        >
+          <ThemedText style={styles.logoutButtonText}>Log out</ThemedText>
+        </Pressable>
+      )}
       </KeyboardAwareScrollView>
     </View>
   );
@@ -644,6 +657,7 @@ const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
     paddingHorizontal: 18,
+    position: 'relative',
   },
   scrollContent: {
     flexGrow: 1,
@@ -714,31 +728,41 @@ const styles = StyleSheet.create({
   dropdownContainer: {
   marginBottom: 12,
   marginTop: 8,
-  borderRadius: 10,
+  borderRadius: 12,
   overflow: 'hidden',
+  borderWidth: 0,
+  borderColor: 'transparent',
+  shadowColor: 'transparent',
+  shadowOpacity: 0,
+  shadowRadius: 0,
+  shadowOffset: { width: 0, height: 0 },
+  elevation: 0,
 },
-sectionHeader: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingVertical: 16,
-  paddingHorizontal: 12,
-  borderBottomWidth: 1,
-},
-headerContent: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 10,
-},
-headerIcon: {
-  marginRight: 2,
-},
-sectionTitle: {
-  fontSize: 16,
-},
-chevron: {
-  marginLeft: 12,
-},
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    width: '100%',
+  },
+  headerContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingBottom: 8,
+  },
+  headerIcon: {
+    marginRight: 6,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    paddingBottom: 0,
+    marginBottom: 0,
+  },
+  chevron: {
+    marginLeft: 12,
+  },
 animatedContainer: {
   overflow: 'hidden',
 },
@@ -747,18 +771,20 @@ measureContainer: {
   opacity: 0,
   zIndex: -1,
 },
-itemsContainer: {
-  paddingVertical: 6,
-},
-itemRow: {
-  paddingVertical: 14,
-  paddingHorizontal: 12,
-  flexDirection: 'row',
-  alignItems: 'center',
-},
-itemText: {
-  fontSize: 15,
-},
+  itemsContainer: {
+    paddingVertical: 4,
+  },
+  itemRow: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#00000006',
+  },
+  itemText: {
+    fontSize: 15,
+  },
 itemSubText: {
   marginLeft: 'auto',
   fontSize: 13,
@@ -877,16 +903,22 @@ sliderValue: {
   minWidth: 45,
   textAlign: 'right',
 },
-logoutButton: {
-  marginTop: 20,
-  marginBottom: 12,
-  paddingVertical: 16,
+  logoutButton: {
+  position: 'absolute',
+  right: 18,
+  bottom: 24,
+  paddingVertical: 12,
+  paddingHorizontal: 12,
   borderRadius: 10,
   alignItems: 'center',
   justifyContent: 'center',
 },
+  logoutButtonPressed: {
+    backgroundColor: '#00000006',
+    borderRadius: 10,
+  },
 logoutButtonText: {
-  color: '#fff',
+  color: '#dc2626',
   fontWeight: '700',
   fontSize: 16,
 },
