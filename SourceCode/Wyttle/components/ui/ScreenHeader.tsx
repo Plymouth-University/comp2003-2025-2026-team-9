@@ -1,9 +1,9 @@
 import React from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
+import { Logo } from '@/components/Logo';
 import { ThemedText } from '@/components/themed-text';
 import { font } from '../../src/lib/fonts';
-import { Logo } from '@/components/Logo';
 
 export type ScreenHeaderProps = {
   title: string;

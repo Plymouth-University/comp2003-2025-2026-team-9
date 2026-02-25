@@ -1,16 +1,18 @@
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated,
-  Image,
-  Platform,
-  StyleSheet,
-  Switch,
-  Text,
-  TouchableOpacity,
-  UIManager,
-  View
+    Animated,
+    Image,
+    Platform,
+    Pressable,
+    Switch as RNSwitch,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    UIManager,
+    View
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -24,6 +26,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import Slider from '@react-native-community/slider';
 import * as Location from 'expo-location';
 import { TextInput } from 'react-native';
+import { font } from '../../../src/lib/fonts';
 import { useNavigationHistory } from '../../../src/lib/navigation-history';
 import { supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
@@ -89,15 +92,15 @@ function SettingsDropdown({
   }, [open, contentHeight, isReady]);
 
   return (
-    <View style={[styles.dropdownContainer, { backgroundColor: theme.card }]}>
+    <View style={[styles.dropdownContainer, { backgroundColor: 'transparent' }]}>
       <TouchableOpacity
         activeOpacity={0.8}
         onPress={() => toggleSection(id)}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
-        style={[styles.sectionHeader, { borderBottomColor: theme.text + '0F' }]}
+        style={styles.sectionHeaderRow}
       >
-        <View style={styles.headerContent}>
+        <View style={[styles.headerContentRow, { flex: 1, borderBottomWidth: 1, borderBottomColor: theme.text + '22' }]}> 
           {icon && (
             <Ionicons
               name={icon as any}
@@ -106,15 +109,17 @@ function SettingsDropdown({
               style={styles.headerIcon}
             />
           )}
-          <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
+          <ThemedText
+            type="defaultSemiBold"
+            style={[styles.sectionTitle, font('GlacialIndifference', '400')]}
+          >
             {title}
           </ThemedText>
         </View>
 
-        {/* icon rotates based on open/closed state */}
         <Ionicons
           name={open ? 'chevron-up' : 'chevron-down'}
-          size={20}
+          size={22}
           color={theme.text}
           style={styles.chevron}
         />
@@ -122,7 +127,7 @@ function SettingsDropdown({
 
       {/* Hidden view to measure content height */}
       <View
-        style={[styles.measureContainer, { position: 'absolute', opacity: 0 }]}
+        style={[styles.measureContainer, { position: 'absolute', opacity: 0, left: 0, right: 0 }]}
         onLayout={(e) => {
           const height = e.nativeEvent.layout.height;
           if (height > 0) {
@@ -146,6 +151,9 @@ function SettingsDropdown({
             {
               height: animatedHeight,
               opacity: animatedOpacity,
+              left: 0,
+              right: 0,
+              width: '100%',
             },
           ]}
         >
@@ -161,6 +169,7 @@ function SettingsDropdown({
 // Declare constants for layout animation
 export default function MentorSettingsScreen() {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [pushEnabled, setPushEnabled] = useState<boolean>(true);
   const [emailEnabled, setEmailEnabled] = useState<boolean>(false);
@@ -261,8 +270,7 @@ export default function MentorSettingsScreen() {
       setIsEditingProfile(false);
     }
   };
- 
-
+  
 
   // Toggle dropdown sections
   function toggleSection(id: string) {
@@ -273,8 +281,6 @@ export default function MentorSettingsScreen() {
 
   
 
-
-
   function handleTogglePush(enabled: boolean) {
     setPushEnabled(enabled);
   }
@@ -282,8 +288,8 @@ export default function MentorSettingsScreen() {
   function handleToggleEmail(enabled: boolean) {
     setEmailEnabled(enabled);
   }
- 
- 
+  
+  
   
   const handleSaveProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -364,7 +370,7 @@ export default function MentorSettingsScreen() {
       >
         <ScreenHeader
           title="Settings"
-          subtitle="Profile options, accessibility, switch account, and notifications will live here. Null is ignored, whitespace clears fields."
+          subtitle="Manage your profile, preferences, and notifications."
         />
 
         {/* Settings dropdowns */}
@@ -388,7 +394,7 @@ export default function MentorSettingsScreen() {
             }
           }}
         >
-          <ThemedText style={styles.itemText}>View profile</ThemedText>
+          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400')]}>View profile</ThemedText>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -398,71 +404,74 @@ export default function MentorSettingsScreen() {
           accessibilityState={{ expanded: isEditingProfile }}
         >
         
-          <ThemedText style={styles.itemText}>Edit profile</ThemedText>
+          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400')]}>Edit profile</ThemedText>
         </TouchableOpacity>
-                {isEditingProfile && (
-                  <View style={styles.profileDetailsSection}>
-                    <Text style={[styles.themeLabel, { color: theme.text }]}>Profile details</Text>
-                    
-                    <View style={styles.profilePhotoSection}>
-                      <Image
-                        source={
-                          photoUrl
-                            ? { uri: photoUrl }
-                            : { uri: 'https://placehold.co/96x96?text=Me' }
-                        }
-                        style={styles.avatar}
-                      />
-                      <TouchableOpacity onPress={handleChangePhoto}>
-                        <Text style={[styles.changePhotoText, { color: theme.tint }]}>Change profile photo</Text>
-                      </TouchableOpacity>
-                    </View>
-                    
-                    <TextInput
-                      style={[styles.textInput, { color: theme.text }]}
-                      placeholder="Career / Role Title"
-                      placeholderTextColor="#7f8186"
-                      value={title}
-                      onChangeText={setTitle}
-                    />
-                    <TextInput
-                      style={[styles.textInput, { color: theme.text }]}
-                      placeholder="Industry"
-                      placeholderTextColor="#7f8186"
-                      value={industry}
-                      onChangeText={setIndustry}
-                    />
-                    <TextInput
-                      style={[styles.textInput, { color: theme.text }]}
-                      placeholder="Location"
-                      placeholderTextColor="#7f8186"
-                      value={location}
-                      onChangeText={setLocation}
-                    />
-                    <TouchableOpacity style={styles.locationButton} onPress={handleUseMyLocation}>
-                      <Text style={styles.locationButtonText}>Use my current location</Text>
-                    </TouchableOpacity>
-                    <TextInput
-                      style={[styles.textArea, { color: theme.text }]}
-                      placeholder="Short bio"
-                      placeholderTextColor="#7f8186"
-                      value={bio}
-                      onChangeText={setBio}
-                      multiline
-                      maxLength={500}
-                    />
+          {isEditingProfile && (
+            <View style={styles.profileDetailsSection}>
+              <Text style={[styles.themeLabel, { color: theme.text }]}>Profile details</Text>
+              
+              <View style={styles.profilePhotoSection}>
+                <Image
+                  source={
+                    photoUrl
+                      ? { uri: photoUrl }
+                      : { uri: 'https://placehold.co/96x96?text=Me' }
+                  }
+                  style={styles.avatar}
+                />
+                <TouchableOpacity onPress={handleChangePhoto}>
+                  <Text style={[styles.changePhotoText, { color: theme.tint }]}>Change profile photo</Text>
+                </TouchableOpacity>
+              </View>
+              
+              <TextInput
+                style={[styles.textInput, { color: theme.text }]}
+                placeholder="Career / Role Title"
+                placeholderTextColor="#7f8186"
+                value={title}
+                onChangeText={setTitle}
+              />
+              <TextInput
+                style={[styles.textInput, { color: theme.text }]}
+                placeholder="Industry"
+                placeholderTextColor="#7f8186"
+                value={industry}
+                onChangeText={setIndustry}
+              />
+              <TextInput
+                style={[styles.textInput, { color: theme.text }]}
+                placeholder="Location"
+                placeholderTextColor="#7f8186"
+                value={location}
+                onChangeText={setLocation}
+              />
+              <TouchableOpacity style={styles.locationButton} onPress={handleUseMyLocation}>
+                <Text style={styles.locationButtonText}>Use my current location</Text>
+              </TouchableOpacity>
 
-                    {/* Work Experience text input */}
-                    <TextInput
-                      style={[styles.textInput, { color: theme.text }]}
-                      placeholder="Previous work experience"
-                      placeholderTextColor="#7f8186"
-                      value={workExperience}
-                      onChangeText={setWorkExperience}
-                    />
 
-                    {/* Skills Section */}
-                    {/* Display existing skill tags */}
+              <TextInput
+                style={[styles.textArea, { color: theme.text }]}
+                placeholder="Short Bio"
+                placeholderTextColor="#7f8186"
+                value={bio}
+                onChangeText={setBio}
+                multiline
+                maxLength={500}
+              />
+
+              {/* Work Experience text input */}
+              <TextInput
+                style={[styles.textInput, { color: theme.text }]}
+                placeholder="Previous work experience"
+                placeholderTextColor="#7f8186"
+                value={workExperience}
+                onChangeText={setWorkExperience}
+              />
+
+
+              {/* Skills Section */}
+              {/* Display existing skill tags */}
 <View style={styles.skillsContainer}>
   {skills.map((skill, index) => (
     <View key={index} style={styles.skillChip}>
@@ -504,14 +513,35 @@ export default function MentorSettingsScreen() {
     <Ionicons name="add-circle" size={28} color="#333f5c" />
   </TouchableOpacity>
 </View>
-                    
+              
 
-                    <TouchableOpacity style={styles.saveButton} onPress={handleSaveProfile}>
-                      <Text style={styles.saveButtonText}>Save profile</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
+              <TouchableOpacity style={styles.saveButton} onPress={handleSaveProfile}>
+                <Text style={styles.saveButtonText}>Save profile</Text>
+              </TouchableOpacity>
+            </View>
+            
+          )}
       </SettingsDropdown>
+
+      <SettingsDropdown 
+        id="notifications" 
+        title="Notifications"
+        icon="notifications-outline"
+        openSection={openSection}
+        toggleSection={toggleSection}
+        theme={theme}
+      >
+        <View style={styles.itemRowWithSwitch}>
+          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400')]}>Push notifications</ThemedText>
+          <RNSwitch value={pushEnabled} onValueChange={handleTogglePush} />
+        </View>
+
+        <View style={styles.itemRowWithSwitch}>
+          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400')]}>Email notifications</ThemedText>
+          <RNSwitch value={emailEnabled} onValueChange={handleToggleEmail} />
+        </View>
+      </SettingsDropdown>
+
 
       <SettingsDropdown 
         id="accessibility" 
@@ -522,7 +552,7 @@ export default function MentorSettingsScreen() {
         theme={theme}
       >
         <View style={styles.itemRow}>
-          <ThemedText style={styles.itemText}>Text size</ThemedText>
+          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400')]}>Text size</ThemedText>
           <View style={styles.sliderContainer}>
             <ThemedText style={styles.sliderValue}>{Math.round(textSize * 100)}%</ThemedText>
             <Slider
@@ -539,87 +569,76 @@ export default function MentorSettingsScreen() {
           </View>
         </View>
 
-        
-      <View style={styles.themeSection}>
-        <Text style={[styles.themeLabel, { color: theme.text }]}>Appearance</Text>
-        <View style={styles.themeButtonsRow}>
-          <TouchableOpacity
-            style={[
-              styles.themeChip,
-              colorScheme !== 'dark' && styles.themeChipActive,
-            ]}
-            onPress={() => setThemeOverride('light')}
-          >
-            <Text
+        <View style={styles.themeSection}>
+          <Text style={[styles.themeLabel, { color: theme.text }]}>Appearance</Text>
+          <View style={styles.themeButtonsRow}>
+            <TouchableOpacity
               style={[
-                styles.themeChipText,
-                colorScheme !== 'dark' && styles.themeChipTextActive,
+                styles.themeChip,
+                colorScheme !== 'dark' && styles.themeChipActive,
               ]}
+              onPress={() => setThemeOverride('light')}
             >
-              Light
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.themeChip,
-              colorScheme === 'dark' && styles.themeChipActive,
-            ]}
-            onPress={() => setThemeOverride('dark')}
-          >
-            <Text
+              <Text
+                style={[
+                  styles.themeChipText,
+                  colorScheme !== 'dark' && styles.themeChipTextActive,
+                ]}
+              >
+                Light
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[
-                styles.themeChipText,
-                colorScheme === 'dark' && styles.themeChipTextActive,
+                styles.themeChip,
+                colorScheme === 'dark' && styles.themeChipActive,
               ]}
+              onPress={() => setThemeOverride('dark')}
             >
-              Dark
-            </Text>
-          </TouchableOpacity>
+              <Text
+                style={[
+                  styles.themeChipText,
+                  colorScheme === 'dark' && styles.themeChipTextActive,
+                ]}
+              >
+                Dark
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
 
       </SettingsDropdown>
 
-      <SettingsDropdown 
-        id="notifications" 
-        title="Notifications"
-        icon="notifications-outline"
-        openSection={openSection}
-        toggleSection={toggleSection}
-        theme={theme}
-      >
-        <View style={styles.itemRowWithSwitch}>
-          <ThemedText style={styles.itemText}>Push notifications</ThemedText>
-          <Switch value={pushEnabled} onValueChange={handleTogglePush} />
-        </View>
-
-        <View style={styles.itemRowWithSwitch}>
-          <ThemedText style={styles.itemText}>Email notifications</ThemedText>
-          <Switch value={emailEnabled} onValueChange={handleToggleEmail} />
-        </View>
-      </SettingsDropdown>
-
-      {/* Log out button */}
-      <TouchableOpacity 
-        style={[styles.logoutButton, { backgroundColor: '#dc2626' }]} 
-        onPress={handleLogout}
-        activeOpacity={0.8}
-      >
-        <ThemedText style={styles.logoutButtonText}>Log out</ThemedText>
-      </TouchableOpacity>
+      {/* Log out button - hide while editing profile inside the Profiles dropdown */}
+      {!(isEditingProfile && openSection === 'profiles') && (
+        <Pressable
+          style={({ pressed }) => [
+            styles.logoutButton,
+            { bottom: 24 + insets.bottom + 56 },
+            pressed && styles.logoutButtonPressed,
+          ]}
+          onPress={handleLogout}
+          android_ripple={{ color: '#00000008' }}
+        >
+          <ThemedText style={styles.logoutButtonText}>Log out</ThemedText>
+        </Pressable>
+      )}
       </KeyboardAwareScrollView>
     </View>
   );
 }
 
- 
 
-{/* Style sheets */}
+
+
+
+
 
 const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
     paddingHorizontal: 18,
+    position: 'relative',
   },
   scrollContent: {
     flexGrow: 1,
@@ -690,31 +709,41 @@ const styles = StyleSheet.create({
   dropdownContainer: {
   marginBottom: 12,
   marginTop: 8,
-  borderRadius: 10,
+  borderRadius: 12,
   overflow: 'hidden',
+  borderWidth: 0,
+  borderColor: 'transparent',
+  shadowColor: 'transparent',
+  shadowOpacity: 0,
+  shadowRadius: 0,
+  shadowOffset: { width: 0, height: 0 },
+  elevation: 0,
 },
-sectionHeader: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingVertical: 16,
-  paddingHorizontal: 12,
-  borderBottomWidth: 1,
-},
-headerContent: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 10,
-},
-headerIcon: {
-  marginRight: 2,
-},
-sectionTitle: {
-  fontSize: 16,
-},
-chevron: {
-  marginLeft: 12,
-},
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    width: '100%',
+  },
+  headerContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingBottom: 8,
+  },
+  headerIcon: {
+    marginRight: 6,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    paddingBottom: 0,
+    marginBottom: 0,
+  },
+  chevron: {
+    marginLeft: 12,
+  },
 animatedContainer: {
   overflow: 'hidden',
 },
@@ -723,18 +752,20 @@ measureContainer: {
   opacity: 0,
   zIndex: -1,
 },
-itemsContainer: {
-  paddingVertical: 6,
-},
-itemRow: {
-  paddingVertical: 14,
-  paddingHorizontal: 12,
-  flexDirection: 'row',
-  alignItems: 'center',
-},
-itemText: {
-  fontSize: 15,
-},
+  itemsContainer: {
+    paddingVertical: 4,
+  },
+  itemRow: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#00000006',
+  },
+  itemText: {
+    fontSize: 15,
+  },
 itemSubText: {
   marginLeft: 'auto',
   fontSize: 13,
@@ -853,20 +884,23 @@ sliderValue: {
   minWidth: 45,
   textAlign: 'right',
 },
-logoutButton: {
-  marginTop: 20,
-  marginBottom: 12,
-  paddingVertical: 16,
+  logoutButton: {
+  position: 'absolute',
+  right: 18,
+  bottom: 24,
+  paddingVertical: 12,
+  paddingHorizontal: 12,
   borderRadius: 10,
   alignItems: 'center',
   justifyContent: 'center',
 },
+  logoutButtonPressed: {
+    backgroundColor: '#00000006',
+    borderRadius: 10,
+  },
 logoutButtonText: {
-  color: '#fff',
+  color: '#dc2626',
   fontWeight: '700',
   fontSize: 16,
 },
 });
-
-
-
