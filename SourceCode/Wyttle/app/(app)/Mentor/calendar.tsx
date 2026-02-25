@@ -153,7 +153,38 @@ export default function MentorCalendarScreen() {
   };
 
   useEffect(() => {
-    loadEvents();
+    let isMounted = true;
+    let channel: any | null = null;
+
+    const bootstrap = async () => {
+      await loadEvents();
+
+      try {
+        const { data: auth } = await supabase.auth.getUser();
+        const user = auth?.user;
+        if (!user) return;
+
+        channel = supabase
+          .channel(`mentor-calendar-${user.id}`)
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'calendar', filter: `mentor_id=eq.${user.id}` },
+            () => {
+              if (isMounted) loadEvents();
+            },
+          )
+          .subscribe();
+      } catch (e) {
+        console.warn('Failed to subscribe to calendar realtime updates', e);
+      }
+    };
+
+    void bootstrap();
+
+    return () => {
+      isMounted = false;
+      if (channel) supabase.removeChannel(channel);
+    };
   }, []);
 
   const resetModalState = () => {
@@ -198,7 +229,8 @@ export default function MentorCalendarScreen() {
           end_at: endAt.toISOString(),
         })
         .eq('id', editingEvent.id)
-        .eq('mentor_id', user.id);
+        .eq('mentor_id', user.id)
+        .eq('type', 'block');
 
       if (error) {
         Alert.alert('Update failed', error.message);
@@ -228,10 +260,16 @@ export default function MentorCalendarScreen() {
   const handleDeleteBlock = async () => {
     if (!editingEvent) return;
 
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth?.user;
+    if (!user) return;
+
     const { error } = await supabase
       .from('calendar')
       .delete()
-      .eq('id', editingEvent.id);
+      .eq('id', editingEvent.id)
+      .eq('mentor_id', user.id)
+      .eq('type', 'block');
 
     if (error) {
       Alert.alert('Delete failed', error.message);

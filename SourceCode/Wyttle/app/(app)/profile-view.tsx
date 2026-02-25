@@ -1,6 +1,17 @@
 import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -15,6 +26,8 @@ import { ThemedText } from '@/components/themed-text';
 import { BackButton } from '@/components/ui/BackButton';
 import { useTextSize } from '@/hooks/theme-store';
 
+const DEFAULT_SESSION_MINUTES = 60;
+
 export default function ProfileViewScreen() {
   const params = useLocalSearchParams<{ userId?: string }>();
   const userId = typeof params.userId === 'string' ? params.userId : null;
@@ -25,6 +38,7 @@ export default function ProfileViewScreen() {
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [viewerProfile, setViewerProfile] = useState<Profile | null>(null);
+  const [viewerId, setViewerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [canDisconnect, setCanDisconnect] = useState(false);
@@ -49,7 +63,9 @@ export default function ProfileViewScreen() {
         setLoading(true);
         const { data, error: profileError } = await supabase
           .from('profiles')
-          .select('id, full_name, title, industry, bio, photo_url, role, location, skills, interests, work_experience')
+          .select(
+            'id, full_name, title, industry, bio, photo_url, role, location, skills, interests, work_experience, mentor_session_rate',
+          )
           .eq('id', userId)
           .single();
         if (cancelled) return;
@@ -95,12 +111,16 @@ export default function ProfileViewScreen() {
     const loadViewer = async () => {
       try {
         const me = await getCurrentUser();
-        const { data, error } = await supabase
+        if (!cancelled) setViewerId(me.id);
+
+        // Best-effort profile fetch (some DBs may not have token columns yet)
+        const { data } = await supabase
           .from('profiles')
-          .select('id, full_name, tokens_balance, role')
+          .select('id, full_name, role')
           .eq('id', me.id)
           .maybeSingle();
-        if (!cancelled && !error && data) {
+
+        if (!cancelled && data) {
           setViewerProfile(data as Profile);
         }
       } catch (e) {
@@ -180,45 +200,91 @@ export default function ProfileViewScreen() {
 
   const handleBookSession = async () => {
     if (!profile || !userId) return;
+
     if (!bookingDate || !bookingTime) {
       setBookingError('Please enter a date and time');
       return;
     }
+
     try {
       setBookingLoading(true);
       setBookingError(null);
 
-      // Basic ISO construction; assumes bookingDate is YYYY-MM-DD and bookingTime is HH:MM in local time
-      const scheduled = new Date(`${bookingDate}T${bookingTime}:00`);
-      if (isNaN(scheduled.getTime())) {
+      const me = await getCurrentUser();
+
+      // Assumes bookingDate is YYYY-MM-DD and bookingTime is HH:MM in local time
+      const scheduledStart = new Date(`${bookingDate}T${bookingTime}:00`);
+      if (isNaN(scheduledStart.getTime())) {
         setBookingError('Invalid date or time');
         setBookingLoading(false);
         return;
       }
 
-      const { error } = await supabase.rpc('book_mentor_session', {
-        p_mentor_id: userId,
-        p_scheduled_start: scheduled.toISOString(),
-      });
-      if (error) {
-        console.error('Failed to book mentor session', error);
-        setBookingError(error.message ?? 'Failed to book session');
+      if (scheduledStart.getTime() < Date.now()) {
+        setBookingError('Please choose a time in the future');
         setBookingLoading(false);
         return;
       }
 
-      // Optimistically refresh viewer token balance if rate is known
-      if (viewerProfile && typeof profile.mentor_session_rate === 'number') {
-        setViewerProfile({
-          ...viewerProfile,
-          tokens_balance:
-            typeof viewerProfile.tokens_balance === 'number'
-              ? viewerProfile.tokens_balance - profile.mentor_session_rate
-              : viewerProfile.tokens_balance ?? null,
-        });
+      const scheduledEnd = new Date(scheduledStart.getTime() + DEFAULT_SESSION_MINUTES * 60 * 1000);
+
+      // 1) Create a mentorship thread
+      const { data: thread, error: threadError } = await supabase
+        .from('threads')
+        .insert({ type: 'mentorship' })
+        .select('id')
+        .single();
+
+      if (threadError || !thread) {
+        console.error('Failed to create thread', threadError);
+        setBookingError(threadError?.message ?? 'Failed to create booking thread');
+        setBookingLoading(false);
+        return;
+      }
+
+      // 2) Create mentor request (drives mentor chat list)
+      const { data: req, error: reqError } = await supabase
+        .from('mentor_requests')
+        .insert({
+          mentee: me.id,
+          mentor: userId,
+          thread_id: thread.id,
+          status: 'scheduled',
+          scheduled_start: scheduledStart.toISOString(),
+          scheduled_end: scheduledEnd.toISOString(),
+          tokens_cost: 0,
+        })
+        .select('id')
+        .single();
+
+      if (reqError || !req) {
+        console.error('Failed to create mentor request', reqError);
+        setBookingError(reqError?.message ?? 'Failed to create booking');
+        setBookingLoading(false);
+        return;
+      }
+
+      // 3) Add to mentor calendar (prevents overlap via DB constraint)
+      const { error: calError } = await supabase.from('calendar').insert({
+        mentor_id: userId,
+        mentee_id: me.id,
+        type: 'session',
+        title: 'Session',
+        start_at: scheduledStart.toISOString(),
+        end_at: scheduledEnd.toISOString(),
+      });
+
+      if (calError) {
+        console.error('Failed to create calendar event', calError);
+        setBookingError(calError.message ?? 'That time is unavailable');
+        setBookingLoading(false);
+        return;
       }
 
       setBookingModalVisible(false);
+      setBookingDate('');
+      setBookingTime('');
+      Alert.alert('Booked', 'Your session has been booked.');
       setBookingLoading(false);
     } catch (e: any) {
       console.error('Failed to book mentor session', e);
@@ -230,10 +296,8 @@ export default function ProfileViewScreen() {
   const canShowBooking =
     !!profile &&
     profile.role === 'mentor' &&
-    typeof profile.mentor_session_rate === 'number' &&
-    profile.mentor_session_rate > 0 &&
-    viewerProfile &&
-    viewerProfile.id !== profile.id;
+    !!viewerId &&
+    viewerId !== profile.id;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -459,6 +523,81 @@ export default function ProfileViewScreen() {
               </View>
             </View>
           )}
+
+          {canShowBooking && (
+            <TouchableOpacity
+              style={styles.bookButton}
+              onPress={() => {
+                setBookingError(null);
+                setBookingModalVisible(true);
+              }}
+            >
+              <Text style={styles.bookButtonTitle}>Book session</Text>
+              <Text style={styles.bookButtonSubtitle}>Choose a date & time</Text>
+            </TouchableOpacity>
+          )}
+
+          <Modal
+            visible={bookingModalVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setBookingModalVisible(false)}
+          >
+            <View style={styles.bookingOverlay}>
+              <View style={[styles.bookingCard, { backgroundColor: theme.card }]}>
+                <ThemedText style={[styles.bookingTitle, font('GlacialIndifference', '800'), { color: theme.text }]}>
+                  Book a session
+                </ThemedText>
+
+                <Text style={[styles.bookingLabel, { color: theme.text }]}>Date (YYYY-MM-DD)</Text>
+                <TextInput
+                  value={bookingDate}
+                  onChangeText={setBookingDate}
+                  placeholder="2026-03-01"
+                  placeholderTextColor="#7f8186"
+                  style={[styles.bookingInput, { color: theme.text, borderColor: '#c6c1ae' }]}
+                  autoCapitalize="none"
+                />
+
+                <Text style={[styles.bookingLabel, { color: theme.text }]}>Time (24h HH:MM)</Text>
+                <TextInput
+                  value={bookingTime}
+                  onChangeText={setBookingTime}
+                  placeholder="14:30"
+                  placeholderTextColor="#7f8186"
+                  style={[styles.bookingInput, { color: theme.text, borderColor: '#c6c1ae' }]}
+                  autoCapitalize="none"
+                />
+
+                {bookingError ? (
+                  <Text style={styles.bookingErrorText}>{bookingError}</Text>
+                ) : null}
+
+                <View style={styles.bookingButtonsRow}>
+                  <TouchableOpacity
+                    style={[styles.bookingButton, styles.bookingButtonSecondary]}
+                    onPress={() => {
+                      setBookingModalVisible(false);
+                      setBookingError(null);
+                    }}
+                    disabled={bookingLoading}
+                  >
+                    <Text style={styles.bookingButtonSecondaryText}>Cancel</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.bookingButton, styles.bookingButtonPrimary, { opacity: bookingLoading ? 0.7 : 1 }]}
+                    onPress={handleBookSession}
+                    disabled={bookingLoading}
+                  >
+                    <Text style={styles.bookingButtonPrimaryText}>
+                      {bookingLoading ? 'Booking…' : 'Confirm'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
 
           {canDisconnect && (
             <TouchableOpacity
