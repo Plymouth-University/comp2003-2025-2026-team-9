@@ -383,10 +383,10 @@ export default function MentorCalendarScreen() {
             const useA = (day + row) % 2 === 0;
             return { backgroundColor: useA ? checkerBlueA : checkerBlueB };
           }}
-          onChangeDate={(range: Date[] | Date) => {
-            const next = Array.isArray(range) ? range[0] : range;
-            if (next) setVisibleStart(new Date(next));
-          }}
+          //onChangeDate={(range: Date[] | Date) => {
+          //  const next = Array.isArray(range) ? range[0] : range;
+          //  if (next) setVisibleStart(new Date(next));
+          //}}
           swipeEnabled={false}
           showAllDayEventCell={false}
           calendarContainerStyle={{
