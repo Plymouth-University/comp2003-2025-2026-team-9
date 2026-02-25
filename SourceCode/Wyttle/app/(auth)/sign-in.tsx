@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     KeyboardAvoidingView,
     Platform,
@@ -23,9 +23,16 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../src/lib/fonts';
 
 export default function SignIn() {
-  const params = useLocalSearchParams<{ role?: string; from?: string }>();
+  const params = useLocalSearchParams<{ role?: string; from?: string; expired?: string }>();
   const roleParam = typeof params.role === 'string' ? params.role : undefined;
   const fromLogout = params.from === 'logout';
+  const expired = typeof params.expired === 'string' ? params.expired : undefined;
+
+  useEffect(() => {
+    if (expired) {
+      setMsg('Session expired. Please sign in again.');
+    }
+  }, [expired]);
   const isMentor = roleParam === 'mentor';
 
   const [email, setEmail] = useState('');

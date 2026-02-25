@@ -54,6 +54,42 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+// Listen for auth state changes so we can handle token refresh failures
+// and redirect the user back to the sign-in screen with an informative
+// flag so UI can show a friendly toast.
+if (!isServer) {
+  // Use require to avoid importing router during SSR
+  const { router } = require('expo-router');
+
+  supabase.auth.onAuthStateChange((event) => {
+    try {
+      const ev = String(event || '').toLowerCase();
+
+      if (ev.includes('refresh') && (ev.includes('fail') || ev.includes('failed'))) {
+        // best-effort sign out (ignore errors)
+        supabase.auth.signOut().catch(() => {});
+
+        // Show a global toast if available (use require to avoid SSR import issues)
+        try {
+          const { showToast } = require('./toast');
+          showToast('Session expired. Please sign in again.', 'error', 5000);
+        } catch (err) {
+          // ignore if toast system is not ready
+        }
+
+        // keep the router replace as a fallback to ensure user lands on sign-in
+        try {
+          router.replace('/(auth)/sign-in?from=logout&expired=1');
+        } catch (err) {
+          // swallow any router errors during background handling
+        }
+      }
+    } catch (err) {
+      // swallow errors to avoid crashing the app from an auth hook
+    }
+  });
+}
+
 export async function getCurrentUser() {
   const { data, error } = await supabase.auth.getUser();
   if (error) throw error;

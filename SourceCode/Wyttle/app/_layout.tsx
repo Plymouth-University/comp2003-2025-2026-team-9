@@ -8,6 +8,7 @@ import 'react-native-reanimated';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { NavigationHistoryProvider } from '../src/lib/navigation-history';
+import ToastProvider from '../src/lib/toast';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -49,7 +50,8 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <NavigationHistoryProvider>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <ToastProvider>
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
           <Stack
             screenOptions={{
               headerShown: false,
@@ -64,7 +66,8 @@ export default function RootLayout() {
             style={colorScheme === 'dark' ? 'light' : 'dark'}
             backgroundColor={theme.background}
           />
-        </ThemeProvider>
+          </ThemeProvider>
+        </ToastProvider>
       </NavigationHistoryProvider>
     </GestureHandlerRootView>
   );
