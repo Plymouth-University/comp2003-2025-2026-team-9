@@ -20,7 +20,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.wyttle.Wyttle-App",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": [
+          "voip"
+        ]
       }
     },
     "android": {
@@ -50,6 +53,13 @@
           "dark": {
             "backgroundColor": "#000000"
           }
+        }
+      ],
+      "@daily-co/config-plugin-rn-daily-js",
+        {
+          "enableCamera": true,
+          "enableMicrophone": true,
+          "enableScreenShare": true
         }
       ],
       [

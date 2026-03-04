@@ -20,7 +20,7 @@ import { supabase } from '../../../src/lib/supabase';
 type TokenPackage = {
   id: string;
   tokens: number;
-  price: number; // USD
+  price: number; // GBP
   popular?: boolean;
 };
 

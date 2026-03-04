@@ -30,6 +30,8 @@ import { font } from '../../../src/lib/fonts';
 import { useNavigationHistory } from '../../../src/lib/navigation-history';
 import { supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
+import OnboardingOverlay from '../../../src/components/OnboardingOverlay';
+import { MENTEE_STEPS } from '../../../src/lib/onboarding';
 
 
 // Enable LayoutAnimation on Android
@@ -187,6 +189,7 @@ export default function MenteeSettingsScreen() {
   const [skills, setSkills] = useState<string[]>([]);
   const [newSkill, setNewSkill] = useState('');
   const [tokensBalance, setTokensBalance] = useState<number | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -634,6 +637,15 @@ export default function MenteeSettingsScreen() {
         </View>
       </SettingsDropdown>
 
+      {/* Replay tutorial */}
+      <TouchableOpacity
+        style={styles.replayTutorialRow}
+        onPress={() => setShowOnboarding(true)}
+      >
+        <Ionicons name="information-circle-outline" size={22} color={theme.text} />
+        <ThemedText style={[styles.itemText, font('GlacialIndifference', '400'), { marginLeft: 8 }]}>Replay tutorial</ThemedText>
+      </TouchableOpacity>
+
       {/* Log out button - hide while editing profile inside the Profiles dropdown */}
       {!(isEditingProfile && openSection === 'profiles') && (
         <Pressable
@@ -649,6 +661,11 @@ export default function MenteeSettingsScreen() {
         </Pressable>
       )}
       </KeyboardAwareScrollView>
+      <OnboardingOverlay
+        visible={showOnboarding}
+        steps={MENTEE_STEPS}
+        onComplete={() => setShowOnboarding(false)}
+      />
     </View>
   );
 }
@@ -925,6 +942,15 @@ logoutButtonText: {
   color: '#dc2626',
   fontWeight: '700',
   fontSize: 16,
+},
+replayTutorialRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingVertical: 14,
+  paddingHorizontal: 12,
+  marginTop: 8,
+  borderTopWidth: 1,
+  borderTopColor: '#00000010',
 },
 });
 
