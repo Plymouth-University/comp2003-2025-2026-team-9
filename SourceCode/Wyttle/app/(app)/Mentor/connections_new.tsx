@@ -1,15 +1,15 @@
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../../src/lib/fonts';
-import { commonStyles } from '../../../src/styles/common';
-import { supabase } from '../../../src/lib/supabase';
 import { acceptSession, declineSession } from '../../../src/lib/sessions';
+import { supabase } from '../../../src/lib/supabase';
+import { commonStyles } from '../../../src/styles/common';
 
 type PendingRequest = {
   requestId: number;
@@ -409,11 +409,11 @@ const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
     paddingHorizontal: 18,
-    paddingBottom: 120,
+    paddingBottom: 0,
   },
   listContent: {
     paddingTop: 8,
-    paddingBottom: 40,
+    paddingBottom: 140,
   },
   row: {
     flexDirection: 'row',
