@@ -1,13 +1,12 @@
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../../src/lib/fonts';
-import { acceptSession, declineSession } from '../../../src/lib/sessions';
 import { commonStyles } from '../../../src/styles/common';
 import { supabase } from '../../../src/lib/supabase';
 
@@ -19,9 +18,6 @@ type MentorChatItem = {
   photoUrl: string | null;
   lastMessage: string | null;
   lastMessageAt: string | null;
-  status: string;
-  description: string | null;
-  scheduledStart: string | null;
 };
 
 export default function MentorConnectionsScreen() {
@@ -50,10 +46,9 @@ export default function MentorConnectionsScreen() {
         // 1) All mentor_requests for this mentor that have an associated thread
         const { data: requests, error: reqError } = await supabase
           .from('mentor_requests')
-          .select('id, mentee, mentor, thread_id, proposed_at, status, description, scheduled_start')
+          .select('id, mentee, mentor, thread_id, proposed_at')
           .eq('mentor', user.id)
           .not('thread_id', 'is', null)
-          .not('status', 'eq', 'cancelled')
           .order('proposed_at', { ascending: false });
 
         if (reqError) throw reqError;
@@ -116,14 +111,8 @@ export default function MentorConnectionsScreen() {
             photoUrl: profile.photoUrl,
             lastMessage: last?.body ?? null,
             lastMessageAt: last?.inserted_at ?? null,
-            status: r.status ?? 'requested',
-            description: r.description ?? null,
-            scheduledStart: r.scheduled_start ?? null,
           };
         }).sort((a, b) => {
-          // Show pending requests first, then sort by most recent message
-          if (a.status === 'requested' && b.status !== 'requested') return -1;
-          if (b.status === 'requested' && a.status !== 'requested') return 1;
           const ta = a.lastMessageAt ?? '';
           const tb = b.lastMessageAt ?? '';
           return ta < tb ? 1 : ta > tb ? -1 : 0;
@@ -193,36 +182,6 @@ export default function MentorConnectionsScreen() {
     });
   };
 
-  const handleAccept = async (item: MentorChatItem) => {
-    try {
-      await acceptSession(item.requestId);
-      Alert.alert('Accepted', `Session with ${item.name} has been confirmed.`);
-    } catch (err: any) {
-      Alert.alert('Error', err.message ?? 'Failed to accept request');
-    }
-  };
-
-  const handleDecline = async (item: MentorChatItem) => {
-    Alert.alert(
-      'Decline Request',
-      `Decline session request from ${item.name}? Their tokens will be refunded.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Decline',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await declineSession(item.requestId);
-            } catch (err: any) {
-              Alert.alert('Error', err.message ?? 'Failed to decline request');
-            }
-          },
-        },
-      ],
-    );
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScreenHeader
@@ -252,65 +211,16 @@ export default function MentorConnectionsScreen() {
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
-            item.status === 'requested' ? (
-              <View style={[styles.requestCard, { backgroundColor: theme.card }]}>
-                <View style={styles.requestHeader}>
-                  <View style={styles.avatar}>
-                    {item.photoUrl ? (
-                      <Image source={{ uri: item.photoUrl }} style={styles.avatarImage} />
-                    ) : (
-                      <Text style={styles.avatarText}>
-                        {item.name.split(' ').map(n => n.charAt(0)).join('').slice(0, 2).toUpperCase()}
-                      </Text>
-                    )}
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.name, font('GlacialIndifference', '800'), { color: theme.text }]}>
-                      {item.name}
-                    </Text>
-                    <Text style={[styles.requestBadge, font('GlacialIndifference', '400')]}>
-                      New session request
-                    </Text>
-                  </View>
-                </View>
-                {item.description ? (
-                  <Text style={[styles.requestDescription, { color: theme.text }]} numberOfLines={3}>
-                    {item.description}
-                  </Text>
-                ) : null}
-                {item.scheduledStart ? (
-                  <Text style={styles.requestTime}>
-                    {new Date(item.scheduledStart).toLocaleDateString()} at{' '}
-                    {new Date(item.scheduledStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </Text>
-                ) : null}
-                <View style={styles.requestButtons}>
-                  <TouchableOpacity
-                    style={[styles.requestBtn, styles.requestBtnDecline]}
-                    onPress={() => handleDecline(item)}
-                  >
-                    <Text style={styles.requestBtnDeclineText}>Decline</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.requestBtn, styles.requestBtnAccept]}
-                    onPress={() => handleAccept(item)}
-                  >
-                    <Text style={styles.requestBtnAcceptText}>Accept</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
-              <ConversationRow
-                name={item.name}
-                role="Mentee"
-                lastMessage={item.lastMessage ?? 'New mentorship request'}
-                time={item.lastMessageAt ? new Date(item.lastMessageAt).toLocaleTimeString() : ''}
-                photoUrl={item.photoUrl}
-                unread={false}
-                theme={theme}
-                onPress={() => openChat(item)}
-              />
-            )
+            <ConversationRow
+              name={item.name}
+              role="Mentee"
+              lastMessage={item.lastMessage ?? 'New mentorship request'}
+              time={item.lastMessageAt ? new Date(item.lastMessageAt).toLocaleTimeString() : ''}
+              photoUrl={item.photoUrl}
+              unread={false}
+              theme={theme}
+              onPress={() => openChat(item)}
+            />
           )}
         />
       )}
@@ -444,61 +354,5 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#968c6c',
     marginTop: 6,
-  },
-  // ── Pending request card styles ──
-  requestCard: {
-    borderRadius: 18,
-    padding: 14,
-    borderLeftWidth: 4,
-    borderLeftColor: '#968c6c',
-  },
-  requestHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  requestBadge: {
-    fontSize: 12,
-    color: '#968c6c',
-    fontWeight: '600',
-  },
-  requestDescription: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 8,
-    fontStyle: 'italic',
-  },
-  requestTime: {
-    fontSize: 12,
-    color: '#777',
-    marginBottom: 10,
-  },
-  requestButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  requestBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 999,
-    alignItems: 'center',
-  },
-  requestBtnDecline: {
-    borderWidth: 1,
-    borderColor: '#c43b3b',
-    backgroundColor: 'transparent',
-  },
-  requestBtnDeclineText: {
-    color: '#c43b3b',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  requestBtnAccept: {
-    backgroundColor: '#333f5c',
-  },
-  requestBtnAcceptText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '600',
   },
 });

@@ -356,6 +356,7 @@ export default function MentorChatScreen() {
               <ScreenHeader
                 title={displayName}
                 subtitle="Mentee conversation"
+                logo={false}
               />
             </View>
           </TouchableOpacity>

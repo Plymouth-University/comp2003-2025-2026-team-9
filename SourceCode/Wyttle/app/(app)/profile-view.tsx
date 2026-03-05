@@ -9,11 +9,8 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
-  View,
-  Animated,
-  Easing,
+  View
 } from 'react-native';
 
 import { Colors } from '@/constants/theme';
@@ -22,7 +19,6 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { font } from '../../src/lib/fonts';
-import { requestSession } from '../../src/lib/sessions';
 import type { Profile } from '../../src/lib/supabase';
 import { disconnectPeer, getCurrentUser, supabase } from '../../src/lib/supabase';
 import { commonStyles } from '../../src/styles/common';
@@ -31,7 +27,7 @@ import { ThemedText } from '@/components/themed-text';
 import { BackButton } from '@/components/ui/BackButton';
 import { useTextSize } from '@/hooks/theme-store';
 
-const DEFAULT_SESSION_MINUTES = 30;
+const DEFAULT_SESSION_MINUTES = 60;
 
 export default function ProfileViewScreen() {
   const params = useLocalSearchParams<{ userId?: string }>();
@@ -60,31 +56,6 @@ export default function ProfileViewScreen() {
   const [tempDate, setTempDate] = useState<Date | null>(null);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
-  const [sessionDescription, setSessionDescription] = useState('');
-
-  // Animated heights for iOS inline pickers
-  const datePickerHeight = React.useRef(new Animated.Value(0)).current;
-  const timePickerHeight = React.useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (Platform.OS !== 'ios') return;
-    Animated.timing(datePickerHeight, {
-      toValue: showDatePicker ? 180 : 0,
-      duration: 220,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  }, [showDatePicker, datePickerHeight]);
-
-  useEffect(() => {
-    if (Platform.OS !== 'ios') return;
-    Animated.timing(timePickerHeight, {
-      toValue: showTimePicker ? 140 : 0,
-      duration: 220,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  }, [showTimePicker, timePickerHeight]);
 
   // Helpers to format date/time strings used elsewhere in the code
   const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
@@ -238,16 +209,11 @@ export default function ProfileViewScreen() {
     }
   };
 
-  const handleRequestSession = async () => {
+  const handleBookSession = async () => {
     if (!profile || !userId) return;
 
     if (!bookingDate || !bookingTime) {
       setBookingError('Please enter a date and time');
-      return;
-    }
-
-    if (!sessionDescription.trim()) {
-      setBookingError('Please describe what you need help with');
       return;
     }
 
@@ -257,6 +223,7 @@ export default function ProfileViewScreen() {
 
       const me = await getCurrentUser();
 
+      // Assumes bookingDate is YYYY-MM-DD and bookingTime is HH:MM in local time
       const scheduledStart = new Date(`${bookingDate}T${bookingTime}:00`);
       if (isNaN(scheduledStart.getTime())) {
         setBookingError('Invalid date or time');
@@ -270,20 +237,69 @@ export default function ProfileViewScreen() {
         return;
       }
 
-      await requestSession(me.id, userId, sessionDescription, scheduledStart);
+      const scheduledEnd = new Date(scheduledStart.getTime() + DEFAULT_SESSION_MINUTES * 60 * 1000);
+
+      // 1) Create a mentorship thread
+      const { data: thread, error: threadError } = await supabase
+        .from('threads')
+        .insert({ type: 'mentorship' })
+        .select('id')
+        .single();
+
+      if (threadError || !thread) {
+        console.error('Failed to create thread', threadError);
+        setBookingError(threadError?.message ?? 'Failed to create booking thread');
+        setBookingLoading(false);
+        return;
+      }
+
+      // 2) Create mentor request (drives mentor chat list)
+      const { data: req, error: reqError } = await supabase
+        .from('mentor_requests')
+        .insert({
+          mentee: me.id,
+          mentor: userId,
+          thread_id: thread.id,
+          status: 'scheduled',
+          scheduled_start: scheduledStart.toISOString(),
+          scheduled_end: scheduledEnd.toISOString(),
+          tokens_cost: 0,
+        })
+        .select('id')
+        .single();
+
+      if (reqError || !req) {
+        console.error('Failed to create mentor request', reqError);
+        setBookingError(reqError?.message ?? 'Failed to create booking');
+        setBookingLoading(false);
+        return;
+      }
+
+      // 3) Add to mentor calendar (prevents overlap via DB constraint)
+      const { error: calError } = await supabase.from('calendar').insert({
+        mentor_id: userId,
+        mentee_id: me.id,
+        type: 'session',
+        title: 'Session',
+        start_at: scheduledStart.toISOString(),
+        end_at: scheduledEnd.toISOString(),
+      });
+
+      if (calError) {
+        console.error('Failed to create calendar event', calError);
+        setBookingError(calError.message ?? 'That time is unavailable');
+        setBookingLoading(false);
+        return;
+      }
 
       setBookingModalVisible(false);
       setBookingDate('');
       setBookingTime('');
-      setSessionDescription('');
-      Alert.alert(
-        'Request Sent',
-        'Your session request has been sent to the mentor. Tokens have been reserved and will be refunded if the request is declined.',
-      );
+      Alert.alert('Booked', 'Your session has been booked.');
       setBookingLoading(false);
     } catch (e: any) {
-      console.error('Failed to request mentor session', e);
-      setBookingError(e.message ?? 'Failed to send request');
+      console.error('Failed to book mentor session', e);
+      setBookingError(e.message ?? 'Failed to book session');
       setBookingLoading(false);
     }
   };
@@ -524,16 +540,11 @@ export default function ProfileViewScreen() {
               style={styles.bookButton}
               onPress={() => {
                 setBookingError(null);
-                setSessionDescription('');
                 setBookingModalVisible(true);
               }}
             >
-              <Text style={styles.bookButtonTitle}>Request Session</Text>
-              <Text style={styles.bookButtonSubtitle}>
-                {profile.mentor_session_rate
-                  ? `${profile.mentor_session_rate} tokens per session`
-                  : 'Choose a date & time'}
-              </Text>
+              <Text style={styles.bookButtonTitle}>Book session</Text>
+              <Text style={styles.bookButtonSubtitle}>Choose a date & time</Text>
             </TouchableOpacity>
           )}
 
@@ -546,25 +557,8 @@ export default function ProfileViewScreen() {
             <View style={styles.bookingOverlay}>
               <View style={[styles.bookingCard, { backgroundColor: theme.card }]}>
                 <ThemedText style={[styles.bookingTitle, font('GlacialIndifference', '800'), { color: theme.text }]}>
-                  Request a Session
+                  Book a session
                 </ThemedText>
-
-                {profile?.mentor_session_rate ? (
-                  <Text style={[styles.bookingLabel, { color: '#968c6c', fontWeight: '600' }]}>
-                    Cost: {profile.mentor_session_rate} tokens (30 min)
-                  </Text>
-                ) : null}
-
-                <Text style={[styles.bookingLabel, { color: theme.text }]}>What do you need help with?</Text>
-                <TextInput
-                  style={[styles.bookingInput, { color: theme.text, height: 80, textAlignVertical: 'top' }]}
-                  placeholder="Describe what you'd like to discuss..."
-                  placeholderTextColor="#999"
-                  value={sessionDescription}
-                  onChangeText={setSessionDescription}
-                  multiline
-                  numberOfLines={3}
-                />
 
                 <Text style={[styles.bookingLabel, { color: theme.text }]}>Date</Text>
                 <TouchableOpacity
@@ -581,33 +575,23 @@ export default function ProfileViewScreen() {
                       setShowDatePicker(true);
                     }
                   }}
-                  style={styles.bookingPickerButton}
+                  style={[styles.bookingPickerButton, { backgroundColor: theme.tint }]}
                 >
                   <Text style={styles.bookingPickerText}>{bookingDate || 'Select a date'}</Text>
                 </TouchableOpacity>
                 {/* iOS: inline spinner below the Date button and above the Time section */}
-                {Platform.OS === 'ios' && (
-                  <Animated.View
-                    style={{
-                      overflow: 'hidden',
-                      height: datePickerHeight,
-                      opacity: datePickerHeight.interpolate({ inputRange: [0, 180], outputRange: [0, 1] }),
+                {Platform.OS === 'ios' && showDatePicker && (
+                  <DateTimePicker
+                    value={bookingDateObj ?? new Date()}
+                    mode="date"
+                    display="spinner"
+                    onChange={(_e, date) => {
+                      if (date) {
+                        setBookingDateObj(date);
+                        setBookingDate(formatDateYYYYMMDD(date));
+                      }
                     }}
-                  >
-                    {showDatePicker && (
-                      <DateTimePicker
-                        value={bookingDateObj ?? new Date()}
-                        mode="date"
-                        display="spinner"
-                        onChange={(_e, date) => {
-                          if (date) {
-                            setBookingDateObj(date);
-                            setBookingDate(formatDateYYYYMMDD(date));
-                          }
-                        }}
-                      />
-                    )}
-                  </Animated.View>
+                  />
                 )}
 
                 <Text style={[styles.bookingLabel, { color: theme.text, marginTop: 12 }]}>Time</Text>
@@ -633,34 +617,24 @@ export default function ProfileViewScreen() {
                       setShowTimePicker(true);
                     }
                   }}
-                  style={styles.bookingPickerButton}
+                  style={[styles.bookingPickerButton, { backgroundColor: theme.tint }]}
                 >
                   <Text style={styles.bookingPickerText}>{bookingTime || 'Select a time'}</Text>
                 </TouchableOpacity>
 
-                {Platform.OS === 'ios' && (
-                  <Animated.View
-                    style={{
-                      overflow: 'hidden',
-                      height: timePickerHeight,
-                      opacity: timePickerHeight.interpolate({ inputRange: [0, 140], outputRange: [0, 1] }),
+                {Platform.OS === 'ios' && showTimePicker && (
+                  <DateTimePicker
+                    value={bookingDateObj ?? new Date()}
+                    mode="time"
+                    is24Hour={true}
+                    display="spinner"
+                    onChange={(_e, date) => {
+                      if (date) {
+                        setBookingDateObj(date);
+                        setBookingTime(formatTimeHHMM(date));
+                      }
                     }}
-                  >
-                    {showTimePicker && (
-                      <DateTimePicker
-                        value={bookingDateObj ?? new Date()}
-                        mode="time"
-                        is24Hour={true}
-                        display="spinner"
-                        onChange={(_e, date) => {
-                          if (date) {
-                            setBookingDateObj(date);
-                            setBookingTime(formatTimeHHMM(date));
-                          }
-                        }}
-                      />
-                    )}
-                  </Animated.View>
+                  />
                 )}
 
                 {Platform.OS === 'android' && showDatePicker && pickerTarget === 'date' && (
@@ -736,11 +710,11 @@ export default function ProfileViewScreen() {
 
                   <TouchableOpacity
                     style={[styles.bookingButton, styles.bookingButtonPrimary, { opacity: bookingLoading ? 0.7 : 1 }]}
-                    onPress={handleRequestSession}
+                    onPress={handleBookSession}
                     disabled={bookingLoading}
                   >
                     <Text style={styles.bookingButtonPrimaryText}>
-                      {bookingLoading ? 'Sending…' : 'Send Request'}
+                      {bookingLoading ? 'Booking…' : 'Confirm'}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -1051,16 +1025,13 @@ const styles = StyleSheet.create({
   bookingPickerButton: {
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 6,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#d0d0d0',
   },
   bookingPickerText: {
-    color: '#222',
+    color: '#fff',
     fontWeight: '600',
   },
   chipRow: {
