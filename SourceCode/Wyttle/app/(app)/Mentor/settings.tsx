@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
     Animated,
     Image,
+  Linking,
     Platform,
     Pressable,
     Switch as RNSwitch,
@@ -627,6 +628,18 @@ export default function MentorSettingsScreen() {
         <ThemedText style={[styles.itemText, font('GlacialIndifference', '400'), { marginLeft: 8 }]}>Replay tutorial</ThemedText>
       </TouchableOpacity>
 
+      <View style={styles.attributionRow}>
+        <Text style={[styles.attributionText, { color: theme.text }]}> 
+          Unicons by{' '}
+          <Text
+            style={styles.attributionLink}
+            onPress={() => Linking.openURL('https://iconscout.com/')}
+          >
+            IconScout
+          </Text>
+        </Text>
+      </View>
+
       {/* Log out button - hide while editing profile inside the Profiles dropdown */}
       {!(isEditingProfile && openSection === 'profiles') && (
         <Pressable
@@ -934,5 +947,21 @@ replayTutorialRow: {
   marginTop: 8,
   borderTopWidth: 1,
   borderTopColor: '#00000010',
+},
+attributionRow: {
+  paddingHorizontal: 12,
+  marginTop: 'auto',
+  paddingTop: 14,
+  paddingBottom: 120,
+  alignItems: 'center',
+},
+attributionText: {
+  fontSize: 12,
+  textAlign: 'center',
+  opacity: 0.8,
+},
+attributionLink: {
+  color: '#968c6c',
+  textDecorationLine: 'underline',
 },
 });
