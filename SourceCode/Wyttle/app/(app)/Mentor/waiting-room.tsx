@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+
+import { cancelSession } from '../../../src/lib/sessions';
 
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
@@ -142,7 +144,7 @@ export default function MentorWaitingRoomScreen() {
                   </Text>
                 ) : null}
 
-                {session.videoLink ? (
+                {diffMin <= 5 && diffMin >= -30 && session.videoLink ? (
                   <Pressable
                     style={styles.joinBtn}
                     onPress={() => {
@@ -159,6 +161,34 @@ export default function MentorWaitingRoomScreen() {
                     <Text style={styles.waitingBadgeText}>Waiting...</Text>
                   </View>
                 )}
+
+                <Pressable
+                  style={styles.cancelBtn}
+                  onPress={() => {
+                    Alert.alert(
+                      'Cancel Session',
+                      `Are you sure you want to cancel your session with ${session.menteeName}? Tokens will be refunded to the mentee.`,
+                      [
+                        { text: 'Keep Session', style: 'cancel' },
+                        {
+                          text: 'Cancel Session',
+                          style: 'destructive',
+                          onPress: async () => {
+                            try {
+                              await cancelSession(session.requestId);
+                              Alert.alert('Cancelled', 'The session has been cancelled and tokens have been refunded.');
+                              loadSessions();
+                            } catch (err: any) {
+                              Alert.alert('Error', err.message ?? 'Failed to cancel session');
+                            }
+                          },
+                        },
+                      ],
+                    );
+                  }}
+                >
+                  <Text style={styles.cancelBtnText}>Cancel Session</Text>
+                </Pressable>
               </View>
             );
           })}
@@ -250,6 +280,19 @@ const styles = StyleSheet.create({
   },
   waitingBadgeText: {
     color: '#777',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  cancelBtn: {
+    paddingVertical: 8,
+    borderRadius: 999,
+    alignItems: 'center',
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: '#c43b3b',
+  },
+  cancelBtnText: {
+    color: '#c43b3b',
     fontSize: 13,
     fontWeight: '600',
   },

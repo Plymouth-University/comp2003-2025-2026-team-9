@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View
 } from 'react-native';
@@ -27,7 +28,7 @@ import { ThemedText } from '@/components/themed-text';
 import { BackButton } from '@/components/ui/BackButton';
 import { useTextSize } from '@/hooks/theme-store';
 
-const DEFAULT_SESSION_MINUTES = 60;
+const DEFAULT_SESSION_MINUTES = 30;
 
 export default function ProfileViewScreen() {
   const params = useLocalSearchParams<{ userId?: string }>();
@@ -56,6 +57,7 @@ export default function ProfileViewScreen() {
   const [tempDate, setTempDate] = useState<Date | null>(null);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
+  const [bookingDescription, setBookingDescription] = useState('');
 
   // Helpers to format date/time strings used elsewhere in the code
   const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
@@ -239,6 +241,21 @@ export default function ProfileViewScreen() {
 
       const scheduledEnd = new Date(scheduledStart.getTime() + DEFAULT_SESSION_MINUTES * 60 * 1000);
 
+      // Check for overlapping sessions on the mentor's calendar
+      const { data: overlaps, error: overlapErr } = await supabase
+        .from('mentor_requests')
+        .select('id')
+        .eq('mentor', userId)
+        .in('status', ['requested', 'scheduled'])
+        .lt('scheduled_start', scheduledEnd.toISOString())
+        .gt('scheduled_end', scheduledStart.toISOString());
+
+      if (!overlapErr && overlaps && overlaps.length > 0) {
+        setBookingError('This mentor already has a session at that time. Please choose a different slot.');
+        setBookingLoading(false);
+        return;
+      }
+
       // 1) Create a mentorship thread
       const { data: thread, error: threadError } = await supabase
         .from('threads')
@@ -253,17 +270,20 @@ export default function ProfileViewScreen() {
         return;
       }
 
-      // 2) Create mentor request (drives mentor chat list)
+      // 2) Create mentor request with status 'requested' so mentor can accept/decline
+      const rate: number = profile.mentor_session_rate ?? 0;
+
       const { data: req, error: reqError } = await supabase
         .from('mentor_requests')
         .insert({
           mentee: me.id,
           mentor: userId,
           thread_id: thread.id,
-          status: 'scheduled',
+          status: 'requested',
           scheduled_start: scheduledStart.toISOString(),
           scheduled_end: scheduledEnd.toISOString(),
-          tokens_cost: 0,
+          tokens_cost: rate,
+          description: bookingDescription.trim() || null,
         })
         .select('id')
         .single();
@@ -275,27 +295,13 @@ export default function ProfileViewScreen() {
         return;
       }
 
-      // 3) Add to mentor calendar (prevents overlap via DB constraint)
-      const { error: calError } = await supabase.from('calendar').insert({
-        mentor_id: userId,
-        mentee_id: me.id,
-        type: 'session',
-        title: 'Session',
-        start_at: scheduledStart.toISOString(),
-        end_at: scheduledEnd.toISOString(),
-      });
-
-      if (calError) {
-        console.error('Failed to create calendar event', calError);
-        setBookingError(calError.message ?? 'That time is unavailable');
-        setBookingLoading(false);
-        return;
-      }
+      // Calendar entry + video link are created when the mentor accepts
 
       setBookingModalVisible(false);
       setBookingDate('');
       setBookingTime('');
-      Alert.alert('Booked', 'Your session has been booked.');
+      setBookingDescription('');
+      Alert.alert('Request Sent', 'Your session request has been sent to the mentor for approval.');
       setBookingLoading(false);
     } catch (e: any) {
       console.error('Failed to book mentor session', e);
@@ -544,7 +550,11 @@ export default function ProfileViewScreen() {
               }}
             >
               <Text style={styles.bookButtonTitle}>Book session</Text>
-              <Text style={styles.bookButtonSubtitle}>Choose a date & time</Text>
+              <Text style={styles.bookButtonSubtitle}>
+                {typeof profile.mentor_session_rate === 'number' && profile.mentor_session_rate > 0
+                  ? `💎 ${profile.mentor_session_rate} tokens/session`
+                  : 'Free session'}
+              </Text>
             </TouchableOpacity>
           )}
 
@@ -691,6 +701,17 @@ export default function ProfileViewScreen() {
                     }}
                   />
                 )}
+
+                <Text style={[styles.bookingLabel, { color: theme.text, marginTop: 12 }]}>What do you need help with?</Text>
+                <TextInput
+                  value={bookingDescription}
+                  onChangeText={setBookingDescription}
+                  placeholder="Describe what you need help with (optional)"
+                  placeholderTextColor="#999"
+                  multiline
+                  numberOfLines={3}
+                  style={[styles.bookingInput, { color: theme.text, backgroundColor: theme.background, textAlignVertical: 'top', minHeight: 60 }]}
+                />
 
                 {bookingError ? (
                   <Text style={styles.bookingErrorText}>{bookingError}</Text>
