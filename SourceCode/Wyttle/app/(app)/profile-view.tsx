@@ -18,6 +18,7 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { font } from '../../src/lib/fonts';
 import type { Profile } from '../../src/lib/supabase';
@@ -369,7 +370,11 @@ export default function ProfileViewScreen() {
               </View>
             )}
 
-            <View style={styles.heroScrim} />
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.55)']}
+              locations={[0.25, 1]}
+              style={styles.heroScrim}
+            />
             <BackButton style={[styles.floatingBackButton, { top: insets.top + 50 }]} />
 
             <View style={styles.heroContent}>
@@ -749,7 +754,6 @@ const styles = StyleSheet.create({
   },
   heroScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.38)',
   },
   heroContent: {
     position: 'absolute',
