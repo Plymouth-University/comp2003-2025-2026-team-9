@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "react-native-purchases": "^9.11.1"
+  }
+}
