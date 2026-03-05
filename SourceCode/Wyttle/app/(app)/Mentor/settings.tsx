@@ -1,17 +1,17 @@
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    Animated,
-    Image,
+  Animated,
+  Image,
   Linking,
-    Platform,
-    Pressable,
-    Switch as RNSwitch,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    UIManager,
-    View
+  Platform,
+  Pressable,
+  Switch as RNSwitch,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  UIManager,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -27,12 +27,12 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import Slider from '@react-native-community/slider';
 import * as Location from 'expo-location';
 import { TextInput } from 'react-native';
+import OnboardingOverlay from '../../../src/components/OnboardingOverlay';
 import { font } from '../../../src/lib/fonts';
 import { useNavigationHistory } from '../../../src/lib/navigation-history';
+import { MENTOR_STEPS } from '../../../src/lib/onboarding';
 import { supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
-import OnboardingOverlay from '../../../src/components/OnboardingOverlay';
-import { MENTOR_STEPS } from '../../../src/lib/onboarding';
 
 
 // Enable LayoutAnimation on Android

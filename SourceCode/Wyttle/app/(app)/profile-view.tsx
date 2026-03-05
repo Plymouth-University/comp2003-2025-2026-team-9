@@ -21,11 +21,11 @@ import { router } from 'expo-router';
 import { font } from '../../src/lib/fonts';
 import type { Profile } from '../../src/lib/supabase';
 import { disconnectPeer, getCurrentUser, supabase } from '../../src/lib/supabase';
-import { commonStyles } from '../../src/styles/common';
 
 import { ThemedText } from '@/components/themed-text';
 import { BackButton } from '@/components/ui/BackButton';
 import { useTextSize } from '@/hooks/theme-store';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const DEFAULT_SESSION_MINUTES = 60;
 
@@ -36,6 +36,7 @@ export default function ProfileViewScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   const textSize = useTextSize();
+  const insets = useSafeAreaInsets();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [viewerProfile, setViewerProfile] = useState<Profile | null>(null);
@@ -85,7 +86,7 @@ export default function ProfileViewScreen() {
           setError(profileError.message ?? 'Failed to load profile');
           return;
         }
-        setProfile(data as Profile);
+        setProfile(data as unknown as Profile);
 
         // Check if the current user is matched with this user via peer_matches
         try {
@@ -311,7 +312,8 @@ export default function ProfileViewScreen() {
     viewerId !== profile.id;
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+     <SafeAreaView style={{ flex: 1 }} edges={['left', 'right', 'bottom']}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/*
       <View style={styles.headerRow}>
         <BackButton /> --Removed, just press navbar icon again, is identical.
@@ -341,212 +343,165 @@ export default function ProfileViewScreen() {
           <Text>No profile found.</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={[styles.scrollContent, {alignItems: 'stretch'}]} showsVerticalScrollIndicator={false}>
-          {/* <ScreenHeader title="Profile" align='left' /> */}
-
-          {/* Top cover image (large) */}
-          <View
-            style={styles.topImageWrapper}
-            onLayout={(e) => {
-              const w = e.nativeEvent.layout.width;
-              // store measured width (only update if changed to avoid extra rerenders)
-              if (w && w !== imageWrapperWidth) setImageWrapperWidth(w);
-            }}
-          >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          contentInsetAdjustmentBehavior="never"
+          automaticallyAdjustContentInsets={false}
+          automaticallyAdjustsScrollIndicatorInsets={false}
+          contentInset={{ top: 0, left: 0, right: 0, bottom: 0 }}
+          scrollIndicatorInsets={{ top: -0, left: 0, right: 0, bottom: 0 }}
+        >
+          <View style={[styles.heroSection, { marginTop: -insets.top, height: 460 + insets.top }]}> 
             {profile.photo_url ? (
-              <Image source={{ uri: profile.photo_url }} style={styles.topImage} resizeMode="cover" />
+              <Image source={{ uri: profile.photo_url }} style={styles.heroImage} resizeMode="cover" />
             ) : (
               <View style={styles.topImagePlaceholder}>
-                <ThemedText style={[styles.avatarInitial, font('GlacialIndifference', '700')]}>
+                <ThemedText style={[styles.avatarInitial, font('GlacialIndifference', '700')]}> 
                   {firstName.charAt(0).toUpperCase()}
                 </ThemedText>
               </View>
             )}
-            
-            {/* Floating back button */}
-            <BackButton style={styles.floatingBackButton} />
+
+            <View style={styles.heroScrim} />
+            <BackButton style={[styles.floatingBackButton, { top: insets.top + 50 }]} />
+
+            <View style={styles.heroContent}>
+              <ThemedText
+                style={[
+                  styles.heroName,
+                  font('GlacialIndifference', '800'),
+                  { fontSize: 34 * textSize },
+                ]}
+              >
+                {profile.full_name ?? 'Member'}
+              </ThemedText>
+
+              {!!profile.location && (
+                <View style={styles.heroMetaRow}>
+                  <Ionicons name="location-outline" size={15} color="#fff" />
+                  <Text style={[styles.heroMetaText, font('GlacialIndifference', '400')]}> 
+                    {profile.location}
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.heroPillsWrap}>
+                {!!profile.industry && (
+                  <View style={[styles.heroPill, styles.heroPillSolid]}>
+                    <Ionicons name="business-outline" size={13} color="#fff" style={{ marginRight: 4 }} />
+                    <Text style={[styles.heroPillText, font('GlacialIndifference', '400')]}>{profile.industry}</Text>
+                  </View>
+                )}
+                {!!profile.title && (
+                  <View style={[styles.heroPill, styles.heroPillGlass]}>
+                    <Ionicons name="briefcase-outline" size={13} color="#fff" style={{ marginRight: 4 }} />
+                    <Text style={[styles.heroPillText, font('GlacialIndifference', '400')]}>{profile.title}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
           </View>
 
-          <View style={styles.subPicContainter}>
-          {/* Packed chips: build rows so full/half/quarter combine predictably */}
-          {/* chips container sized to fill the padded container width */}
-          <View style={{ width: '100%' }}>
-            {(() => {
-              const rows = buildChipRows(profile);
-              return rows.map((row, ri) => {
-                // compute row total to decide centering behaviour
-                const rowSum = row.reduce((acc, it) => acc + (it.size === 'full' ? 100 : it.size === 'half' ? 50 : 25), 0);
-                const justify = rowSum < 100 ? 'center' : 'space-between';
+          <View style={[styles.contentPanel, { backgroundColor: theme.card }]}> 
+            <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
+              <View style={styles.sectionHeaderRow}>
+                <Ionicons name="person-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
+                <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '800'), { color: theme.text }]}> 
+                  About
+                </ThemedText>
+              </View>
+              <ThemedText style={[styles.sectionBody, font('GlacialIndifference', '400')]}> 
+                {profile.bio?.trim() || 'No bio added yet.'}
+              </ThemedText>
+            </View>
 
-                // small consistent gap when centered
-                const centeredGap = 4;
+            {!!(profile as any).work_experience && (
+              <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
+                <View style={styles.sectionHeaderRow}>
+                  <Ionicons name="briefcase-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
+                  <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '800'), { color: theme.text }]}> 
+                    Work Experience
+                  </ThemedText>
+                </View>
+                <ThemedText style={[styles.sectionBody, font('GlacialIndifference', '400')]}> 
+                  {(profile as any).work_experience}
+                </ThemedText>
+              </View>
+            )}
 
-                return (
-                  <View
-                    key={`row-${ri}`}
-                    style={[
-                      styles.packedRow,
-                      { justifyContent: justify, width: '100%' } // row fills container width
-                    ]}
+            {(Array.isArray((profile as any).skills) && (profile as any).skills.length > 0) && (
+              <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
+                <View style={styles.sectionHeaderRow}>
+                  <Ionicons name="school-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
+                  <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '800'), { color: theme.text }]}> 
+                    Skills / Study
+                  </ThemedText>
+                </View>
+                <View style={styles.chipRow}>
+                  {(profile as any).skills.map((s: string) => (
+                    <View key={s} style={styles.chip}>
+                      <ThemedText style={[styles.chipText, font('GlacialIndifference', '400')]}>{s}</ThemedText>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {(Array.isArray((profile as any).interests) && (profile as any).interests.length > 0) && (
+              <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
+                <View style={styles.sectionHeaderRow}>
+                  <Ionicons name="heart-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
+                  <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '800'), { color: theme.text }]}> 
+                    Interests / Hobbies
+                  </ThemedText>
+                </View>
+                <View style={styles.chipRow}>
+                  {(profile as any).interests.map((s: string) => (
+                    <View key={s} style={styles.chip}>
+                      <Text style={styles.chipText}>{s}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {(canShowBooking || canDisconnect) && (
+              <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
+                <View style={styles.sectionHeaderRow}>
+                  <Ionicons name="flash-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
+                  <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '800'), { color: theme.text }]}> 
+                    Actions
+                  </ThemedText>
+                </View>
+
+                {canShowBooking && (
+                  <TouchableOpacity
+                    style={styles.bookButton}
+                    onPress={() => {
+                      setBookingError(null);
+                      setBookingModalVisible(true);
+                    }}
                   >
-                    {row.map((chip) => {
-                      const sizeStyle = chip.size === 'quarter' ? styles.chipQuarter
-                        : chip.size === 'half' ? styles.chipHalf
-                        : styles.chipFull;
+                    <Text style={styles.bookButtonTitle}>Book session</Text>
+                    <Text style={styles.bookButtonSubtitle}>Choose a date & time</Text>
+                  </TouchableOpacity>
+                )}
 
-                      const centeredSpacingStyle = justify === 'center' ? { marginHorizontal: centeredGap / 2 } : {};
-
-                      return (
-                        <View
-                          key={chip.key}
-                          style={[
-                            styles.chipBadge,
-                            sizeStyle,
-                            centeredSpacingStyle,
-                            chip.key === 'location' ? styles.chipBadgeLocation : undefined,
-                            chip.key === 'industry' ? styles.chipBadgeIndustry : undefined,
-                          ]}
-                        >
-
-                          {chip.key === 'location' && (
-                            <Ionicons name="location" size={14} color="#333333" style={{ marginRight: 4 }} />
-                          )}
-                          {chip.key === 'industry' && (
-                            <Ionicons name="business-outline" size={14} color="#ffffff" style={{ marginRight: 4 }} />
-                          )}
-                          {chip.key === 'title' && (
-                            <Ionicons name="briefcase-outline" size={14} color="#ffffff" style={{ marginRight: 4 }} />
-                          )}
-                          <ThemedText style={[
-                            styles.chipBadgeText, 
-                            font('GlacialIndifference', '400'),
-                            chip.key === 'location' ? { color: '#333333' } : undefined,
-                          
-                          
-                            
-                          ]}>
-                            {chip.text}
-                          </ThemedText>
-                        </View>
-                      );
-                    })}
-                  </View>
-                );
-              });
-            })()}
+                {canDisconnect && (
+                  <TouchableOpacity
+                    style={styles.disconnectButton}
+                    onPress={handleDisconnect}
+                    disabled={disconnecting}
+                  >
+                    <ThemedText style={styles.disconnectButtonText}>
+                      {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+                    </ThemedText>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
           </View>
-
-          {/* Name (larger) */}
-          <ThemedText
-            style={[
-              styles.nameLarge,
-              font('GlacialIndifference', '800'),
-              { color: theme.text, fontSize: 32 * textSize }, // 32px base * scale
-            ]}
-          >
-            {profile.full_name ?? 'Member'}
-          </ThemedText>
-
-          {/* About section header */}
-          <ThemedText
-            style={[
-              styles.aboutTitle,
-              font('GlacialIndifference', '800'),
-              //{ color: theme.text },
-            ]}
-          >
-            About Me
-          </ThemedText>
-
-          {/* Bio */}
-          {profile.bio ? (
-            <ThemedText
-              style={[
-                styles.sectionBody,
-                font('GlacialIndifference', '400'),
-              ]}
-            >
-              {profile.bio}
-            </ThemedText>
-          ) : null}
-
-          {/* Work Experience */}
-          {(profile as any).work_experience ? (
-            <View style={styles.section}>
-              <ThemedText
-                style={[
-                  styles.sectionTitle,
-                  font('GlacialIndifference', '800'),
-                  { color: theme.text },
-                ]}
-              >
-                Work Experience
-              </ThemedText>
-              <ThemedText
-                style={[
-                  styles.sectionBody,
-                  font('GlacialIndifference', '400'),
-                ]}
-              >
-                {(profile as any).work_experience}
-              </ThemedText>
-            </View>
-          ) : null}
-
-          {(Array.isArray((profile as any).skills) && (profile as any).skills.length > 0) && (
-            <View style={styles.section}>
-              <ThemedText
-                style={[
-                  styles.sectionTitle,
-                  font('GlacialIndifference', '800'),
-                  { color: theme.text },
-                ]}
-              >
-                Skills / Study
-              </ThemedText>
-              <View style={styles.chipRow}>
-                {(profile as any).skills.map((s: string) => (
-                  <View key={s} style={styles.chip}>
-                    <ThemedText style={[styles.chipText, font('GlacialIndifference', '400')]}>{s}</ThemedText>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {(Array.isArray((profile as any).interests) && (profile as any).interests.length > 0) && (
-            <View style={styles.section}>
-              <Text
-                style={[
-                  styles.sectionTitle,
-                  font('GlacialIndifference', '800'),
-                  { color: theme.text },
-                ]}
-              >
-                Interests / hobbies
-              </Text>
-              <View style={styles.chipRow}>
-                {(profile as any).interests.map((s: string) => (
-                  <View key={s} style={styles.chip}>
-                    <Text style={styles.chipText}>{s}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {canShowBooking && (
-            <TouchableOpacity
-              style={styles.bookButton}
-              onPress={() => {
-                setBookingError(null);
-                setBookingModalVisible(true);
-              }}
-            >
-              <Text style={styles.bookButtonTitle}>Book session</Text>
-              <Text style={styles.bookButtonSubtitle}>Choose a date & time</Text>
-            </TouchableOpacity>
-          )}
 
           <Modal
             visible={bookingModalVisible}
@@ -722,32 +677,17 @@ export default function ProfileViewScreen() {
             </View>
           </Modal>
 
-          {canDisconnect && (
-            <TouchableOpacity
-              style={styles.disconnectButton}
-              onPress={handleDisconnect}
-              disabled={disconnecting}
-            >
-              <ThemedText style={styles.disconnectButtonText}>
-                {disconnecting ? 'Disconnecting…' : 'Disconnect'}
-              </ThemedText>
-            </TouchableOpacity>
-          )}
-          </View>
         </ScrollView>
       )}
     </View>
+    </SafeAreaView>
   );
 }
 const styles = StyleSheet.create({
   container: {
-    ...commonStyles.screen,
+    flex: 1,
     paddingHorizontal: 0,
-    paddingTop: 8,
-  },
-  subPicContainter: {
-    paddingTop: 12,
-    paddingHorizontal: 18,
+    paddingTop: 0,
   },
   headerRow: {
     flexDirection: 'row',
@@ -764,8 +704,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   scrollContent: {
-    alignItems: 'center',
-    paddingBottom: 120,
+    alignItems: 'stretch',
   },
   avatarWrapper: {
     width: 96,
@@ -776,28 +715,120 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 12,
   },
-    // Top large image
-  topImageWrapper: {
+  heroSection: {
     width: '100%',
-    aspectRatio: 1,
-    borderRadius: 0,
+    height: 460,
+    position: 'relative',
+    backgroundColor: '#10131b',
     overflow: 'visible',
-    marginBottom: 12,
-    backgroundColor: '#e9e9e9',
-    alignSelf: 'stretch',
-    // iOS shadow
+  },
+  heroImage: {
+    width: '100%',
+    height: '100%',
+  },
+  heroScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.38)',
+  },
+  heroContent: {
+    position: 'absolute',
+    left: 18,
+    right: 18,
+    bottom: 54,
+  },
+  heroName: {
+    color: '#fff',
+    lineHeight: 38,
+    marginBottom: 6,
+  },
+  heroMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  heroMetaText: {
+    color: '#fff',
+    marginLeft: 4,
+    fontSize: 14,
+  },
+  heroPillsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  heroPill: {
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  heroPillSolid: {
+    backgroundColor: '#333f5c',
+  },
+  heroPillGlass: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  heroPillText: {
+    color: '#fff',
+    fontSize: 13,
+  },
+  contentPanel: {
+    width: '100%',
+    marginTop: -32,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingTop: 18,
+    paddingHorizontal: 16,
+    paddingBottom: 120,
+    borderWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.45)',
+    borderLeftColor: 'rgba(255,255,255,0.26)',
+    borderRightColor: 'rgba(0,0,0,0.1)',
+    borderBottomColor: 'rgba(0,0,0,0.2)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    // Android shadow
-    elevation: 8,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 6,
   },
   floatingBackButton: {
     position: 'absolute',
     top: 16,
     left: 16,
     zIndex: 10,
+  },
+  sectionCard: {
+    width: '100%',
+    borderRadius: 18,
+    marginBottom: 12,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    borderWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.4)',
+    borderLeftColor: 'rgba(255,255,255,0.25)',
+    borderRightColor: 'rgba(0,0,0,0.08)',
+    borderBottomColor: 'rgba(0,0,0,0.16)',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+  sectionCardTitle: {
+    fontSize: 17,
+    marginBottom: 6,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  sectionHeaderIcon: {
+    marginRight: 7,
+    marginBottom: 4,
   },
   chipBadgeLocation: {
     backgroundColor: '#edecf1', // Slightly different blue/grey color to distinguish it
