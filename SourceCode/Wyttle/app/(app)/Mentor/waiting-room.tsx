@@ -41,7 +41,7 @@ export default function MentorWaitingRoomScreen() {
         .select('id, mentee, scheduled_start, video_link, description')
         .eq('mentor', user.id)
         .eq('status', 'scheduled')
-        .gte('scheduled_start', new Date().toISOString())
+        .gte('scheduled_start', new Date(Date.now() - 30 * 60 * 1000).toISOString())
         .order('scheduled_start', { ascending: true });
 
       if (error) { console.error('Failed to load waiting room sessions', error); return; }
@@ -106,7 +106,6 @@ export default function MentorWaitingRoomScreen() {
           {sessions.map((session) => {
             const startMs = new Date(session.scheduledStart).getTime();
             const diffMin = Math.round((startMs - now) / 60_000);
-            const canJoin = diffMin <= 5 && diffMin >= -30;
             const countdownText =
               diffMin <= 0 ? 'In progress'
               : diffMin < 60 ? `In ${diffMin} min`
@@ -143,7 +142,7 @@ export default function MentorWaitingRoomScreen() {
                   </Text>
                 ) : null}
 
-                {canJoin && session.videoLink ? (
+                {session.videoLink ? (
                   <Pressable
                     style={styles.joinBtn}
                     onPress={() => {
