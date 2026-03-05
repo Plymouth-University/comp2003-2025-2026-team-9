@@ -120,7 +120,7 @@ export default function MentorHub() {
   const [showDistanceOptions, setShowDistanceOptions] = useState(false);
 
   //Industry filter state (null = no industry filter)
-  const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
+  const [selectedIndustry, setSelectedIndustry] = useState<string[]>([]);
   const [showIndustryOptions, setShowIndustryOptions] = useState(false);
 
 
@@ -244,9 +244,9 @@ export default function MentorHub() {
       if (!matchesQuery) return false;
 
       // industry filter (only apply when user selected an industry)
-      if (selectedIndustry != null) {
-        if (!m.industry || m.industry !== selectedIndustry) return false;
-      }
+      if (selectedIndustry.length > 0) {
+    if (!m.industry || !selectedIndustry.includes(m.industry)) return false;
+    }
 
       // distance filter (only apply when user selected a distance)
       if (selectedDistance != null) {
@@ -328,7 +328,7 @@ export default function MentorHub() {
             style={[styles.filterButton, { backgroundColor: theme.card }]}
             onPress={() => setShowIndustryOptions((s) => !s)}
           >
-            <Text style={[styles.filterText, {color: theme.text}]}>{selectedIndustry || 'Industry...'}</Text>
+            <Text style={[styles.filterText, {color: theme.text}]}>{selectedIndustry.length === 0 ? 'Industry...' : selectedIndustry.length === 1 ? selectedIndustry[0] : `${selectedIndustry.length} selected`}</Text>
             <Text style={styles.chev}>{showIndustryOptions ? '▴' : '▾'}</Text>
           </Pressable>
 
@@ -359,30 +359,36 @@ export default function MentorHub() {
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <Pressable
                     onPress={() => {
-                      setSelectedIndustry(null);
+                      setSelectedIndustry([]);
                       setShowIndustryOptions(false);
                     }}
                     style={[
                       styles.distanceOption, 
                       { marginLeft: 6 },
-                      selectedIndustry === null ? styles.distanceOptionActive : undefined,
+                      selectedIndustry.length === 0 ? styles.distanceOptionActive : undefined,
                     ]}
                   >
                     <Text style={[
                       styles.distanceOptionText,
-                      selectedIndustry === null ? styles.distanceOptionTextActive : undefined
+                      selectedIndustry.length === 0 ? styles.distanceOptionTextActive : undefined
                       ]}>Any
                     </Text>
                   </Pressable>
 
                   {INDUSTRIES.filter((_, index) => index % 2 === 0).map((industry) => {
-                    const active = selectedIndustry === industry;
+                    const active = selectedIndustry.includes(industry);
                     return (
                       <Pressable
                         key={industry}
                         onPress={() => {
-                          setSelectedIndustry(industry);
-                          setShowIndustryOptions(false);
+                          setSelectedIndustry(prev => {
+                            if (prev.includes(industry)) {
+                              return prev.filter(i => i !== industry);
+                            } else if (prev.length < 3) {
+                              return [...prev, industry];
+                            }
+                            return prev;
+                          });
                         }}
                         style={[
                           styles.distanceOption,
@@ -400,13 +406,19 @@ export default function MentorHub() {
                 {/* Second row - odd indices (1, 3, 5, ...) */}
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   {INDUSTRIES.filter((_, index) => index % 2 === 1).map((industry) => {
-                    const active = selectedIndustry === industry;
+                    const active = selectedIndustry.includes(industry);
                     return (
                       <Pressable
                         key={industry}
                         onPress={() => {
-                          setSelectedIndustry(industry);
-                          setShowIndustryOptions(false);
+                          setSelectedIndustry(prev => {
+                            if (prev.includes(industry)) {
+                              return prev.filter(i => i !== industry);
+                            } else if (prev.length < 3) {
+                              return [...prev, industry];
+                            }
+                            return prev;
+                          });
                         }}
                         style={[
                           styles.distanceOption,
@@ -427,7 +439,7 @@ export default function MentorHub() {
 
         {/* Distance options (10-mile intervals). Visible only when showDistanceOptions === true */}
         {showDistanceOptions && (
-          <View style={{ marginTop: 8 }}>
+          <View style={{ marginTop: 8, alignSelf: 'flex-end' }}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 2 }}>
 
               <Pressable
@@ -459,9 +471,9 @@ export default function MentorHub() {
                       setShowDistanceOptions(false);
                     }}
                     style={[
-                      styles.distanceOption,
-                      active ? styles.distanceOptionActive : undefined,
-                    ]}
+                    styles.distanceOption,
+                    active ? styles.distanceOptionActive : undefined,
+                  ]}
                   >
                     <Text style={[styles.distanceOptionText, active ? styles.distanceOptionTextActive : undefined]}>
                       {d} mi
