@@ -9,8 +9,8 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { supabase } from '@/src/lib/supabase';
 import { commonStyles } from '@/src/styles/common';
-import { Background } from '@react-navigation/elements';
-import { setStatusBarBackgroundColor } from 'expo-status-bar';
+import { router } from 'expo-router';
+import { Image } from 'react-native';
 
 type CalendarRow = {
   id: string;
@@ -82,6 +82,20 @@ export default function MentorCalendarScreen() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+
+  // Session detail modal state
+  const [sessionModalOpen, setSessionModalOpen] = useState(false);
+  const [sessionDetail, setSessionDetail] = useState<{
+    menteeName: string;
+    menteePhoto: string | null;
+    scheduledStart: string;
+    scheduledEnd: string;
+    description: string | null;
+    threadId: number | null;
+    menteeId: string | null;
+    videoLink: string | null;
+  } | null>(null);
+  const [sessionDetailLoading, setSessionDetailLoading] = useState(false);
 
   const [title, setTitle] = useState('Blocked');
   const [startAt, setStartAt] = useState<Date>(() => new Date());
@@ -199,6 +213,46 @@ export default function MentorCalendarScreen() {
   const openCreateBlock = () => {
     resetModalState();
     setModalOpen(true);
+  };
+
+  const openSessionDetail = async (event: CalendarEvent) => {
+    if (event.type !== 'session' || !event.mentee_id) return;
+    setSessionDetailLoading(true);
+    setSessionModalOpen(true);
+    setSessionDetail(null);
+
+    try {
+      // Look up the matching mentor_request
+      const { data: req } = await supabase
+        .from('mentor_requests')
+        .select('description, thread_id, video_link')
+        .eq('mentor', event.mentor_id)
+        .eq('mentee', event.mentee_id)
+        .eq('scheduled_start', event.start.toISOString())
+        .single();
+
+      // Look up mentee profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, photo_url')
+        .eq('id', event.mentee_id)
+        .single();
+
+      setSessionDetail({
+        menteeName: profile?.full_name ?? 'Mentee',
+        menteePhoto: profile?.photo_url ?? null,
+        scheduledStart: event.start.toISOString(),
+        scheduledEnd: event.end.toISOString(),
+        description: req?.description ?? null,
+        threadId: req?.thread_id ?? null,
+        menteeId: event.mentee_id,
+        videoLink: req?.video_link ?? null,
+      });
+    } catch (err) {
+      console.error('Failed to load session detail', err);
+    } finally {
+      setSessionDetailLoading(false);
+    }
   };
 
   const openEditBlock = (event: CalendarEvent) => {
@@ -406,6 +460,7 @@ export default function MentorCalendarScreen() {
           isLoading={loading}
           onPressEvent={(event: CalendarEvent) => {
             if (event.type === 'block') openEditBlock(event);
+            if (event.type === 'session') openSessionDetail(event);
           }}
           eventCellStyle={(event: CalendarEvent) => {
             return {
@@ -580,6 +635,85 @@ export default function MentorCalendarScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Session detail modal */}
+      <Modal visible={sessionModalOpen} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: theme.card }]}>
+            {sessionDetailLoading ? (
+              <Text style={{ color: theme.text, textAlign: 'center' }}>Loading...</Text>
+            ) : sessionDetail ? (
+              <>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>Session Details</Text>
+
+                <View style={styles.sessionDetailHeader}>
+                  <View style={styles.sessionDetailAvatar}>
+                    {sessionDetail.menteePhoto ? (
+                      <Image source={{ uri: sessionDetail.menteePhoto }} style={styles.sessionDetailAvatarImg} />
+                    ) : (
+                      <Text style={styles.sessionDetailAvatarText}>
+                        {sessionDetail.menteeName.charAt(0).toUpperCase()}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.sessionDetailName, { color: theme.text }]}>
+                      {sessionDetail.menteeName}
+                    </Text>
+                    <Text style={styles.sessionDetailTime}>
+                      {new Date(sessionDetail.scheduledStart).toLocaleDateString()} at{' '}
+                      {new Date(sessionDetail.scheduledStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {' – '}
+                      {new Date(sessionDetail.scheduledEnd).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  </View>
+                </View>
+
+                {sessionDetail.description ? (
+                  <View style={styles.sessionDetailDescBlock}>
+                    <Text style={styles.sessionDetailDescLabel}>Needs help with:</Text>
+                    <Text style={[styles.sessionDetailDesc, { color: theme.text }]}>
+                      {sessionDetail.description}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.sessionDetailDescLabel}>No description provided.</Text>
+                )}
+
+                <View style={styles.modalActions}>
+                  {sessionDetail.threadId && sessionDetail.menteeId ? (
+                    <Pressable
+                      style={[styles.saveButton, { flex: 1 }]}
+                      onPress={() => {
+                        setSessionModalOpen(false);
+                        router.push({
+                          pathname: '/(app)/Mentor/chat' as any,
+                          params: {
+                            threadId: String(sessionDetail.threadId),
+                            otherId: sessionDetail.menteeId!,
+                            name: sessionDetail.menteeName,
+                          },
+                        });
+                      }}
+                    >
+                      <Text style={styles.saveText}>Open Chat</Text>
+                    </Pressable>
+                  ) : null}
+
+                  <Pressable
+                    style={[styles.cancelButton, { flex: 1 }]}
+                    onPress={() => setSessionModalOpen(false)}
+                  >
+                    <Text style={[styles.cancelText, { textAlign: 'center' }]}>Close</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <Text style={{ color: theme.text, textAlign: 'center' }}>Could not load session details.</Text>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -716,6 +850,51 @@ const styles = StyleSheet.create({
   saveText: {
     color: '#fff',
     fontWeight: '700',
+  },
+  sessionDetailHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  sessionDetailAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#333f5c',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sessionDetailAvatarImg: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  sessionDetailAvatarText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  sessionDetailName: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  sessionDetailTime: {
+    fontSize: 12,
+    color: '#777',
+    marginTop: 2,
+  },
+  sessionDetailDescBlock: {
+    gap: 4,
+  },
+  sessionDetailDescLabel: {
+    fontSize: 12,
+    color: '#888',
+    fontWeight: '600',
+  },
+  sessionDetailDesc: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontStyle: 'italic',
   },
 });
 

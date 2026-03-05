@@ -1,16 +1,17 @@
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    Animated,
-    Image,
-    Platform,
-    Pressable,
-    Switch as RNSwitch,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    UIManager,
-    View
+  Animated,
+  Image,
+  Linking,
+  Platform,
+  Pressable,
+  Switch as RNSwitch,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  UIManager,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -26,12 +27,12 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import Slider from '@react-native-community/slider';
 import * as Location from 'expo-location';
 import { TextInput } from 'react-native';
+import OnboardingOverlay from '../../../src/components/OnboardingOverlay';
 import { font } from '../../../src/lib/fonts';
 import { useNavigationHistory } from '../../../src/lib/navigation-history';
+import { MENTOR_STEPS } from '../../../src/lib/onboarding';
 import { supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
-import OnboardingOverlay from '../../../src/components/OnboardingOverlay';
-import { MENTOR_STEPS } from '../../../src/lib/onboarding';
 
 
 // Enable LayoutAnimation on Android
@@ -627,6 +628,18 @@ export default function MentorSettingsScreen() {
         <ThemedText style={[styles.itemText, font('GlacialIndifference', '400'), { marginLeft: 8 }]}>Replay tutorial</ThemedText>
       </TouchableOpacity>
 
+      <View style={styles.attributionRow}>
+        <Text style={[styles.attributionText, { color: theme.text }]}> 
+          Unicons by{' '}
+          <Text
+            style={styles.attributionLink}
+            onPress={() => Linking.openURL('https://iconscout.com/')}
+          >
+            IconScout
+          </Text>
+        </Text>
+      </View>
+
       {/* Log out button - hide while editing profile inside the Profiles dropdown */}
       {!(isEditingProfile && openSection === 'profiles') && (
         <Pressable
@@ -934,5 +947,21 @@ replayTutorialRow: {
   marginTop: 8,
   borderTopWidth: 1,
   borderTopColor: '#00000010',
+},
+attributionRow: {
+  paddingHorizontal: 12,
+  marginTop: 'auto',
+  paddingTop: 14,
+  paddingBottom: 120,
+  alignItems: 'center',
+},
+attributionText: {
+  fontSize: 12,
+  textAlign: 'center',
+  opacity: 0.8,
+},
+attributionLink: {
+  color: '#968c6c',
+  textDecorationLine: 'underline',
 },
 });

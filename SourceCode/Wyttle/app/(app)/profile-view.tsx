@@ -11,9 +11,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-  Animated,
-  Easing,
+  View
 } from 'react-native';
 
 import { Colors } from '@/constants/theme';
@@ -22,14 +20,13 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { font } from '../../src/lib/fonts';
-import { requestSession } from '../../src/lib/sessions';
 import type { Profile } from '../../src/lib/supabase';
 import { disconnectPeer, getCurrentUser, supabase } from '../../src/lib/supabase';
-import { commonStyles } from '../../src/styles/common';
 
 import { ThemedText } from '@/components/themed-text';
 import { BackButton } from '@/components/ui/BackButton';
 import { useTextSize } from '@/hooks/theme-store';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const DEFAULT_SESSION_MINUTES = 30;
 
@@ -40,6 +37,7 @@ export default function ProfileViewScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   const textSize = useTextSize();
+  const insets = useSafeAreaInsets();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [viewerProfile, setViewerProfile] = useState<Profile | null>(null);
@@ -60,31 +58,7 @@ export default function ProfileViewScreen() {
   const [tempDate, setTempDate] = useState<Date | null>(null);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
-  const [sessionDescription, setSessionDescription] = useState('');
-
-  // Animated heights for iOS inline pickers
-  const datePickerHeight = React.useRef(new Animated.Value(0)).current;
-  const timePickerHeight = React.useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (Platform.OS !== 'ios') return;
-    Animated.timing(datePickerHeight, {
-      toValue: showDatePicker ? 180 : 0,
-      duration: 220,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  }, [showDatePicker, datePickerHeight]);
-
-  useEffect(() => {
-    if (Platform.OS !== 'ios') return;
-    Animated.timing(timePickerHeight, {
-      toValue: showTimePicker ? 140 : 0,
-      duration: 220,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  }, [showTimePicker, timePickerHeight]);
+  const [bookingDescription, setBookingDescription] = useState('');
 
   // Helpers to format date/time strings used elsewhere in the code
   const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
@@ -114,7 +88,7 @@ export default function ProfileViewScreen() {
           setError(profileError.message ?? 'Failed to load profile');
           return;
         }
-        setProfile(data as Profile);
+        setProfile(data as unknown as Profile);
 
         // Check if the current user is matched with this user via peer_matches
         try {
@@ -238,16 +212,11 @@ export default function ProfileViewScreen() {
     }
   };
 
-  const handleRequestSession = async () => {
+  const handleBookSession = async () => {
     if (!profile || !userId) return;
 
     if (!bookingDate || !bookingTime) {
       setBookingError('Please enter a date and time');
-      return;
-    }
-
-    if (!sessionDescription.trim()) {
-      setBookingError('Please describe what you need help with');
       return;
     }
 
@@ -257,6 +226,7 @@ export default function ProfileViewScreen() {
 
       const me = await getCurrentUser();
 
+      // Assumes bookingDate is YYYY-MM-DD and bookingTime is HH:MM in local time
       const scheduledStart = new Date(`${bookingDate}T${bookingTime}:00`);
       if (isNaN(scheduledStart.getTime())) {
         setBookingError('Invalid date or time');
@@ -270,20 +240,73 @@ export default function ProfileViewScreen() {
         return;
       }
 
-      await requestSession(me.id, userId, sessionDescription, scheduledStart);
+      const scheduledEnd = new Date(scheduledStart.getTime() + DEFAULT_SESSION_MINUTES * 60 * 1000);
+
+      // Check for overlapping sessions on the mentor's calendar
+      const { data: overlaps, error: overlapErr } = await supabase
+        .from('mentor_requests')
+        .select('id')
+        .eq('mentor', userId)
+        .in('status', ['requested', 'scheduled'])
+        .lt('scheduled_start', scheduledEnd.toISOString())
+        .gt('scheduled_end', scheduledStart.toISOString());
+
+      if (!overlapErr && overlaps && overlaps.length > 0) {
+        setBookingError('This mentor already has a session at that time. Please choose a different slot.');
+        setBookingLoading(false);
+        return;
+      }
+
+      // 1) Create a mentorship thread
+      const { data: thread, error: threadError } = await supabase
+        .from('threads')
+        .insert({ type: 'mentorship' })
+        .select('id')
+        .single();
+
+      if (threadError || !thread) {
+        console.error('Failed to create thread', threadError);
+        setBookingError(threadError?.message ?? 'Failed to create booking thread');
+        setBookingLoading(false);
+        return;
+      }
+
+      // 2) Create mentor request with status 'requested' so mentor can accept/decline
+      const rate: number = profile.mentor_session_rate ?? 0;
+
+      const { data: req, error: reqError } = await supabase
+        .from('mentor_requests')
+        .insert({
+          mentee: me.id,
+          mentor: userId,
+          thread_id: thread.id,
+          status: 'requested',
+          scheduled_start: scheduledStart.toISOString(),
+          scheduled_end: scheduledEnd.toISOString(),
+          tokens_cost: rate,
+          description: bookingDescription.trim() || null,
+        })
+        .select('id')
+        .single();
+
+      if (reqError || !req) {
+        console.error('Failed to create mentor request', reqError);
+        setBookingError(reqError?.message ?? 'Failed to create booking');
+        setBookingLoading(false);
+        return;
+      }
+
+      // Calendar entry + video link are created when the mentor accepts
 
       setBookingModalVisible(false);
       setBookingDate('');
       setBookingTime('');
-      setSessionDescription('');
-      Alert.alert(
-        'Request Sent',
-        'Your session request has been sent to the mentor. Tokens have been reserved and will be refunded if the request is declined.',
-      );
+      setBookingDescription('');
+      Alert.alert('Request Sent', 'Your session request has been sent to the mentor for approval.');
       setBookingLoading(false);
     } catch (e: any) {
-      console.error('Failed to request mentor session', e);
-      setBookingError(e.message ?? 'Failed to send request');
+      console.error('Failed to book mentor session', e);
+      setBookingError(e.message ?? 'Failed to book session');
       setBookingLoading(false);
     }
   };
@@ -295,7 +318,8 @@ export default function ProfileViewScreen() {
     viewerId !== profile.id;
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+     <SafeAreaView style={{ flex: 1 }} edges={['left', 'right', 'bottom']}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/*
       <View style={styles.headerRow}>
         <BackButton /> --Removed, just press navbar icon again, is identical.
@@ -325,217 +349,169 @@ export default function ProfileViewScreen() {
           <Text>No profile found.</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={[styles.scrollContent, {alignItems: 'stretch'}]} showsVerticalScrollIndicator={false}>
-          {/* <ScreenHeader title="Profile" align='left' /> */}
-
-          {/* Top cover image (large) */}
-          <View
-            style={styles.topImageWrapper}
-            onLayout={(e) => {
-              const w = e.nativeEvent.layout.width;
-              // store measured width (only update if changed to avoid extra rerenders)
-              if (w && w !== imageWrapperWidth) setImageWrapperWidth(w);
-            }}
-          >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          contentInsetAdjustmentBehavior="never"
+          automaticallyAdjustContentInsets={false}
+          automaticallyAdjustsScrollIndicatorInsets={false}
+          contentInset={{ top: 0, left: 0, right: 0, bottom: 0 }}
+          scrollIndicatorInsets={{ top: -0, left: 0, right: 0, bottom: 0 }}
+        >
+          <View style={[styles.heroSection, { marginTop: -insets.top, height: 460 + insets.top }]}> 
             {profile.photo_url ? (
-              <Image source={{ uri: profile.photo_url }} style={styles.topImage} resizeMode="cover" />
+              <Image source={{ uri: profile.photo_url }} style={styles.heroImage} resizeMode="cover" />
             ) : (
               <View style={styles.topImagePlaceholder}>
-                <ThemedText style={[styles.avatarInitial, font('GlacialIndifference', '700')]}>
+                <ThemedText style={[styles.avatarInitial, font('GlacialIndifference', '700')]}> 
                   {firstName.charAt(0).toUpperCase()}
                 </ThemedText>
               </View>
             )}
-            
-            {/* Floating back button */}
-            <BackButton style={styles.floatingBackButton} />
+
+            <View style={styles.heroScrim} />
+            <BackButton style={[styles.floatingBackButton, { top: insets.top + 50 }]} />
+
+            <View style={styles.heroContent}>
+              <ThemedText
+                style={[
+                  styles.heroName,
+                  font('GlacialIndifference', '800'),
+                  { fontSize: 34 * textSize },
+                ]}
+              >
+                {profile.full_name ?? 'Member'}
+              </ThemedText>
+
+              {!!profile.location && (
+                <View style={styles.heroMetaRow}>
+                  <Ionicons name="location-outline" size={15} color="#fff" />
+                  <Text style={[styles.heroMetaText, font('GlacialIndifference', '400')]}> 
+                    {profile.location}
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.heroPillsWrap}>
+                {!!profile.industry && (
+                  <View style={[styles.heroPill, styles.heroPillSolid]}>
+                    <Ionicons name="business-outline" size={13} color="#fff" style={{ marginRight: 4 }} />
+                    <Text style={[styles.heroPillText, font('GlacialIndifference', '400')]}>{profile.industry}</Text>
+                  </View>
+                )}
+                {!!profile.title && (
+                  <View style={[styles.heroPill, styles.heroPillGlass]}>
+                    <Ionicons name="briefcase-outline" size={13} color="#fff" style={{ marginRight: 4 }} />
+                    <Text style={[styles.heroPillText, font('GlacialIndifference', '400')]}>{profile.title}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
           </View>
 
-          <View style={styles.subPicContainter}>
-          {/* Packed chips: build rows so full/half/quarter combine predictably */}
-          {/* chips container sized to fill the padded container width */}
-          <View style={{ width: '100%' }}>
-            {(() => {
-              const rows = buildChipRows(profile);
-              return rows.map((row, ri) => {
-                // compute row total to decide centering behaviour
-                const rowSum = row.reduce((acc, it) => acc + (it.size === 'full' ? 100 : it.size === 'half' ? 50 : 25), 0);
-                const justify = rowSum < 100 ? 'center' : 'space-between';
+          <View style={[styles.contentPanel, { backgroundColor: theme.card }]}> 
+            <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
+              <View style={styles.sectionHeaderRow}>
+                <Ionicons name="person-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
+                <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '800'), { color: theme.text }]}> 
+                  About
+                </ThemedText>
+              </View>
+              <ThemedText style={[styles.sectionBody, font('GlacialIndifference', '400')]}> 
+                {profile.bio?.trim() || 'No bio added yet.'}
+              </ThemedText>
+            </View>
 
-                // small consistent gap when centered
-                const centeredGap = 4;
+            {!!(profile as any).work_experience && (
+              <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
+                <View style={styles.sectionHeaderRow}>
+                  <Ionicons name="briefcase-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
+                  <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '800'), { color: theme.text }]}> 
+                    Work Experience
+                  </ThemedText>
+                </View>
+                <ThemedText style={[styles.sectionBody, font('GlacialIndifference', '400')]}> 
+                  {(profile as any).work_experience}
+                </ThemedText>
+              </View>
+            )}
 
-                return (
-                  <View
-                    key={`row-${ri}`}
-                    style={[
-                      styles.packedRow,
-                      { justifyContent: justify, width: '100%' } // row fills container width
-                    ]}
+            {(Array.isArray((profile as any).skills) && (profile as any).skills.length > 0) && (
+              <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
+                <View style={styles.sectionHeaderRow}>
+                  <Ionicons name="school-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
+                  <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '800'), { color: theme.text }]}> 
+                    Skills / Study
+                  </ThemedText>
+                </View>
+                <View style={styles.chipRow}>
+                  {(profile as any).skills.map((s: string) => (
+                    <View key={s} style={styles.chip}>
+                      <ThemedText style={[styles.chipText, font('GlacialIndifference', '400')]}>{s}</ThemedText>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {(Array.isArray((profile as any).interests) && (profile as any).interests.length > 0) && (
+              <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
+                <View style={styles.sectionHeaderRow}>
+                  <Ionicons name="heart-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
+                  <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '800'), { color: theme.text }]}> 
+                    Interests / Hobbies
+                  </ThemedText>
+                </View>
+                <View style={styles.chipRow}>
+                  {(profile as any).interests.map((s: string) => (
+                    <View key={s} style={styles.chip}>
+                      <Text style={styles.chipText}>{s}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {(canShowBooking || canDisconnect) && (
+              <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
+                <View style={styles.sectionHeaderRow}>
+                  <Ionicons name="flash-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
+                  <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '800'), { color: theme.text }]}> 
+                    Actions
+                  </ThemedText>
+                </View>
+
+                {canShowBooking && (
+                  <TouchableOpacity
+                    style={styles.bookButton}
+                    onPress={() => {
+                      setBookingError(null);
+                      setBookingModalVisible(true);
+                    }}
                   >
-                    {row.map((chip) => {
-                      const sizeStyle = chip.size === 'quarter' ? styles.chipQuarter
-                        : chip.size === 'half' ? styles.chipHalf
-                        : styles.chipFull;
+                    <Text style={styles.bookButtonTitle}>
+                      {typeof profile.mentor_session_rate === 'number' && profile.mentor_session_rate > 0
+                        ? `💎 ${profile.mentor_session_rate} tokens/session`
+                        : 'Free session'}
+                    </Text>
+                    <Text style={styles.bookButtonSubtitle}>Choose a date & time</Text>
+                  </TouchableOpacity>
+                )}
 
-                      const centeredSpacingStyle = justify === 'center' ? { marginHorizontal: centeredGap / 2 } : {};
-
-                      return (
-                        <View
-                          key={chip.key}
-                          style={[
-                            styles.chipBadge,
-                            sizeStyle,
-                            centeredSpacingStyle,
-                            chip.key === 'location' ? styles.chipBadgeLocation : undefined,
-                            chip.key === 'industry' ? styles.chipBadgeIndustry : undefined,
-                          ]}
-                        >
-
-                          {chip.key === 'location' && (
-                            <Ionicons name="location" size={14} color="#333333" style={{ marginRight: 4 }} />
-                          )}
-                          {chip.key === 'industry' && (
-                            <Ionicons name="business-outline" size={14} color="#ffffff" style={{ marginRight: 4 }} />
-                          )}
-                          {chip.key === 'title' && (
-                            <Ionicons name="briefcase-outline" size={14} color="#ffffff" style={{ marginRight: 4 }} />
-                          )}
-                          <ThemedText style={[
-                            styles.chipBadgeText, 
-                            font('GlacialIndifference', '400'),
-                            chip.key === 'location' ? { color: '#333333' } : undefined,
-                          
-                          
-                            
-                          ]}>
-                            {chip.text}
-                          </ThemedText>
-                        </View>
-                      );
-                    })}
-                  </View>
-                );
-              });
-            })()}
+                {canDisconnect && (
+                  <TouchableOpacity
+                    style={styles.disconnectButton}
+                    onPress={handleDisconnect}
+                    disabled={disconnecting}
+                  >
+                    <ThemedText style={styles.disconnectButtonText}>
+                      {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+                    </ThemedText>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
           </View>
-
-          {/* Name (larger) */}
-          <ThemedText
-            style={[
-              styles.nameLarge,
-              font('GlacialIndifference', '800'),
-              { color: theme.text, fontSize: 32 * textSize }, // 32px base * scale
-            ]}
-          >
-            {profile.full_name ?? 'Member'}
-          </ThemedText>
-
-          {/* About section header */}
-          <ThemedText
-            style={[
-              styles.aboutTitle,
-              font('GlacialIndifference', '800'),
-              //{ color: theme.text },
-            ]}
-          >
-            About Me
-          </ThemedText>
-
-          {/* Bio */}
-          {profile.bio ? (
-            <ThemedText
-              style={[
-                styles.sectionBody,
-                font('GlacialIndifference', '400'),
-              ]}
-            >
-              {profile.bio}
-            </ThemedText>
-          ) : null}
-
-          {/* Work Experience */}
-          {(profile as any).work_experience ? (
-            <View style={styles.section}>
-              <ThemedText
-                style={[
-                  styles.sectionTitle,
-                  font('GlacialIndifference', '800'),
-                  { color: theme.text },
-                ]}
-              >
-                Work Experience
-              </ThemedText>
-              <ThemedText
-                style={[
-                  styles.sectionBody,
-                  font('GlacialIndifference', '400'),
-                ]}
-              >
-                {(profile as any).work_experience}
-              </ThemedText>
-            </View>
-          ) : null}
-
-          {(Array.isArray((profile as any).skills) && (profile as any).skills.length > 0) && (
-            <View style={styles.section}>
-              <ThemedText
-                style={[
-                  styles.sectionTitle,
-                  font('GlacialIndifference', '800'),
-                  { color: theme.text },
-                ]}
-              >
-                Skills / Study
-              </ThemedText>
-              <View style={styles.chipRow}>
-                {(profile as any).skills.map((s: string) => (
-                  <View key={s} style={styles.chip}>
-                    <ThemedText style={[styles.chipText, font('GlacialIndifference', '400')]}>{s}</ThemedText>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {(Array.isArray((profile as any).interests) && (profile as any).interests.length > 0) && (
-            <View style={styles.section}>
-              <Text
-                style={[
-                  styles.sectionTitle,
-                  font('GlacialIndifference', '800'),
-                  { color: theme.text },
-                ]}
-              >
-                Interests / hobbies
-              </Text>
-              <View style={styles.chipRow}>
-                {(profile as any).interests.map((s: string) => (
-                  <View key={s} style={styles.chip}>
-                    <Text style={styles.chipText}>{s}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {canShowBooking && (
-            <TouchableOpacity
-              style={styles.bookButton}
-              onPress={() => {
-                setBookingError(null);
-                setSessionDescription('');
-                setBookingModalVisible(true);
-              }}
-            >
-              <Text style={styles.bookButtonTitle}>Request Session</Text>
-              <Text style={styles.bookButtonSubtitle}>
-                {profile.mentor_session_rate
-                  ? `${profile.mentor_session_rate} tokens per session`
-                  : 'Choose a date & time'}
-              </Text>
-            </TouchableOpacity>
-          )}
 
           <Modal
             visible={bookingModalVisible}
@@ -546,25 +522,8 @@ export default function ProfileViewScreen() {
             <View style={styles.bookingOverlay}>
               <View style={[styles.bookingCard, { backgroundColor: theme.card }]}>
                 <ThemedText style={[styles.bookingTitle, font('GlacialIndifference', '800'), { color: theme.text }]}>
-                  Request a Session
+                  Book a session
                 </ThemedText>
-
-                {profile?.mentor_session_rate ? (
-                  <Text style={[styles.bookingLabel, { color: '#968c6c', fontWeight: '600' }]}>
-                    Cost: {profile.mentor_session_rate} tokens (30 min)
-                  </Text>
-                ) : null}
-
-                <Text style={[styles.bookingLabel, { color: theme.text }]}>What do you need help with?</Text>
-                <TextInput
-                  style={[styles.bookingInput, { color: theme.text, height: 80, textAlignVertical: 'top' }]}
-                  placeholder="Describe what you'd like to discuss..."
-                  placeholderTextColor="#999"
-                  value={sessionDescription}
-                  onChangeText={setSessionDescription}
-                  multiline
-                  numberOfLines={3}
-                />
 
                 <Text style={[styles.bookingLabel, { color: theme.text }]}>Date</Text>
                 <TouchableOpacity
@@ -581,33 +540,23 @@ export default function ProfileViewScreen() {
                       setShowDatePicker(true);
                     }
                   }}
-                  style={styles.bookingPickerButton}
+                  style={[styles.bookingPickerButton, { backgroundColor: theme.tint }]}
                 >
                   <Text style={styles.bookingPickerText}>{bookingDate || 'Select a date'}</Text>
                 </TouchableOpacity>
                 {/* iOS: inline spinner below the Date button and above the Time section */}
-                {Platform.OS === 'ios' && (
-                  <Animated.View
-                    style={{
-                      overflow: 'hidden',
-                      height: datePickerHeight,
-                      opacity: datePickerHeight.interpolate({ inputRange: [0, 180], outputRange: [0, 1] }),
+                {Platform.OS === 'ios' && showDatePicker && (
+                  <DateTimePicker
+                    value={bookingDateObj ?? new Date()}
+                    mode="date"
+                    display="spinner"
+                    onChange={(_e, date) => {
+                      if (date) {
+                        setBookingDateObj(date);
+                        setBookingDate(formatDateYYYYMMDD(date));
+                      }
                     }}
-                  >
-                    {showDatePicker && (
-                      <DateTimePicker
-                        value={bookingDateObj ?? new Date()}
-                        mode="date"
-                        display="spinner"
-                        onChange={(_e, date) => {
-                          if (date) {
-                            setBookingDateObj(date);
-                            setBookingDate(formatDateYYYYMMDD(date));
-                          }
-                        }}
-                      />
-                    )}
-                  </Animated.View>
+                  />
                 )}
 
                 <Text style={[styles.bookingLabel, { color: theme.text, marginTop: 12 }]}>Time</Text>
@@ -633,34 +582,24 @@ export default function ProfileViewScreen() {
                       setShowTimePicker(true);
                     }
                   }}
-                  style={styles.bookingPickerButton}
+                  style={[styles.bookingPickerButton, { backgroundColor: theme.tint }]}
                 >
                   <Text style={styles.bookingPickerText}>{bookingTime || 'Select a time'}</Text>
                 </TouchableOpacity>
 
-                {Platform.OS === 'ios' && (
-                  <Animated.View
-                    style={{
-                      overflow: 'hidden',
-                      height: timePickerHeight,
-                      opacity: timePickerHeight.interpolate({ inputRange: [0, 140], outputRange: [0, 1] }),
+                {Platform.OS === 'ios' && showTimePicker && (
+                  <DateTimePicker
+                    value={bookingDateObj ?? new Date()}
+                    mode="time"
+                    is24Hour={true}
+                    display="spinner"
+                    onChange={(_e, date) => {
+                      if (date) {
+                        setBookingDateObj(date);
+                        setBookingTime(formatTimeHHMM(date));
+                      }
                     }}
-                  >
-                    {showTimePicker && (
-                      <DateTimePicker
-                        value={bookingDateObj ?? new Date()}
-                        mode="time"
-                        is24Hour={true}
-                        display="spinner"
-                        onChange={(_e, date) => {
-                          if (date) {
-                            setBookingDateObj(date);
-                            setBookingTime(formatTimeHHMM(date));
-                          }
-                        }}
-                      />
-                    )}
-                  </Animated.View>
+                  />
                 )}
 
                 {Platform.OS === 'android' && showDatePicker && pickerTarget === 'date' && (
@@ -718,6 +657,17 @@ export default function ProfileViewScreen() {
                   />
                 )}
 
+                <Text style={[styles.bookingLabel, { color: theme.text, marginTop: 12 }]}>Message (optional)</Text>
+                <TextInput
+                  style={[styles.bookingDescriptionInput, { color: theme.text, borderColor: theme.tint }]}
+                  placeholder="What do you need help with?"
+                  placeholderTextColor="#999"
+                  value={bookingDescription}
+                  onChangeText={setBookingDescription}
+                  multiline
+                  numberOfLines={3}
+                />
+
                 {bookingError ? (
                   <Text style={styles.bookingErrorText}>{bookingError}</Text>
                 ) : null}
@@ -736,11 +686,11 @@ export default function ProfileViewScreen() {
 
                   <TouchableOpacity
                     style={[styles.bookingButton, styles.bookingButtonPrimary, { opacity: bookingLoading ? 0.7 : 1 }]}
-                    onPress={handleRequestSession}
+                    onPress={handleBookSession}
                     disabled={bookingLoading}
                   >
                     <Text style={styles.bookingButtonPrimaryText}>
-                      {bookingLoading ? 'Sending…' : 'Send Request'}
+                      {bookingLoading ? 'Booking…' : 'Confirm'}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -748,32 +698,17 @@ export default function ProfileViewScreen() {
             </View>
           </Modal>
 
-          {canDisconnect && (
-            <TouchableOpacity
-              style={styles.disconnectButton}
-              onPress={handleDisconnect}
-              disabled={disconnecting}
-            >
-              <ThemedText style={styles.disconnectButtonText}>
-                {disconnecting ? 'Disconnecting…' : 'Disconnect'}
-              </ThemedText>
-            </TouchableOpacity>
-          )}
-          </View>
         </ScrollView>
       )}
     </View>
+    </SafeAreaView>
   );
 }
 const styles = StyleSheet.create({
   container: {
-    ...commonStyles.screen,
+    flex: 1,
     paddingHorizontal: 0,
-    paddingTop: 8,
-  },
-  subPicContainter: {
-    paddingTop: 12,
-    paddingHorizontal: 18,
+    paddingTop: 0,
   },
   headerRow: {
     flexDirection: 'row',
@@ -790,8 +725,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   scrollContent: {
-    alignItems: 'center',
-    paddingBottom: 120,
+    alignItems: 'stretch',
   },
   avatarWrapper: {
     width: 96,
@@ -802,28 +736,120 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 12,
   },
-    // Top large image
-  topImageWrapper: {
+  heroSection: {
     width: '100%',
-    aspectRatio: 1,
-    borderRadius: 0,
+    height: 460,
+    position: 'relative',
+    backgroundColor: '#10131b',
     overflow: 'visible',
-    marginBottom: 12,
-    backgroundColor: '#e9e9e9',
-    alignSelf: 'stretch',
-    // iOS shadow
+  },
+  heroImage: {
+    width: '100%',
+    height: '100%',
+  },
+  heroScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.38)',
+  },
+  heroContent: {
+    position: 'absolute',
+    left: 18,
+    right: 18,
+    bottom: 54,
+  },
+  heroName: {
+    color: '#fff',
+    lineHeight: 38,
+    marginBottom: 6,
+  },
+  heroMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  heroMetaText: {
+    color: '#fff',
+    marginLeft: 4,
+    fontSize: 14,
+  },
+  heroPillsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  heroPill: {
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  heroPillSolid: {
+    backgroundColor: '#333f5c',
+  },
+  heroPillGlass: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  heroPillText: {
+    color: '#fff',
+    fontSize: 13,
+  },
+  contentPanel: {
+    width: '100%',
+    marginTop: -32,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingTop: 18,
+    paddingHorizontal: 16,
+    paddingBottom: 120,
+    borderWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.45)',
+    borderLeftColor: 'rgba(255,255,255,0.26)',
+    borderRightColor: 'rgba(0,0,0,0.1)',
+    borderBottomColor: 'rgba(0,0,0,0.2)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    // Android shadow
-    elevation: 8,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 6,
   },
   floatingBackButton: {
     position: 'absolute',
     top: 16,
     left: 16,
     zIndex: 10,
+  },
+  sectionCard: {
+    width: '100%',
+    borderRadius: 18,
+    marginBottom: 12,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    borderWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.4)',
+    borderLeftColor: 'rgba(255,255,255,0.25)',
+    borderRightColor: 'rgba(0,0,0,0.08)',
+    borderBottomColor: 'rgba(0,0,0,0.16)',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+  sectionCardTitle: {
+    fontSize: 17,
+    marginBottom: 6,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  sectionHeaderIcon: {
+    marginRight: 7,
+    marginBottom: 4,
   },
   chipBadgeLocation: {
     backgroundColor: '#edecf1', // Slightly different blue/grey color to distinguish it
@@ -1051,17 +1077,24 @@ const styles = StyleSheet.create({
   bookingPickerButton: {
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 6,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#d0d0d0',
   },
   bookingPickerText: {
-    color: '#222',
+    color: '#fff',
     fontWeight: '600',
+  },
+  bookingDescriptionInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    minHeight: 70,
+    textAlignVertical: 'top',
+    marginTop: 4,
   },
   chipRow: {
     flexDirection: 'row',

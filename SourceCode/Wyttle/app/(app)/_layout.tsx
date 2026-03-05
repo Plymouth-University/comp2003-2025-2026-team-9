@@ -1,4 +1,4 @@
-import { Slot } from 'expo-router';
+import { Slot, usePathname } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -9,6 +9,8 @@ export default function AppLayout() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+  const shouldOverlayTopSafeArea = pathname.includes('profile-view');
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -16,7 +18,7 @@ export default function AppLayout() {
         style={[
           styles.content,
           {
-            paddingTop: insets.top,
+            paddingTop: shouldOverlayTopSafeArea ? 0 : insets.top,
           },
         ]}
       >

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
+  Alert,
   StyleSheet,
   View,
   TextInput,
@@ -9,6 +10,8 @@ import {
   Image,
   useWindowDimensions,
 } from 'react-native';
+
+import { cancelSession } from '../../../src/lib/sessions';
 
 import { router, useFocusEffect } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
@@ -31,10 +34,12 @@ type Mentor = {
 
 type UpcomingSession = {
   requestId: number;
+  mentorId: string;
   mentorName: string;
   mentorPhoto: string | null;
   scheduledStart: string;
   videoLink: string | null;
+  threadId: number | null;
 };
 
 /**
@@ -149,10 +154,10 @@ export default function MentorHub() {
 
       const { data: sessions, error: sessErr } = await supabase
         .from('mentor_requests')
-        .select('id, mentor, scheduled_start, video_link')
+        .select('id, mentor, scheduled_start, video_link, thread_id')
         .eq('mentee', user.id)
         .eq('status', 'scheduled')
-        .gte('scheduled_start', new Date().toISOString())
+        .gte('scheduled_start', new Date(Date.now() - 30 * 60 * 1000).toISOString())
         .order('scheduled_start', { ascending: true });
 
       if (sessErr) { console.error('Failed to load sessions', sessErr); return; }
@@ -172,10 +177,12 @@ export default function MentorHub() {
       setUpcomingSessions(
         sessions.map((s: any) => ({
           requestId: s.id,
+          mentorId: s.mentor,
           mentorName: profileMap[s.mentor]?.name ?? 'Mentor',
           mentorPhoto: profileMap[s.mentor]?.photo ?? null,
           scheduledStart: s.scheduled_start,
           videoLink: s.video_link ?? null,
+          threadId: s.thread_id ?? null,
         })),
       );
     } catch (err) {
@@ -481,9 +488,25 @@ export default function MentorHub() {
                 : diffMin < 60 ? `In ${diffMin} min`
                 : diffMin < 1440 ? `In ${Math.floor(diffMin / 60)}h ${diffMin % 60}m`
                 : `${new Date(session.scheduledStart).toLocaleDateString()}`;
+              const scheduledText = `${new Date(session.scheduledStart).toLocaleDateString()} at ${new Date(session.scheduledStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
               return (
-                <View key={session.requestId} style={[styles.sessionCard, { backgroundColor: theme.card }]}>
+                <Pressable
+                  key={session.requestId}
+                  style={[styles.sessionCard, { backgroundColor: theme.card }]}
+                  onPress={() => {
+                    if (session.threadId) {
+                      router.push({
+                        pathname: '/(app)/Mentee/chat' as any,
+                        params: {
+                          threadId: String(session.threadId),
+                          otherId: session.mentorId,
+                          name: session.mentorName,
+                        },
+                      });
+                    }
+                  }}
+                >
                   <View style={styles.sessionAvatar}>
                     {session.mentorPhoto ? (
                       <Image source={{ uri: session.mentorPhoto }} style={styles.sessionAvatarImg} />
@@ -496,11 +519,13 @@ export default function MentorHub() {
                   <Text style={[styles.sessionName, { color: theme.text }]} numberOfLines={1}>
                     {session.mentorName}
                   </Text>
+                  <Text style={styles.sessionDateTime} numberOfLines={1}>{scheduledText}</Text>
                   <Text style={styles.sessionCountdown}>{countdownText}</Text>
                   {canJoin && session.videoLink ? (
                     <Pressable
                       style={styles.joinCallBtn}
-                      onPress={() => {
+                      onPress={(e) => {
+                        e.stopPropagation();
                         router.push({
                           pathname: '/(app)/video-call' as any,
                           params: { roomUrl: session.videoLink!, requestId: String(session.requestId) },
@@ -510,7 +535,35 @@ export default function MentorHub() {
                       <Text style={styles.joinCallText}>Join Call</Text>
                     </Pressable>
                   ) : null}
-                </View>
+                  <Pressable
+                    style={styles.cancelBtn}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      Alert.alert(
+                        'Cancel Session',
+                        `Are you sure you want to cancel your session with ${session.mentorName}? Your tokens will be refunded.`,
+                        [
+                          { text: 'Keep Session', style: 'cancel' },
+                          {
+                            text: 'Cancel Session',
+                            style: 'destructive',
+                            onPress: async () => {
+                              try {
+                                await cancelSession(session.requestId);
+                                Alert.alert('Cancelled', 'Your session has been cancelled and tokens have been refunded.');
+                                loadUpcomingSessions();
+                              } catch (err: any) {
+                                Alert.alert('Error', err.message ?? 'Failed to cancel session');
+                              }
+                            },
+                          },
+                        ],
+                      );
+                    }}
+                  >
+                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                  </Pressable>
+                </Pressable>
               );
             })}
           </ScrollView>
@@ -775,6 +828,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 2,
   },
+  sessionDateTime: {
+    fontSize: 10,
+    color: '#777',
+    marginBottom: 2,
+    textAlign: 'center',
+  },
   sessionCountdown: {
     fontSize: 11,
     color: '#968c6c',
@@ -792,5 +851,18 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 11,
     fontWeight: '700',
+  },
+  cancelBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#c43b3b',
+  },
+  cancelBtnText: {
+    color: '#c43b3b',
+    fontSize: 10,
+    fontWeight: '600',
   },
 });
