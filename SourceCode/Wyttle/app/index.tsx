@@ -12,6 +12,8 @@ import { ThemedText } from '@/components/themed-text';
 import { font } from '../src/lib/fonts';
 import { commonStyles } from '../src/styles/common';
 
+import initializeRevenueCat from '../payment/RevenueCat';
+
 /*Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -27,7 +29,11 @@ export default function Index() {
 
   // If the user already has a session, skip the chooser and go straight to the correct area
   useEffect(() => {
+    
     (async () => {
+      //Initialise RevenueCat
+      initializeRevenueCat();
+
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
