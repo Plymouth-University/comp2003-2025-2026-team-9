@@ -1,7 +1,7 @@
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, LayoutAnimation, Modal, Platform, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, UIManager, View } from 'react-native';
+import { Alert, LayoutAnimation, Modal, Platform, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, UIManager, View, type TouchableOpacityProps } from 'react-native';
 import { Calendar as BigCalendar, ICalendarEventBase } from 'react-native-big-calendar';
 
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
@@ -474,7 +474,7 @@ export default function MentorCalendarScreen() {
           theme={calendarTheme}
           isLoading={loading}
           eventCellTextColor={isDark ? '#e2e8f0' : '#1e293b'}
-          renderEvent={(event, touchableOpacityProps) => {
+          renderEvent={(event: CalendarEvent, touchableOpacityProps: TouchableOpacityProps) => {
             const { key, ...restProps } = touchableOpacityProps as any;
             return (
               <TouchableOpacity key={key} {...restProps} style={[restProps.style, { overflow: 'hidden' }]}>
