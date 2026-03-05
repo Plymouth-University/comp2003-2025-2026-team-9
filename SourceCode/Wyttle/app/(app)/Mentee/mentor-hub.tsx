@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
@@ -27,6 +27,14 @@ type Mentor = {
   photo_url?: string;
   role?: string;
   mentor_session_rate?: number | null;
+};
+
+type UpcomingSession = {
+  requestId: number;
+  mentorName: string;
+  mentorPhoto: string | null;
+  scheduledStart: string;
+  videoLink: string | null;
 };
 
 /**
@@ -97,6 +105,8 @@ export default function MentorHub() {
   const [query, setQuery] = useState('');
   const [mentors, setMentors] = useState<Mentor[]>([]);
   const [loading, setLoading] = useState(false);
+  const [upcomingSessions, setUpcomingSessions] = useState<UpcomingSession[]>([]);
+  const [now, setNow] = useState(Date.now());
 
   const { width: screenWidth } = useWindowDimensions();
 
@@ -124,6 +134,73 @@ export default function MentorHub() {
     if (typeof asAny.distance_miles === 'number') return asAny.distance_miles;
     return null;
   };
+
+  // Tick every 30s so countdown / "Join Call" updates live
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Load upcoming sessions
+  const loadUpcomingSessions = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: sessions, error: sessErr } = await supabase
+        .from('mentor_requests')
+        .select('id, mentor, scheduled_start, video_link')
+        .eq('mentee', user.id)
+        .eq('status', 'scheduled')
+        .gte('scheduled_start', new Date().toISOString())
+        .order('scheduled_start', { ascending: true });
+
+      if (sessErr) { console.error('Failed to load sessions', sessErr); return; }
+      if (!sessions || sessions.length === 0) { setUpcomingSessions([]); return; }
+
+      const mentorIds = [...new Set(sessions.map((s: any) => s.mentor))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, photo_url')
+        .in('id', mentorIds);
+
+      const profileMap: Record<string, { name: string; photo: string | null }> = {};
+      (profiles ?? []).forEach((p: any) => {
+        profileMap[p.id] = { name: p.full_name ?? 'Mentor', photo: p.photo_url ?? null };
+      });
+
+      setUpcomingSessions(
+        sessions.map((s: any) => ({
+          requestId: s.id,
+          mentorName: profileMap[s.mentor]?.name ?? 'Mentor',
+          mentorPhoto: profileMap[s.mentor]?.photo ?? null,
+          scheduledStart: s.scheduled_start,
+          videoLink: s.video_link ?? null,
+        })),
+      );
+    } catch (err) {
+      console.error('Failed to load upcoming sessions', err);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadUpcomingSessions();
+    }, [loadUpcomingSessions]),
+  );
+
+  // Realtime subscription for session status changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('mentee-sessions-hub')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'mentor_requests' },
+        () => { loadUpcomingSessions(); },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [loadUpcomingSessions]);
 
   useEffect(() => {
     const fetchMentors = async () => {
@@ -390,6 +467,56 @@ export default function MentorHub() {
         )}
       </View>
 
+      {/* Upcoming sessions */}
+      {upcomingSessions.length > 0 && (
+        <View style={styles.upcomingSection}>
+          <ThemedText style={[styles.upcomingTitle, font('GlacialIndifference', '800')]}>Upcoming Sessions</ThemedText>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 4 }}>
+            {upcomingSessions.map((session) => {
+              const startMs = new Date(session.scheduledStart).getTime();
+              const diffMin = Math.round((startMs - now) / 60_000);
+              const canJoin = diffMin <= 5 && diffMin >= -30;
+              const countdownText =
+                diffMin <= 0 ? 'In progress'
+                : diffMin < 60 ? `In ${diffMin} min`
+                : diffMin < 1440 ? `In ${Math.floor(diffMin / 60)}h ${diffMin % 60}m`
+                : `${new Date(session.scheduledStart).toLocaleDateString()}`;
+
+              return (
+                <View key={session.requestId} style={[styles.sessionCard, { backgroundColor: theme.card }]}>
+                  <View style={styles.sessionAvatar}>
+                    {session.mentorPhoto ? (
+                      <Image source={{ uri: session.mentorPhoto }} style={styles.sessionAvatarImg} />
+                    ) : (
+                      <Text style={styles.sessionAvatarText}>
+                        {session.mentorName.charAt(0).toUpperCase()}
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={[styles.sessionName, { color: theme.text }]} numberOfLines={1}>
+                    {session.mentorName}
+                  </Text>
+                  <Text style={styles.sessionCountdown}>{countdownText}</Text>
+                  {canJoin && session.videoLink ? (
+                    <Pressable
+                      style={styles.joinCallBtn}
+                      onPress={() => {
+                        router.push({
+                          pathname: '/(app)/video-call' as any,
+                          params: { roomUrl: session.videoLink!, requestId: String(session.requestId) },
+                        });
+                      }}
+                    >
+                      <Text style={styles.joinCallText}>Join Call</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
       {/* ScrollView centers the inner grid block via contentContainerStyle alignItems:'center' */}
       <ScrollView 
       contentContainerStyle={[
@@ -607,5 +734,63 @@ const styles = StyleSheet.create({
   },
   distanceOptionTextActive: {
     color: '#fff',
+  },
+  // ── Upcoming sessions ──
+  upcomingSection: {
+    marginBottom: 8,
+  },
+  upcomingTitle: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  sessionCard: {
+    width: 120,
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 16,
+    marginRight: 10,
+  },
+  sessionAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#333f5c',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  sessionAvatarImg: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 22,
+  },
+  sessionAvatarText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  sessionName: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  sessionCountdown: {
+    fontSize: 11,
+    color: '#968c6c',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  joinCallBtn: {
+    backgroundColor: '#333f5c',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 999,
+    marginTop: 2,
+  },
+  joinCallText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

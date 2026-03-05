@@ -11,6 +11,7 @@
     "lint": "expo lint"
   },
   "dependencies": {
+    "@daily-co/config-plugin-rn-daily-js": "^0.0.11",
     "@daily-co/react-native-daily-js": "^0.83.0",
     "@daily-co/react-native-webrtc": "^124.0.6-daily.1",
     "@expo/vector-icons": "^15.0.2",

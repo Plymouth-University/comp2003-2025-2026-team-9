@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   Animated,
@@ -21,6 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { font } from '../../src/lib/fonts';
+import { requestSession } from '../../src/lib/sessions';
 import type { Profile } from '../../src/lib/supabase';
 import { disconnectPeer, getCurrentUser, supabase } from '../../src/lib/supabase';
 import { commonStyles } from '../../src/styles/common';
@@ -29,7 +31,7 @@ import { ThemedText } from '@/components/themed-text';
 import { BackButton } from '@/components/ui/BackButton';
 import { useTextSize } from '@/hooks/theme-store';
 
-const DEFAULT_SESSION_MINUTES = 60;
+const DEFAULT_SESSION_MINUTES = 30;
 
 export default function ProfileViewScreen() {
   const params = useLocalSearchParams<{ userId?: string }>();
@@ -58,6 +60,7 @@ export default function ProfileViewScreen() {
   const [tempDate, setTempDate] = useState<Date | null>(null);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
+  const [sessionDescription, setSessionDescription] = useState('');
 
   // Animated heights for iOS inline pickers
   const datePickerHeight = React.useRef(new Animated.Value(0)).current;
@@ -235,11 +238,16 @@ export default function ProfileViewScreen() {
     }
   };
 
-  const handleBookSession = async () => {
+  const handleRequestSession = async () => {
     if (!profile || !userId) return;
 
     if (!bookingDate || !bookingTime) {
       setBookingError('Please enter a date and time');
+      return;
+    }
+
+    if (!sessionDescription.trim()) {
+      setBookingError('Please describe what you need help with');
       return;
     }
 
@@ -249,7 +257,6 @@ export default function ProfileViewScreen() {
 
       const me = await getCurrentUser();
 
-      // Assumes bookingDate is YYYY-MM-DD and bookingTime is HH:MM in local time
       const scheduledStart = new Date(`${bookingDate}T${bookingTime}:00`);
       if (isNaN(scheduledStart.getTime())) {
         setBookingError('Invalid date or time');
@@ -263,69 +270,20 @@ export default function ProfileViewScreen() {
         return;
       }
 
-      const scheduledEnd = new Date(scheduledStart.getTime() + DEFAULT_SESSION_MINUTES * 60 * 1000);
-
-      // 1) Create a mentorship thread
-      const { data: thread, error: threadError } = await supabase
-        .from('threads')
-        .insert({ type: 'mentorship' })
-        .select('id')
-        .single();
-
-      if (threadError || !thread) {
-        console.error('Failed to create thread', threadError);
-        setBookingError(threadError?.message ?? 'Failed to create booking thread');
-        setBookingLoading(false);
-        return;
-      }
-
-      // 2) Create mentor request (drives mentor chat list)
-      const { data: req, error: reqError } = await supabase
-        .from('mentor_requests')
-        .insert({
-          mentee: me.id,
-          mentor: userId,
-          thread_id: thread.id,
-          status: 'scheduled',
-          scheduled_start: scheduledStart.toISOString(),
-          scheduled_end: scheduledEnd.toISOString(),
-          tokens_cost: 0,
-        })
-        .select('id')
-        .single();
-
-      if (reqError || !req) {
-        console.error('Failed to create mentor request', reqError);
-        setBookingError(reqError?.message ?? 'Failed to create booking');
-        setBookingLoading(false);
-        return;
-      }
-
-      // 3) Add to mentor calendar (prevents overlap via DB constraint)
-      const { error: calError } = await supabase.from('calendar').insert({
-        mentor_id: userId,
-        mentee_id: me.id,
-        type: 'session',
-        title: 'Session',
-        start_at: scheduledStart.toISOString(),
-        end_at: scheduledEnd.toISOString(),
-      });
-
-      if (calError) {
-        console.error('Failed to create calendar event', calError);
-        setBookingError(calError.message ?? 'That time is unavailable');
-        setBookingLoading(false);
-        return;
-      }
+      await requestSession(me.id, userId, sessionDescription, scheduledStart);
 
       setBookingModalVisible(false);
       setBookingDate('');
       setBookingTime('');
-      Alert.alert('Booked', 'Your session has been booked.');
+      setSessionDescription('');
+      Alert.alert(
+        'Request Sent',
+        'Your session request has been sent to the mentor. Tokens have been reserved and will be refunded if the request is declined.',
+      );
       setBookingLoading(false);
     } catch (e: any) {
-      console.error('Failed to book mentor session', e);
-      setBookingError(e.message ?? 'Failed to book session');
+      console.error('Failed to request mentor session', e);
+      setBookingError(e.message ?? 'Failed to send request');
       setBookingLoading(false);
     }
   };
@@ -566,11 +524,16 @@ export default function ProfileViewScreen() {
               style={styles.bookButton}
               onPress={() => {
                 setBookingError(null);
+                setSessionDescription('');
                 setBookingModalVisible(true);
               }}
             >
-              <Text style={styles.bookButtonTitle}>Book session</Text>
-              <Text style={styles.bookButtonSubtitle}>Choose a date & time</Text>
+              <Text style={styles.bookButtonTitle}>Request Session</Text>
+              <Text style={styles.bookButtonSubtitle}>
+                {profile.mentor_session_rate
+                  ? `${profile.mentor_session_rate} tokens per session`
+                  : 'Choose a date & time'}
+              </Text>
             </TouchableOpacity>
           )}
 
@@ -583,8 +546,25 @@ export default function ProfileViewScreen() {
             <View style={styles.bookingOverlay}>
               <View style={[styles.bookingCard, { backgroundColor: theme.card }]}>
                 <ThemedText style={[styles.bookingTitle, font('GlacialIndifference', '800'), { color: theme.text }]}>
-                  Book a session
+                  Request a Session
                 </ThemedText>
+
+                {profile?.mentor_session_rate ? (
+                  <Text style={[styles.bookingLabel, { color: '#968c6c', fontWeight: '600' }]}>
+                    Cost: {profile.mentor_session_rate} tokens (30 min)
+                  </Text>
+                ) : null}
+
+                <Text style={[styles.bookingLabel, { color: theme.text }]}>What do you need help with?</Text>
+                <TextInput
+                  style={[styles.bookingInput, { color: theme.text, height: 80, textAlignVertical: 'top' }]}
+                  placeholder="Describe what you'd like to discuss..."
+                  placeholderTextColor="#999"
+                  value={sessionDescription}
+                  onChangeText={setSessionDescription}
+                  multiline
+                  numberOfLines={3}
+                />
 
                 <Text style={[styles.bookingLabel, { color: theme.text }]}>Date</Text>
                 <TouchableOpacity
@@ -756,11 +736,11 @@ export default function ProfileViewScreen() {
 
                   <TouchableOpacity
                     style={[styles.bookingButton, styles.bookingButtonPrimary, { opacity: bookingLoading ? 0.7 : 1 }]}
-                    onPress={handleBookSession}
+                    onPress={handleRequestSession}
                     disabled={bookingLoading}
                   >
                     <Text style={styles.bookingButtonPrimaryText}>
-                      {bookingLoading ? 'Booking…' : 'Confirm'}
+                      {bookingLoading ? 'Sending…' : 'Send Request'}
                     </Text>
                   </TouchableOpacity>
                 </View>
