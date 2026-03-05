@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import {
+  Dimensions,
   Image,
   Modal,
   StyleSheet,
@@ -13,14 +14,17 @@ import * as ImagePicker from 'expo-image-picker';
 import Animated, {
   FadeIn,
   FadeOut,
+  useAnimatedStyle,
+  withSpring,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../lib/fonts';
-import { uploadProfilePhoto } from '../lib/supabase';
 import type { OnboardingStep } from '../lib/onboarding';
+import { uploadProfilePhoto } from '../lib/supabase';
+import { NavBlankShape } from './nav/NavBlankShape';
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -99,13 +103,21 @@ export default function OnboardingOverlay({ visible, steps, onComplete }: Props)
 
   if (!step) return null;
 
-  const overlayBg = isDark ? 'rgba(5,7,11,0.96)' : 'rgba(255,255,255,0.97)';
+  const overlayBg = isDark ? 'rgba(5,7,11,1)' : 'rgba(255,255,255,1)';
   const dotActiveColor = isDark ? '#9da8ff' : '#333f5c';
   const dotInactiveColor = isDark ? '#2a2f40' : '#d1d1d6';
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
       <View style={[styles.overlay, { backgroundColor: overlayBg }]}>
+        {/* Decorative nav bar at bottom */}
+        <View style={styles.decorativeNav}>
+          <NavBlankShape 
+            width={Dimensions.get('window').width} 
+            showCenter={true}
+            style={{ opacity: 0.3 }}
+          />
+        </View>
         <View
           style={[
             styles.container,
@@ -122,15 +134,11 @@ export default function OnboardingOverlay({ visible, steps, onComplete }: Props)
           {/* Step indicator dots */}
           <View style={styles.dotsRow}>
             {steps.map((_, i) => (
-              <View
+              <AnimatedDot
                 key={i}
-                style={[
-                  styles.dot,
-                  {
-                    backgroundColor: i === currentStep ? dotActiveColor : dotInactiveColor,
-                    width: i === currentStep ? 24 : 8,
-                  },
-                ]}
+                isActive={i === currentStep}
+                activeColor={dotActiveColor}
+                inactiveColor={dotInactiveColor}
               />
             ))}
           </View>
@@ -268,11 +276,43 @@ export default function OnboardingOverlay({ visible, steps, onComplete }: Props)
   );
 }
 
+// ─── Animated Dot Component ──────────────────────────────────────────────────
+
+type DotProps = {
+  isActive: boolean;
+  activeColor: string;
+  inactiveColor: string;
+};
+
+function AnimatedDot({ isActive, activeColor, inactiveColor }: DotProps) {
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      width: withSpring(isActive ? 24 : 8, {
+        damping: 15,
+        stiffness: 150,
+      }),
+      backgroundColor: withSpring(isActive ? activeColor : inactiveColor, {
+        damping: 20,
+        stiffness: 100,
+      }) as any,
+    };
+  }, [isActive, activeColor, inactiveColor]);
+
+  return <Animated.View style={[styles.dot, animatedStyle]} />;
+}
+
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
+  },
+  decorativeNav: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    pointerEvents: 'none',
   },
   container: {
     flex: 1,

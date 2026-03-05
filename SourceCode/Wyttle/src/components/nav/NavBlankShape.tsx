@@ -1,6 +1,6 @@
 import React from 'react';
 import { Dimensions, type StyleProp, type ViewStyle } from 'react-native';
-import Svg, { Circle, G, Path } from 'react-native-svg';
+import Svg, { G, Path, Rect } from 'react-native-svg';
 
 const VIEWBOX_WIDTH = 200.27968;
 const VIEWBOX_HEIGHT = 53.78904;
@@ -43,7 +43,7 @@ export function NavBlankShape({ color = '#333f5c', style, width, showCenter = tr
   // Clamp so vertical scale never exceeds the design-time scale
   const scale = Math.min(widthScale, designScale);
 
-  const height = VIEWBOX_HEIGHT * scale;
+  const height = VIEWBOX_HEIGHT * scale + 10; // Extra 50px to extend below screen
 
   return (
     <Svg
@@ -57,13 +57,16 @@ export function NavBlankShape({ color = '#333f5c', style, width, showCenter = tr
           d="m 200.27968,259.33363 c 0,0 -40.83271,-1.49945 -60.27968,3.70417 -14.5795,3.90119 -20.92738,20.60464 -40.539839,20.16311 C 82.913314,282.8284 80.216072,268.1582 60,263.0378 39.99934,257.97196 0,259.33363 0,259.33363 v 37.91404 h 200.27968 z"
           fill={color}
         />
+        {/* Extension rectangle to fill below the screen */}
+        <Rect
+          x="0"
+          y="297.24767"
+          width="200.27968"
+          height="50"
+          fill={color}
+        />
       </G>
-      {showCenter && (
-        <G transform="translate(0,15.83455)">
-          {/* Center the circle horizontally based on the viewbox width */}
-          <Circle cx={VIEWBOX_WIDTH / 2} cy={2.423655} r={18.258205} fill={color} />
-        </G>
-      )}
+      
     </Svg>
   );
 }
