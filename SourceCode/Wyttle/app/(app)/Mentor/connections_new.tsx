@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
@@ -9,6 +9,15 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../../src/lib/fonts';
 import { commonStyles } from '../../../src/styles/common';
 import { supabase } from '../../../src/lib/supabase';
+import { acceptSession, declineSession } from '../../../src/lib/sessions';
+
+type PendingRequest = {
+  requestId: number;
+  menteeName: string;
+  menteePhoto: string | null;
+  scheduledStart: string;
+  description: string | null;
+};
 
 type MentorChatItem = {
   requestId: number;
@@ -25,8 +34,10 @@ export default function MentorConnectionsScreen() {
   const theme = Colors[colorScheme ?? 'light'];
 
   const [chats, setChats] = useState<MentorChatItem[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<number | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -41,6 +52,39 @@ export default function MentorConnectionsScreen() {
         if (!user) {
           setChats([]);
           return;
+        }
+
+        // 0) Fetch pending requests (status = 'requested')
+        const { data: pending, error: pendErr } = await supabase
+          .from('mentor_requests')
+          .select('id, mentee, scheduled_start, description')
+          .eq('mentor', user.id)
+          .eq('status', 'requested')
+          .order('scheduled_start', { ascending: true });
+
+        if (!pendErr && pending && pending.length > 0) {
+          const pendMenteeIds = Array.from(new Set(pending.map((r: any) => r.mentee)));
+          const { data: pendProfiles } = await supabase
+            .from('profiles')
+            .select('id, full_name, photo_url')
+            .in('id', pendMenteeIds);
+
+          const pendMap: Record<string, { name: string; photo: string | null }> = {};
+          (pendProfiles ?? []).forEach((p: any) => {
+            pendMap[p.id] = { name: p.full_name ?? 'Mentee', photo: p.photo_url ?? null };
+          });
+
+          if (isMounted) {
+            setPendingRequests(pending.map((r: any) => ({
+              requestId: r.id,
+              menteeName: pendMap[r.mentee]?.name ?? 'Mentee',
+              menteePhoto: pendMap[r.mentee]?.photo ?? null,
+              scheduledStart: r.scheduled_start,
+              description: r.description ?? null,
+            })));
+          }
+        } else if (isMounted) {
+          setPendingRequests([]);
         }
 
         // 1) All mentor_requests for this mentor that have an associated thread
@@ -182,6 +226,30 @@ export default function MentorConnectionsScreen() {
     });
   };
 
+  const handleAccept = async (requestId: number) => {
+    setActionLoading(requestId);
+    try {
+      await acceptSession(requestId);
+      Alert.alert('Accepted', 'Session accepted. A video room has been created.');
+    } catch (err: any) {
+      Alert.alert('Error', err.message ?? 'Failed to accept request');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDecline = async (requestId: number) => {
+    setActionLoading(requestId);
+    try {
+      await declineSession(requestId);
+      Alert.alert('Declined', 'The request has been declined.');
+    } catch (err: any) {
+      Alert.alert('Error', err.message ?? 'Failed to decline request');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScreenHeader
@@ -199,31 +267,81 @@ export default function MentorConnectionsScreen() {
         <Text style={{ color: 'red', marginBottom: 8 }}>{error}</Text>
       )}
 
-      {chats.length === 0 && !loading ? (
-        <Text style={{ fontSize: 14, color: '#8f8e8e' }}>
-          No active mentee chats yet.
-        </Text>
-      ) : (
-        <FlatList
-          data={chats}
-          keyExtractor={(item) => String(item.threadId)}
-          contentContainerStyle={styles.listContent}
-          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <ConversationRow
-              name={item.name}
-              role="Mentee"
-              lastMessage={item.lastMessage ?? 'New mentorship request'}
-              time={item.lastMessageAt ? new Date(item.lastMessageAt).toLocaleTimeString() : ''}
-              photoUrl={item.photoUrl}
-              unread={false}
-              theme={theme}
-              onPress={() => openChat(item)}
-            />
-          )}
-        />
-      )}
+      <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+        {/* Pending requests */}
+        {pendingRequests.length > 0 && (
+          <View style={{ marginBottom: 16 }}>
+            <ThemedText style={[styles.sectionTitle, font('GlacialIndifference', '800')]}>Pending Requests</ThemedText>
+            {pendingRequests.map((req) => {
+              const isActing = actionLoading === req.requestId;
+              return (
+                <View key={req.requestId} style={[styles.requestCard, { backgroundColor: theme.card }]}>
+                  <View style={styles.requestHeader}>
+                    <View style={styles.avatar}>
+                      {req.menteePhoto ? (
+                        <Image source={{ uri: req.menteePhoto }} style={styles.avatarImage} />
+                      ) : (
+                        <Text style={styles.avatarText}>{req.menteeName.charAt(0).toUpperCase()}</Text>
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.name, font('GlacialIndifference', '800'), { color: theme.text }]}>
+                        {req.menteeName}
+                      </Text>
+                      <Text style={styles.requestTime}>
+                        {new Date(req.scheduledStart).toLocaleDateString()} at{' '}
+                        {new Date(req.scheduledStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                    </View>
+                  </View>
+                  {req.description ? (
+                    <Text style={[styles.requestDesc, { color: theme.text }]} numberOfLines={3}>{req.description}</Text>
+                  ) : null}
+                  <View style={styles.requestActions}>
+                    <TouchableOpacity
+                      style={[styles.acceptBtn, isActing && { opacity: 0.5 }]}
+                      onPress={() => handleAccept(req.requestId)}
+                      disabled={isActing}
+                    >
+                      <Text style={styles.acceptBtnText}>{isActing ? '...' : 'Accept'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.declineBtn, isActing && { opacity: 0.5 }]}
+                      onPress={() => handleDecline(req.requestId)}
+                      disabled={isActing}
+                    >
+                      <Text style={styles.declineBtnText}>Decline</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Chats */}
+        <ThemedText style={[styles.sectionTitle, font('GlacialIndifference', '800')]}>Chats</ThemedText>
+        {chats.length === 0 && !loading ? (
+          <Text style={{ fontSize: 14, color: '#8f8e8e' }}>
+            No active mentee chats yet.
+          </Text>
+        ) : (
+          chats.map((item) => (
+            <View key={String(item.threadId)} style={{ marginBottom: 10 }}>
+              <ConversationRow
+                name={item.name}
+                role="Mentee"
+                lastMessage={item.lastMessage ?? 'New mentorship request'}
+                time={item.lastMessageAt ? new Date(item.lastMessageAt).toLocaleTimeString() : ''}
+                photoUrl={item.photoUrl}
+                unread={false}
+                theme={theme}
+                onPress={() => openChat(item)}
+              />
+            </View>
+          ))
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -354,5 +472,58 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#968c6c',
     marginTop: 6,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  requestCard: {
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 10,
+  },
+  requestHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  requestTime: {
+    fontSize: 12,
+    color: '#777',
+    marginTop: 2,
+  },
+  requestDesc: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    lineHeight: 18,
+    marginTop: 8,
+  },
+  requestActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+  },
+  acceptBtn: {
+    flex: 1,
+    backgroundColor: '#333f5c',
+    paddingVertical: 10,
+    borderRadius: 999,
+    alignItems: 'center',
+  },
+  acceptBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  declineBtn: {
+    flex: 1,
+    backgroundColor: '#edecf1',
+    paddingVertical: 10,
+    borderRadius: 999,
+    alignItems: 'center',
+  },
+  declineBtnText: {
+    color: '#555',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

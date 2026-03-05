@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
+  Alert,
   StyleSheet,
   View,
   TextInput,
@@ -9,6 +10,8 @@ import {
   Image,
   useWindowDimensions,
 } from 'react-native';
+
+import { cancelSession } from '../../../src/lib/sessions';
 
 import { router, useFocusEffect } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
@@ -532,6 +535,34 @@ export default function MentorHub() {
                       <Text style={styles.joinCallText}>Join Call</Text>
                     </Pressable>
                   ) : null}
+                  <Pressable
+                    style={styles.cancelBtn}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      Alert.alert(
+                        'Cancel Session',
+                        `Are you sure you want to cancel your session with ${session.mentorName}? Your tokens will be refunded.`,
+                        [
+                          { text: 'Keep Session', style: 'cancel' },
+                          {
+                            text: 'Cancel Session',
+                            style: 'destructive',
+                            onPress: async () => {
+                              try {
+                                await cancelSession(session.requestId);
+                                Alert.alert('Cancelled', 'Your session has been cancelled and tokens have been refunded.');
+                                loadUpcomingSessions();
+                              } catch (err: any) {
+                                Alert.alert('Error', err.message ?? 'Failed to cancel session');
+                              }
+                            },
+                          },
+                        ],
+                      );
+                    }}
+                  >
+                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                  </Pressable>
                 </Pressable>
               );
             })}
@@ -820,5 +851,18 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 11,
     fontWeight: '700',
+  },
+  cancelBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#c43b3b',
+  },
+  cancelBtnText: {
+    color: '#c43b3b',
+    fontSize: 10,
+    fontWeight: '600',
   },
 });
