@@ -1,7 +1,7 @@
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, LayoutAnimation, Modal, Platform, Pressable, StyleSheet, Text, TextInput, UIManager, View } from 'react-native';
+import { Alert, LayoutAnimation, Modal, Platform, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, UIManager, View } from 'react-native';
 import { Calendar as BigCalendar, ICalendarEventBase } from 'react-native-big-calendar';
 
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
@@ -45,25 +45,24 @@ export default function MentorCalendarScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   const isDark = colorScheme === 'dark';
-  const lineColor = isDark ? '#2f3948' : '#444444'; // darker-but-subtle on dark, stronger on light
-  const borderColor = lineColor;
-  const todayHighlightColor = isDark ? undefined : theme.tint; // preserve dark "today", use tint in light
-  const calendarBlueBase = isDark ? '#122b57' : '#eaf2ff';
-  const checkerBlueA = isDark ? '#24508f' : '#cfe0ff'; //Left is dark mode first cell color, right is light mode first cell 
-  const checkerBlueB = isDark ? '#000000' : '#ffffff'; //Left is dark mode second cell color, right is light mode second cell 
+  const borderColor = isDark ? '#1e2636' : '#e2e4ea';
+  const todayHighlightColor = theme.tint;
+  const calendarBg = isDark ? '#0d1117' : '#f8f9fc';
+  const checkerA = isDark ? '#131a26' : '#f0f2f8';
+  const checkerB = isDark ? '#0d1117' : '#f8f9fc';
 
   const calendarTheme = {
     palette: {
       primary: { main: theme.tint, contrastText: '#fff' },
-      nowIndicator: '#ff3b30',
+      nowIndicator: '#ef4444',
       gray: {
-        '100': isDark ? '#111827' : '#f3f4f6', 
-        '200': isDark ? '#1f2937' : '#8b8b8b',
-        '300': isDark ? '#374151' : '#cbd5e1',
-        '500': isDark ? '#2f3948' : '#2e2e2e', //cell borders for light mode
-        '800': isDark ? '#d1d5db' : '#6b7280',
+        '100': isDark ? '#0d1117' : '#f8f9fc',
+        '200': isDark ? '#1e2636' : '#c8ccd4',
+        '300': isDark ? '#2a3346' : '#dfe1e6',
+        '500': isDark ? '#1e2636' : '#e2e4ea',
+        '800': isDark ? '#94a3b8' : '#64748b',
       },
-      moreLabel: isDark ? '#cbd5e1' : '#6b7280',
+      moreLabel: isDark ? '#94a3b8' : '#64748b',
     },
   } as any;
 
@@ -343,10 +342,10 @@ export default function MentorCalendarScreen() {
 
       <View style={styles.monthHeader}>
         <Pressable
-          style={styles.monthNav}
+          style={[styles.monthNav, { backgroundColor: isDark ? '#1e2636' : '#eef0f4' }]}
           onPress={() => setVisibleStart(addDays(visibleStart, -stepDays[viewMode]))}
         >
-          <Text style={styles.monthNavText}>‹</Text>
+          <Text style={[styles.monthNavText, { color: theme.tint }]}>‹</Text>
         </Pressable>
 
         <Pressable onPress={() => {
@@ -358,72 +357,92 @@ export default function MentorCalendarScreen() {
         </Pressable>
 
         <Pressable
-          style={styles.monthNav}
+          style={[styles.monthNav, { backgroundColor: isDark ? '#1e2636' : '#eef0f4' }]}
           onPress={() => setVisibleStart(addDays(visibleStart, stepDays[viewMode]))}
         >
-          <Text style={styles.monthNavText}>›</Text>
+          <Text style={[styles.monthNavText, { color: theme.tint }]}>›</Text>
         </Pressable>
       </View>
 
       <Modal visible={monthPickerOpen} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: theme.card, minWidth: 280, alignItems: 'center' }]}> 
-            <Text style={[styles.modalTitle, { color: theme.text, marginBottom: 8 }]}>Select Month & Year</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-              <Pressable onPress={() => setMonthPickerYear(y => Math.max(minYear, y - 1))} style={{ padding: 8 }}>
-                <Text style={{ fontSize: 20, color: theme.text }}>‹</Text>
-              </Pressable>
-              <Text style={{ fontSize: 18, fontWeight: '700', color: theme.text, minWidth: 60, textAlign: 'center' }}>{monthPickerYear}</Text>
-              <Pressable onPress={() => setMonthPickerYear(y => Math.min(maxYear, y + 1))} style={{ padding: 8 }}>
-                <Text style={{ fontSize: 20, color: theme.text }}>›</Text>
-              </Pressable>
-            </View>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginBottom: 16 }}>
-              {monthNames.map((m, i) => (
-                <Pressable
-                  key={m}
-                  onPress={() => setMonthPickerMonth(i)}
-                  style={{
-                    margin: 4,
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                    borderRadius: 8,
-                    backgroundColor: monthPickerMonth === i ? theme.tint : (isDark ? '#1f2937' : '#e5e7eb'),
-                  }}
-                >
-                  <Text style={{ color: monthPickerMonth === i ? '#fff' : theme.text }}>{m}</Text>
-                </Pressable>
-              ))}
-            </View>
-            <View style={{ flexDirection: 'row', gap: 12 }}>
+        <Pressable style={styles.mpOverlay} onPress={() => setMonthPickerOpen(false)}>
+          <Pressable style={[styles.mpCard, { backgroundColor: isDark ? '#111524' : '#fff' }]} onPress={() => {}}>
+            {/* Year row */}
+            <View style={styles.mpYearRow}>
               <Pressable
-                style={[styles.cancelButton, { minWidth: 80 }]}
+                onPress={() => setMonthPickerYear(y => Math.max(minYear, y - 1))}
+                style={styles.mpYearChevron}
+              >
+                <Text style={[styles.mpYearChevronText, { color: theme.tint }]}>‹</Text>
+              </Pressable>
+              <Text style={[styles.mpYearLabel, { color: theme.text }]}>{monthPickerYear}</Text>
+              <Pressable
+                onPress={() => setMonthPickerYear(y => Math.min(maxYear, y + 1))}
+                style={styles.mpYearChevron}
+              >
+                <Text style={[styles.mpYearChevronText, { color: theme.tint }]}>›</Text>
+              </Pressable>
+            </View>
+
+            {/* Month grid — 4 columns × 3 rows */}
+            <View style={styles.mpGrid}>
+              {monthNames.map((m, i) => {
+                const isSelected = monthPickerMonth === i;
+                const isCurrentMonth =
+                  i === new Date().getMonth() && monthPickerYear === new Date().getFullYear();
+                return (
+                  <Pressable
+                    key={m}
+                    onPress={() => setMonthPickerMonth(i)}
+                    style={[
+                      styles.mpCell,
+                      isSelected && { backgroundColor: theme.tint },
+                      !isSelected && isCurrentMonth && {
+                        borderWidth: 1.5,
+                        borderColor: theme.tint,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.mpCellText,
+                        { color: isSelected ? '#fff' : theme.text },
+                        !isSelected && isCurrentMonth && { color: theme.tint, fontWeight: '700' },
+                      ]}
+                    >
+                      {m.slice(0, 3)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Actions */}
+            <View style={styles.mpActions}>
+              <Pressable
+                style={[styles.mpBtn, { backgroundColor: isDark ? '#1f2937' : '#e9eaef' }]}
                 onPress={() => setMonthPickerOpen(false)}
               >
-                <Text style={styles.cancelText}>Cancel</Text>
+                <Text style={[styles.mpBtnText, { color: theme.text }]}>Cancel</Text>
               </Pressable>
               <Pressable
-                style={[styles.saveButton, { minWidth: 80 }]}
+                style={[styles.mpBtn, { backgroundColor: theme.tint, flex: 1 }]}
                 onPress={() => {
                   setVisibleStart(new Date(monthPickerYear, monthPickerMonth, 1));
                   setMonthPickerOpen(false);
                 }}
               >
-                <Text style={styles.saveText}>Go</Text>
+                <Text style={[styles.mpBtnText, { color: '#fff' }]}>Go to {monthNames[monthPickerMonth].slice(0, 3)} {monthPickerYear}</Text>
               </Pressable>
             </View>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
     
 
       <View
-        style={[styles.calendarWrap, {
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor,
-          paddingRight: 0,
-        }]}
+        style={[styles.calendarWrap, { backgroundColor: calendarBg, borderColor }]}
         onLayout={(e) => setCalendarHeight(e.nativeEvent.layout.height)}
       >
         <BigCalendar
@@ -435,38 +454,55 @@ export default function MentorCalendarScreen() {
             const day = date ? date.getDay() : 0;
             const row = hourRowIndex ?? 0;
             const useA = (day + row) % 2 === 0;
-            return { backgroundColor: useA ? checkerBlueA : checkerBlueB };
+            return { backgroundColor: useA ? checkerA : checkerB };
           }}
-          //onChangeDate={(range: Date[] | Date) => {
-          //  const next = Array.isArray(range) ? range[0] : range;
-          //  if (next) setVisibleStart(new Date(next));
-          //}}
           swipeEnabled={false}
           showAllDayEventCell={false}
           calendarContainerStyle={{
             paddingRight: 18,
             borderRightWidth: StyleSheet.hairlineWidth,
             borderRightColor: borderColor,
-            backgroundColor: calendarBlueBase,
+            backgroundColor: calendarBg,
           }}
-          bodyContainerStyle={{ paddingRight: 0, marginRight: 0, backgroundColor: calendarBlueBase, }}
-          headerContainerStyle={{ height: 40 }}
-          headerContentStyle={{ paddingTop: 0, paddingBottom: 0 }}
-          dayHeaderStyle={{ marginTop: -2, fontSize: 12, color: theme.text }}
+          bodyContainerStyle={{ paddingRight: 0, marginRight: 0, backgroundColor: calendarBg }}
+          headerContainerStyle={{ height: 44, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: borderColor }}
+          headerContentStyle={{ paddingTop: 4, paddingBottom: 4 }}
+          dayHeaderStyle={{ marginTop: 0, fontSize: 12, color: isDark ? '#94a3b8' : '#64748b' }}
           dayHeaderHighlightColor={todayHighlightColor}
           weekDayHeaderHighlightColor={todayHighlightColor}
-          hourStyle={{ color: isDark ? '#eaf2ff' : '#1e3a8a'  }}
+          hourStyle={{ color: isDark ? '#64748b' : '#94a3b8', fontSize: 11 }}
           theme={calendarTheme}
           isLoading={loading}
+          eventCellTextColor={isDark ? '#e2e8f0' : '#1e293b'}
+          renderEvent={(event, touchableOpacityProps) => {
+            const { key, ...restProps } = touchableOpacityProps as any;
+            return (
+              <TouchableOpacity key={key} {...restProps} style={[restProps.style, { overflow: 'hidden' }]}>
+                <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: 10, fontWeight: '600', color: isDark ? '#e2e8f0' : '#1e293b' }}>
+                  {event.title}
+                </Text>
+              </TouchableOpacity>
+            );
+          }}
           onPressEvent={(event: CalendarEvent) => {
             if (event.type === 'block') openEditBlock(event);
             if (event.type === 'session') openSessionDetail(event);
           }}
           eventCellStyle={(event: CalendarEvent) => {
+            const isBlock = event.type === 'block';
             return {
-              backgroundColor: event.type === 'block' ? '#333f5c' : '#4b8f8c',
-              borderRadius: 6,
-              padding: 2,
+              backgroundColor: isBlock
+                ? (isDark ? '#2a3346' : '#e8eaf2')
+                : (isDark ? '#1a3a38' : '#e8f5f4'),
+              borderLeftWidth: 3,
+              borderLeftColor: isBlock ? '#6b7fff' : '#34d399',
+              borderRadius: 8,
+              padding: 4,
+              shadowColor: '#000',
+              shadowOpacity: isDark ? 0.3 : 0.08,
+              shadowRadius: 4,
+              shadowOffset: { width: 0, height: 1 },
+              elevation: 2,
             };
           }}
         />
@@ -726,13 +762,18 @@ const styles = StyleSheet.create({
   },
   calendarWrap: {
     flex: 1,
-    minHeight: 380, // adjust to raise/lower bottom edge
-    //paddingLeft: 40, // visual alignment tweak
-    paddingRight: 0,
-    //paddingBottom: 120,
+    minHeight: 380,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   toolbarBelow: {
-    marginTop: 8,
+    marginTop: 12,
     marginBottom: 0,
     flexDirection: 'row',
     alignItems: 'center',
@@ -740,47 +781,53 @@ const styles = StyleSheet.create({
   },
   modeSelector: {
     flexDirection: 'row',
-    gap: 4,
+    gap: 6,
   },
   modePill: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
   },
   modePillText: {
     fontSize: 13,
     fontWeight: '600',
   },
   monthHeader: {
-    paddingVertical: 6,
+    paddingVertical: 10,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
   monthText: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
   monthNav: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#e5e7eb',
   },
   monthNavText: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '600',
   },
   addButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   addButtonText: {
     color: '#fff',
-    fontWeight: '600',
+    fontWeight: '700',
+    fontSize: 14,
   },
   modalOverlay: {
     flex: 1,
@@ -895,6 +942,83 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     fontStyle: 'italic',
+  },
+
+  /* ── Month/Year picker ── */
+  mpOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  mpCard: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 20,
+    paddingVertical: 22,
+    paddingHorizontal: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
+  },
+  mpYearRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 18,
+  },
+  mpYearChevron: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mpYearChevronText: {
+    fontSize: 28,
+    fontWeight: '600',
+    marginTop: -2,
+  },
+  mpYearLabel: {
+    fontSize: 22,
+    fontWeight: '800',
+    minWidth: 70,
+    textAlign: 'center',
+  },
+  mpGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 22,
+  },
+  mpCell: {
+    width: '22%',
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  mpCellText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  mpActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  mpBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mpBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
 
