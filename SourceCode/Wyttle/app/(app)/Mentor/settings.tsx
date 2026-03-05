@@ -398,7 +398,8 @@ export default function MentorSettingsScreen() {
             }
           }}
         >
-          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400')]}>View profile</ThemedText>
+          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400'), { flex: 1 }]}>View profile</ThemedText>
+          <Ionicons name="chevron-forward" size={18} color={theme.text} style={{ opacity: 0.4 }} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -407,8 +408,8 @@ export default function MentorSettingsScreen() {
           accessibilityRole="button"
           accessibilityState={{ expanded: isEditingProfile }}
         >
-        
-          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400')]}>Edit profile</ThemedText>
+          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400'), { flex: 1 }]}>Edit profile</ThemedText>
+          <Ionicons name={isEditingProfile ? 'chevron-up' : 'chevron-down'} size={18} color={theme.text} style={{ opacity: 0.4 }} />
         </TouchableOpacity>
           {isEditingProfile && (
             <View style={styles.profileDetailsSection}>
@@ -628,17 +629,25 @@ export default function MentorSettingsScreen() {
         <ThemedText style={[styles.itemText, font('GlacialIndifference', '400'), { marginLeft: 8 }]}>Replay tutorial</ThemedText>
       </TouchableOpacity>
 
-      <View style={styles.attributionRow}>
-        <Text style={[styles.attributionText, { color: theme.text }]}> 
-          Unicons by{' '}
-          <Text
-            style={styles.attributionLink}
-            onPress={() => Linking.openURL('https://iconscout.com/')}
-          >
-            IconScout
-          </Text>
-        </Text>
-      </View>
+      <SettingsDropdown
+        id="acknowledgements"
+        title="Acknowledgements"
+        icon="ribbon-outline"
+        openSection={openSection}
+        toggleSection={toggleSection}
+        theme={theme}
+      >
+        <TouchableOpacity
+          style={styles.acknowledgementRow}
+          onPress={() => Linking.openURL('https://iconscout.com/')}
+        >
+          <Ionicons name="logo-ionic" size={18} color={theme.tint} />
+          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400'), { marginLeft: 8, flex: 1 }]}>
+            Unicons by IconScout
+          </ThemedText>
+          <Ionicons name="open-outline" size={16} color={theme.text} style={{ opacity: 0.4 }} />
+        </TouchableOpacity>
+      </SettingsDropdown>
 
       {/* Log out button - hide while editing profile inside the Profiles dropdown */}
       {!(isEditingProfile && openSection === 'profiles') && (
@@ -948,20 +957,9 @@ replayTutorialRow: {
   borderTopWidth: 1,
   borderTopColor: '#00000010',
 },
-attributionRow: {
-  paddingHorizontal: 12,
-  marginTop: 'auto',
-  paddingTop: 14,
-  paddingBottom: 120,
+acknowledgementRow: {
+  flexDirection: 'row',
   alignItems: 'center',
-},
-attributionText: {
-  fontSize: 12,
-  textAlign: 'center',
-  opacity: 0.8,
-},
-attributionLink: {
-  color: '#968c6c',
-  textDecorationLine: 'underline',
+  paddingVertical: 10,
 },
 });
