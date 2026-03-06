@@ -1,26 +1,26 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
-  StyleSheet,
-  View,
-  TextInput,
+  Image,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
-  Image,
+  TextInput,
   useWindowDimensions,
+  View,
 } from 'react-native';
 
 import { cancelSession } from '../../../src/lib/sessions';
 
-import { router, useFocusEffect } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { commonStyles } from '../../../src/styles/common';
+import { router, useFocusEffect } from 'expo-router';
 import { font } from '../../../src/lib/fonts';
 import { supabase } from '../../../src/lib/supabase';
+import { commonStyles } from '../../../src/styles/common';
 
 type Mentor = {
   id: string;
@@ -439,7 +439,7 @@ export default function MentorHub() {
 
         {/* Distance options (10-mile intervals). Visible only when showDistanceOptions === true */}
         {showDistanceOptions && (
-          <View style={{ marginTop: 8, alignSelf: 'flex-end' }}>
+          <View style={{ marginTop: 8}}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 2 }}>
 
               <Pressable
