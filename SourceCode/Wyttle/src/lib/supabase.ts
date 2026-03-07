@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { decode } from 'base64-arraybuffer';
 import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as ImageManipulator from 'expo-image-manipulator';
 import 'react-native-url-polyfill/auto';
 
 // Avoid referencing `window` (and AsyncStorage's web shim) during SSR
@@ -180,15 +181,19 @@ export async function disconnectPeer(otherUserId: string) {
 export async function uploadProfilePhoto(fileUri: string): Promise<string> {
   const user = await getCurrentUser();
 
-  // Guess extension, default to jpg
-  const ext = fileUri.split('.').pop()?.toLowerCase();
-  const fileExt = ext === 'png' ? 'png' : 'jpg';
-  const contentType = fileExt === 'png' ? 'image/png' : 'image/jpeg';
+  // Compress and resize before upload (max 800x800, JPEG at 0.7 quality)
+  const compressed = await ImageManipulator.manipulateAsync(
+    fileUri,
+    [{ resize: { width: 800, height: 800 } }],
+    { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG },
+  );
+  const processedUri = compressed.uri;
 
-  const filePath = `profiles/${user.id}.${fileExt}`;
+  const filePath = `profiles/${user.id}.jpg`;
+  const contentType = 'image/jpeg';
 
   // Read the file as base64 using expo-file-system
-  const base64 = await FileSystem.readAsStringAsync(fileUri, {
+  const base64 = await FileSystem.readAsStringAsync(processedUri, {
     encoding: FileSystem.EncodingType.Base64,
   });
 

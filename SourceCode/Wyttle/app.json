@@ -21,7 +21,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.wyttle.Wyttle-App",
+      "bundleIdentifier": "com.wyttle.wyttleapp",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -35,7 +35,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.bannerzz.Wyttle"
+      "package": "com.wyttle.wyttleapp"
     },
     "web": {
       "output": "static",
