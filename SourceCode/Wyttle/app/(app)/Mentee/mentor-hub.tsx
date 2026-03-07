@@ -1,15 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
+    Alert,
+    Image,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    useWindowDimensions,
+    View,
 } from 'react-native';
+import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
 
 import { cancelSession } from '../../../src/lib/sessions';
 
@@ -348,7 +349,7 @@ export default function MentorHub() {
 
         {/* Industry options - two rows that scroll together */}
         {showIndustryOptions && (
-          <View style={{ marginTop: 8, maxHeight: 80 }}>
+          <Animated.View entering={FadeIn} exiting={FadeOut} layout={Layout.springify()} style={{ marginTop: 8, maxHeight: 80 }}>
             <ScrollView 
               horizontal 
               showsHorizontalScrollIndicator={false}
@@ -434,12 +435,12 @@ export default function MentorHub() {
                 </View>
               </View>
             </ScrollView>
-          </View>
+          </Animated.View>
         )}
 
         {/* Distance options (10-mile intervals). Visible only when showDistanceOptions === true */}
         {showDistanceOptions && (
-          <View style={{ marginTop: 8}}>
+          <Animated.View entering={FadeIn} exiting={FadeOut} layout={Layout.springify()} style={{ marginTop: 8 }}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 2 }}>
 
               <Pressable
@@ -482,7 +483,7 @@ export default function MentorHub() {
                 );
               })}
             </ScrollView>
-          </View>
+          </Animated.View>
         )}
       </View>
 
@@ -583,13 +584,14 @@ export default function MentorHub() {
       )}
 
       {/* ScrollView centers the inner grid block via contentContainerStyle alignItems:'center' */}
-      <ScrollView 
-      contentContainerStyle={[
-          styles.scrollContainer,
-          { paddingHorizontal: H_PADDING, paddingBottom: 120 },
-        ]}
-        showsVerticalScrollIndicator={true}
-      >
+      <Animated.View layout={Layout.springify()} style={{ width: '100%' }}>
+        <ScrollView 
+        contentContainerStyle={[
+            styles.scrollContainer,
+            { paddingHorizontal: H_PADDING, paddingBottom: 120 },
+          ]}
+          showsVerticalScrollIndicator={true}
+        >
         {/* centered block with fixed width exactly matching the columns */}
         <View style={[styles.innerContainer, { width: contentWidth }]}>
           {renderItems.map((item, index) => {
@@ -654,7 +656,8 @@ export default function MentorHub() {
           })}
         </View>
 
-      </ScrollView>
+        </ScrollView>
+      </Animated.View>
     </View>
   );
 }
