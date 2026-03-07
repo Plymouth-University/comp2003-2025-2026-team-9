@@ -23,8 +23,6 @@ import Animated, {
 import { router } from 'expo-router';
 
 import BlockSvg from '@/assets/icons/block.svg';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const HandshakeIcon = require('@/assets/icons/handshake.png');
 import { ThemedText } from '@/components/themed-text';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
@@ -32,6 +30,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../../src/lib/fonts';
 import { Profile, fetchDiscoveryProfiles, getCurrentUser, likeProfile, supabase, swipeOnProfile } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const HandshakeIcon = require('@/assets/icons/handshake.png');
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
