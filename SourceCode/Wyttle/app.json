@@ -10,7 +10,7 @@
       "supabaseUrl": "https://kbdzjsnovtosezribvly.supabase.co",
       "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtiZHpqc25vdnRvc2V6cmlidmx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4NjQxNzAsImV4cCI6MjA3ODQ0MDE3MH0.daW44xvVNot4AKrIGBvUhwqMIIQO1krwB7_-ho8INII",
       "dailyApiKey": "a8fc18e00b3ab7a466e43e8bc3f63792e81b48356300e620cde4b2bd69eaa1e1",
-      "revenueCatIosApiKey": "test_nudpCnbOFhpVhzFNCOjbzNLASgE",
+      "revenueCatIosApiKey": "appl_yHKdhPpSapIfDmCxttrlDNqMJcE",
       "revenueCatAndroidApiKey": "test_nudpCnbOFhpVhzFNCOjbzNLASgE",
       "router": {},
       "eas": {
@@ -35,7 +35,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.wyttle.wyttleapp"
+      "package": "com.wyttle.wyttleapp",
+      "permissions": ["com.android.vending.BILLING"]
     },
     "web": {
       "output": "static",

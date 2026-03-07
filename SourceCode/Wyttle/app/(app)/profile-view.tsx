@@ -319,8 +319,8 @@ export default function ProfileViewScreen() {
     viewerId !== profile.id;
 
   return (
-     <SafeAreaView style={{ flex: 1 }} edges={['left', 'right', 'bottom']}>
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }} edges={['left', 'right', 'bottom']}>
+     <View style={[styles.container]}>
       {/*
       <View style={styles.headerRow}>
         <BackButton /> --Removed, just press navbar icon again, is identical.
@@ -351,7 +351,7 @@ export default function ProfileViewScreen() {
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { flexGrow: 1 }]}
           showsVerticalScrollIndicator={false}
           contentInsetAdjustmentBehavior="never"
           automaticallyAdjustContentInsets={false}
@@ -416,6 +416,12 @@ export default function ProfileViewScreen() {
               </View>
             </View>
           </View>
+
+          <LinearGradient
+            colors={[ 'transparent', theme.card ]}
+            style={styles.dividerGradient}
+            pointerEvents="none"
+          />
 
           <View style={[styles.contentPanel, { backgroundColor: theme.card }]}> 
             <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
@@ -840,16 +846,17 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingHorizontal: 16,
     paddingBottom: 120,
-    borderWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.45)',
-    borderLeftColor: 'rgba(255,255,255,0.26)',
-    borderRightColor: 'rgba(0,0,0,0.1)',
-    borderBottomColor: 'rgba(0,0,0,0.2)',
+    borderWidth: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.08,
     shadowRadius: 10,
     elevation: 6,
+  },
+  dividerGradient: {
+    height: 36,
+    width: '100%',
+    marginTop: -32,
   },
   floatingBackButton: {
     position: 'absolute',
