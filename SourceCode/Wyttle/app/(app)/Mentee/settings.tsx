@@ -199,6 +199,7 @@ export default function MenteeSettingsScreen() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [skills, setSkills] = useState<string[]>([]);
   const [newSkill, setNewSkill] = useState('');
+  const [lookingFor, setLookingFor] = useState('');
   const [tokensBalance, setTokensBalance] = useState<number | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
@@ -254,7 +255,7 @@ export default function MenteeSettingsScreen() {
   
         const { data: profile, error } = await supabase
           .from('profiles')
-          .select('title, industry, location, bio, skills, work_experience')
+          .select('title, industry, location, bio, skills, work_experience, looking_for')
           .eq('id', user.id)
           .maybeSingle();
   
@@ -269,7 +270,15 @@ export default function MenteeSettingsScreen() {
         setLocation(profile?.location ?? '');
         setBio(profile?.bio ?? '');
         setWorkExperience(profile?.work_experience ?? '');  
-        setSkills(profile?.skills ?? []); 
+        setSkills(profile?.skills ?? []);
+        const rawLf = (profile as any)?.looking_for;
+        if (Array.isArray(rawLf)) {
+          setLookingFor(rawLf.filter(Boolean).join(', '));
+        } else if (typeof rawLf === 'string') {
+          setLookingFor(rawLf);
+        } else {
+          setLookingFor('');
+        } 
       } catch (err) {
         console.warn('Error fetching profile for edit', err);
       }
@@ -342,6 +351,7 @@ export default function MenteeSettingsScreen() {
       bio: bio.trim().length > 0 ? bio.trim() : null,
       work_experience: workExperience.trim().length > 0 ? workExperience.trim() : null,
       skills: skills.length > 0 ? skills : null,
+      looking_for: lookingFor.trim().length > 0 ? lookingFor.trim() : null,
     };
 
     try {
@@ -477,6 +487,7 @@ export default function MenteeSettingsScreen() {
                 </TouchableOpacity>
               </View>
               
+              <Text style={[styles.fieldLabel, { color: theme.text }]}>Career / Role Title</Text>
               <TextInput
                 style={[styles.textInput, { color: theme.text }]}
                 placeholder="Career / Role Title"
@@ -484,6 +495,7 @@ export default function MenteeSettingsScreen() {
                 value={title}
                 onChangeText={setTitle}
               />
+              <Text style={[styles.fieldLabel, { color: theme.text }]}>Industry</Text>
               <TextInput
                 style={[styles.textInput, { color: theme.text }]}
                 placeholder="Industry"
@@ -491,6 +503,7 @@ export default function MenteeSettingsScreen() {
                 value={industry}
                 onChangeText={setIndustry}
               />
+              <Text style={[styles.fieldLabel, { color: theme.text }]}>Location</Text>
               <TextInput
                 style={[styles.textInput, { color: theme.text }]}
                 placeholder="Location"
@@ -503,6 +516,7 @@ export default function MenteeSettingsScreen() {
               </TouchableOpacity>
 
 
+              <Text style={[styles.fieldLabel, { color: theme.text }]}>Bio</Text>
               <TextInput
                 style={[styles.textArea, { color: theme.text }]}
                 placeholder="Short Bio"
@@ -513,6 +527,7 @@ export default function MenteeSettingsScreen() {
                 maxLength={500}
               />
 
+              <Text style={[styles.fieldLabel, { color: theme.text }]}>Work Experience</Text>
               {/* Work Experience text input */}
               <TextInput
                 style={[styles.textInput, { color: theme.text }]}
@@ -523,6 +538,7 @@ export default function MenteeSettingsScreen() {
               />
 
 
+              <Text style={[styles.fieldLabel, { color: theme.text }]}>Skills</Text>
               {/* Skills Section */}
               {/* Display existing skill tags */}
 <View style={styles.skillsContainer}>
@@ -566,7 +582,18 @@ export default function MenteeSettingsScreen() {
     <Ionicons name="add-circle" size={28} color="#333f5c" />
   </TouchableOpacity>
 </View>
-              
+
+              <Text style={[styles.fieldLabel, { color: theme.text }]}>I am looking for</Text>
+              {/* Looking For Section */}
+              <TextInput
+                style={[styles.textArea, { color: theme.text }]}
+                placeholder="I am looking for..."
+                placeholderTextColor="#7f8186"
+                value={lookingFor}
+                onChangeText={setLookingFor}
+                multiline
+                maxLength={500}
+              />
 
               <TouchableOpacity style={styles.saveButton} onPress={handleSaveProfile}>
                 <Text style={styles.saveButtonText}>Save profile</Text>
@@ -802,6 +829,12 @@ const styles = StyleSheet.create({
   themeLabel: {
     fontSize: 14,
     marginBottom: 8,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 12,
+    marginBottom: 4,
   },
   themeButtonsRow: {
     flexDirection: 'row',

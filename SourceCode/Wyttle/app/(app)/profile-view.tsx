@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -78,7 +79,7 @@ export default function ProfileViewScreen() {
         const { data, error: profileError } = await supabase
           .from('profiles')
           .select(
-            'id, full_name, title, industry, bio, photo_url, role, location, skills, interests, work_experience, mentor_session_rate',
+            'id, full_name, title, industry, bio, photo_url, role, location, skills, interests, looking_for, work_experience, mentor_session_rate',
           )
           .eq('id', userId)
           .single();
@@ -369,6 +370,13 @@ export default function ProfileViewScreen() {
               </View>
             )}
 
+            {/* Gradient scrim overlay */}
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.55)']}
+              locations={[0.35, 1]}
+              style={styles.heroScrim}
+              pointerEvents="none"
+            />
 
             <BackButton style={[styles.floatingBackButton, { top: insets.top + 50 }]} />
 
@@ -413,7 +421,7 @@ export default function ProfileViewScreen() {
             <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
               <View style={styles.sectionHeaderRow}>
                 <Ionicons name="person-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
-                <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '800'), { color: theme.text }]}> 
+                <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '700'), { color: theme.text }]}> 
                   About
                 </ThemedText>
               </View>
@@ -422,11 +430,39 @@ export default function ProfileViewScreen() {
               </ThemedText>
             </View>
 
+            {profile.role === 'member' && (() => {
+              const raw = (profile as any).looking_for;
+              let items: string[] = [];
+              if (Array.isArray(raw)) {
+                items = raw.filter(Boolean);
+              } else if (typeof raw === 'string' && raw.trim()) {
+                items = raw.split(',').map((s: string) => s.trim()).filter(Boolean);
+              }
+              if (items.length === 0) return null;
+              return (
+                <View style={[styles.sectionCard, { backgroundColor: theme.background }]}>
+                  <View style={styles.sectionHeaderRow}>
+                    <Ionicons name="search-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
+                    <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '700'), { color: theme.text }]}>
+                      I am looking for...
+                    </ThemedText>
+                  </View>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                    {items.map((item: string, i: number) => (
+                      <ThemedText key={item} style={[styles.sectionBody, font('GlacialIndifference', '400')]}>
+                        {item}{i < items.length - 1 ? ',' : ''}
+                      </ThemedText>
+                    ))}
+                  </View>
+                </View>
+              );
+            })()}
+
             {!!(profile as any).work_experience && (
               <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
                 <View style={styles.sectionHeaderRow}>
                   <Ionicons name="briefcase-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
-                  <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '800'), { color: theme.text }]}> 
+                  <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '700'), { color: theme.text }]}> 
                     Work Experience
                   </ThemedText>
                 </View>
@@ -440,7 +476,7 @@ export default function ProfileViewScreen() {
               <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
                 <View style={styles.sectionHeaderRow}>
                   <Ionicons name="school-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
-                  <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '800'), { color: theme.text }]}> 
+                  <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '700'), { color: theme.text }]}> 
                     Skills / Study
                   </ThemedText>
                 </View>
@@ -458,7 +494,7 @@ export default function ProfileViewScreen() {
               <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
                 <View style={styles.sectionHeaderRow}>
                   <Ionicons name="heart-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
-                  <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '800'), { color: theme.text }]}> 
+                  <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '700'), { color: theme.text }]}> 
                     Interests / Hobbies
                   </ThemedText>
                 </View>
@@ -476,7 +512,7 @@ export default function ProfileViewScreen() {
               <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
                 <View style={styles.sectionHeaderRow}>
                   <Ionicons name="flash-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
-                  <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '800'), { color: theme.text }]}> 
+                  <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '700'), { color: theme.text }]}> 
                     Actions
                   </ThemedText>
                 </View>
@@ -746,6 +782,9 @@ const styles = StyleSheet.create({
   heroImage: {
     width: '100%',
     height: '100%',
+  },
+  heroScrim: {
+    ...StyleSheet.absoluteFillObject,
   },
 
   heroContent: {
