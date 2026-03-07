@@ -39,6 +39,7 @@ export type Profile = {
   location?: string | null;  // optional location field
   skills?: string[] | null;
   interests?: string[] | null;
+  looking_for?: string | string[] | null;
   tokens_balance?: number | null;
   mentor_session_rate?: number | null;
 };
@@ -102,7 +103,7 @@ export async function fetchDiscoveryProfiles(): Promise<Profile[]> {
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, full_name, title, industry, bio, photo_url, role, location, skills, interests')
+    .select('id, full_name, title, industry, bio, photo_url, role, location, skills, interests, looking_for')
     .neq('id', user.id)   // don’t show myself
     .eq('role', 'member') // only show member profiles in discovery
     .order('created_at', { ascending: false });

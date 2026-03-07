@@ -4,6 +4,7 @@ import {
   Dimensions,
   Image,
   Modal,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -22,7 +23,8 @@ import Animated, {
 import { router } from 'expo-router';
 
 import BlockSvg from '@/assets/icons/block.svg';
-import HandshakeCircleSvg from '@/assets/icons/handshake-circle.svg';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const HandshakeIcon = require('@/assets/icons/handshake.png');
 import { ThemedText } from '@/components/themed-text';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
@@ -31,8 +33,9 @@ import { font } from '../../../src/lib/fonts';
 import { Profile, fetchDiscoveryProfiles, getCurrentUser, likeProfile, supabase, swipeOnProfile } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
+const CARD_HEIGHT = SCREEN_HEIGHT * 0.68;
 
 export default function DiscoveryStackScreen() {
   const colorScheme = useColorScheme();
@@ -45,6 +48,7 @@ export default function DiscoveryStackScreen() {
   const [swiping, setSwiping] = useState(false);
   const [swipeCommand, setSwipeCommand] = useState<'left' | 'right' | null>(null);
   const [lastPass, setLastPass] = useState<{ profile: Profile; index: number } | null>(null);
+  const [enterFrom, setEnterFrom] = useState<'left' | 'right' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [myProfile, setMyProfile] = useState<Profile | null>(null);
@@ -98,9 +102,6 @@ export default function DiscoveryStackScreen() {
   const current = profiles[index];
   const nextProfile = profiles[index + 1];
   const remaining = profiles.length - index - 1;
-  const progress = profiles.length
-    ? Math.min((index + 1) / profiles.length, 1)
-    : 0;
 
   const handleSwipeStart = () => {
     if (!current || swiping) return;
@@ -154,6 +155,7 @@ export default function DiscoveryStackScreen() {
       setLastPass(null);
       return;
     }
+    setEnterFrom('left');
     setIndex(idx);
     setLastPass(null);
   };
@@ -205,14 +207,29 @@ export default function DiscoveryStackScreen() {
 
    return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <ScreenHeader
-        title="Discovery"
-        highlight="Stack"
-        subtitle="Discover other members to connect with."
-      />
+      {/* Header */}
+      <View style={styles.headerSection}>
+        <View style={styles.headerRow}>
+          <ScreenHeader
+            title="Discovery"
+            highlight="Stack"
+          />
+          {lastPass && (
+            <TouchableOpacity
+              style={styles.undoButton}
+              onPress={() => {
+                handleUndoLastPass();
+              }}
+              activeOpacity={0.3}
+            >
+              <Text style={styles.undoButtonText}>Undo</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
 
       {/* Content */}
-      <View style={styles.content}>
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentInner} showsVerticalScrollIndicator={false}>
         {loading ? (
           <ActivityIndicator size="large" />
         ) : showEmpty ? (
@@ -237,31 +254,7 @@ export default function DiscoveryStackScreen() {
           </View>
         ) : (
           <View style={styles.cardArea}>
-            {/* Progress */}
-            <View style={styles.metaSection}>
-              <View style={styles.progressRow}>
-                <View style={styles.progressBar}>
-                  <View
-                    style={[
-                      styles.progressBarFill,
-                      { width: `${progress * 100}%` },
-                    ]}
-                  />
-                </View>
-                <Text
-                  style={[
-                    styles.progressSubText,
-                    font('GlacialIndifference', '400'),
-                    { color: isDark ? '#cfd3ff' : '#777' },
-                  ]}
-                >
-                  {remaining <= 0
-                    ? 'Last one for now'
-                    : `${remaining} more in this stack`}
-                </Text>
-              </View>
-            </View>
-
+            {/* Card */}
             <ProfileCard
               key={current?.id ?? 'no-profile'}
               profile={current}
@@ -294,84 +287,19 @@ export default function DiscoveryStackScreen() {
               swipeCommand={swipeCommand}
               onSwipeCommandHandled={handleSwipeCommandHandled}
               swiping={swiping}
+              enterFrom={enterFrom}
+              onEnterComplete={() => setEnterFrom(null)}
+              onSkipPress={() => {
+                if (!swiping && current) setSwipeCommand('left');
+              }}
+              onConnectPress={() => {
+                if (!swiping && current) setSwipeCommand('right');
+              }}
             />
 
-            <View style={styles.belowCardInfo}>
-            <Text
-              style={[
-                styles.matchTagline,
-                font('GlacialIndifference', '400'),
-                { color: isDark ? theme.text : '#666' },
-              ]}
-            >
-              {current?.industry
-                ? `Members interested in ${current.industry}.`
-                : 'Members to grow and learn alongside you.'}
-            </Text>
-            </View>
-
-            {lastPass && (
-              <TouchableOpacity
-                style={styles.undoButton}
-                onPress={handleUndoLastPass}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.undoButtonText}>Undo last skip</Text>
-              </TouchableOpacity>
-            )}
-
-            <View style={styles.actionsSection}>
-              <View style={styles.actionsRow}>
-                <View style={styles.actionItem}>
-          <TouchableOpacity
-            style={[styles.circleButton, styles.passButton]}
-            onPress={() => {
-              if (!swiping && current) {
-                setSwipeCommand('left');
-              }
-            }}
-            disabled={swiping}
-          >
-            <BlockSvg width={64} height={64} color="#333f5c" />
-          </TouchableOpacity>
-            <Text
-              style={[
-                styles.actionLabel,
-                font('GlacialIndifference', '400'),
-                { color: isDark ? theme.text : '#555' },
-              ]}
-            >
-              Skip
-            </Text>
-                </View>
-
-                <View style={styles.actionItem}>
-          <TouchableOpacity
-            style={[styles.circleButton, styles.likeButton]}
-            onPress={() => {
-              if (!swiping && current) {
-                setSwipeCommand('right');
-              }
-            }}
-            disabled={swiping}
-          >
-            <HandshakeCircleSvg width={64} height={64} color="#333f5c" />
-          </TouchableOpacity>
-            <Text
-              style={[
-                styles.actionLabel,
-                font('GlacialIndifference', '400'),
-                { color: isDark ? theme.text : '#555' },
-              ]}
-            >
-              Connect
-            </Text>
-                </View>
-              </View>
-            </View>
           </View>
         )}
-      </View>
+      </ScrollView>
 
       {/* Match modal */}
       {matchModalProfile && (
@@ -470,6 +398,10 @@ type ProfileCardProps = {
   onSwipeCommandHandled?: () => void;
   swiping: boolean;
   onOpenProfile?: (id: string) => void;
+  onSkipPress?: () => void;
+  onConnectPress?: () => void;
+  enterFrom?: 'left' | 'right' | null;
+  onEnterComplete?: () => void;
 };
 
 function ProfileCard({
@@ -483,18 +415,29 @@ function ProfileCard({
   onSwipeCommandHandled,
   swiping,
   onOpenProfile,
+  onSkipPress,
+  onConnectPress,
+  enterFrom,
+  onEnterComplete,
 }: ProfileCardProps) {
-  const translateX = useSharedValue(0);
+  const translateX = useSharedValue(
+    enterFrom === 'left' ? -SCREEN_WIDTH * 1.2 :
+    enterFrom === 'right' ? SCREEN_WIDTH * 1.2 : 0
+  );
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   const isDark = colorScheme === 'dark';
 
-  const formatRoleLabel = (role: Profile['role'] | string | null) => {
-    if (!role) return null;
-    if (role === 'mentor') return 'Mentor';
-    if (role === 'member' || role === 'mentee') return 'Member';
-    return 'Admin';
-  };
+  // Animate card sliding back into frame on undo
+  useEffect(() => {
+    if (enterFrom) {
+      translateX.value = withTiming(0, { duration: 280 }, (finished) => {
+        if (finished && onEnterComplete) {
+          runOnJS(onEnterComplete)();
+        }
+      });
+    }
+  }, []);
 
   const buildChips = (p: Profile): string[] => {
     const chips: string[] = [];
@@ -514,156 +457,193 @@ function ProfileCard({
     return chips.slice(0, 3);
   };
 
-  const renderProfileCardBody = (p: Profile, rem: number) => {
-    const firstName = p.full_name?.split(' ')[0] ?? 'Anonymous';
+  const renderProfileCardBody = (p: Profile) => {
     const chips = buildChips(p);
-    const roleLabel = formatRoleLabel(p.role);
-    const detailParts: string[] = [];
-    if ((p as any).location) detailParts.push((p as any).location as string);
-    if (p.industry) detailParts.push(p.industry);
-    const detailLine = detailParts.join(' • ');
+    const location = (p as any).location as string | undefined;
 
     return (
-      <View style={styles.cardRow}>
-        {/* Left: photo */}
-        <View style={styles.cardLeft}>
-          <View style={styles.avatarWrapper}>
-            {p.photo_url ? (
-              <Image source={{ uri: p.photo_url }} style={styles.avatarImage} />
-            ) : (
-              <View
-                style={[
-                  styles.avatarPlaceholder,
-                  isDark && { backgroundColor: '#1b1f33' },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.avatarInitial,
-                    { color: isDark ? theme.text : '#5a5a5a' },
-                  ]}
-                >
-                  {firstName.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* Right: info */}
-        <View style={styles.cardRight}>
-          {/* Name + title */}
-          <View style={styles.textBlock}>
-            <Text
+      <View style={styles.cardVertical}>
+        {/* Photo */}
+        <View style={styles.cardPhotoSection}>
+          {p.photo_url ? (
+            <Image source={{ uri: p.photo_url }} style={styles.cardPhoto} />
+          ) : (
+            <View
               style={[
-                styles.nameText,
-                font('GlacialIndifference', '800'),
-                { color: theme.text },
+                styles.cardPhotoPlaceholder,
+                isDark && { backgroundColor: '#1b1f33' },
               ]}
             >
-              {p.full_name ?? 'Unknown Member'}
-            </Text>
-            {p.title && (
               <Text
                 style={[
-                  styles.titleText,
-                  font('GlacialIndifference', '400'),
-                  { color: isDark ? '#cfd3ff' : '#666' },
+                  styles.cardPhotoInitial,
+                  { color: isDark ? theme.text : '#5a5a5a' },
                 ]}
               >
-                {p.title}
-              </Text>
-            )}
-          </View>
-
-          {/* Mini stats row: show location + industry under the name */}
-          {detailLine.length > 0 && (
-            <View style={styles.statsRow}>
-              <Text
-                style={[
-                  styles.statText,
-                  font('GlacialIndifference', '400'),
-                  { color: isDark ? '#cfd3ff' : '#666' },
-                ]}
-                numberOfLines={1}
-              >
-                {detailLine}
+                {(p.full_name ?? 'A').charAt(0).toUpperCase()}
               </Text>
             </View>
           )}
+        </View>
 
-          {/* Bio + interest chips + CTA */}
-          <View style={styles.bottomBlock}>
-            {p.bio && (
+        {/* Info */}
+        <View style={styles.cardInfoSection}>
+          <Text
+            style={[
+              styles.cardName,
+              font('GlacialIndifference', '800'),
+              { color: theme.text },
+            ]}
+          >
+            {p.full_name ?? 'Unknown Member'}
+          </Text>
+          {p.title && (
+            <Text
+              style={[
+                styles.cardJobTitle,
+                font('GlacialIndifference', '400'),
+                { color: isDark ? '#cfd3ff' : '#555' },
+              ]}
+            >
+              {p.title}
+            </Text>
+          )}
+          {location && (
+            <Text
+              style={[
+                styles.cardLocation,
+                font('GlacialIndifference', '400'),
+                { color: isDark ? '#aaa' : '#999' },
+              ]}
+            >
+              {location}
+            </Text>
+          )}
+
+          {chips.length > 0 && (
+            <View style={styles.cardChipsRow}>
+              {chips.map((chip) => (
+                <View
+                  key={chip}
+                  style={[styles.cardChipPill, isDark && styles.cardChipPillDark]}
+                >
+                  <Text
+                    style={[
+                      styles.cardChipText,
+                      font('GlacialIndifference', '400'),
+                      { color: isDark ? '#e6e7ff' : '#4a4a4a' },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {chip}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {(() => {
+            const raw = p.looking_for;
+            let items: string[] = [];
+            if (Array.isArray(raw)) {
+              items = raw.filter(Boolean);
+            } else if (typeof raw === 'string' && raw.trim()) {
+              items = raw.split(',').map((s) => s.trim()).filter(Boolean);
+            }
+            if (items.length === 0) return null;
+            return (
+              <>
+                <Text
+                  style={[
+                    styles.cardSectionTitle,
+                    font('GlacialIndifference', '700'),
+                    { color: theme.text },
+                  ]}
+                >
+                  I am looking for...
+                </Text>
+                <View style={styles.cardChipsRow}>
+                  {items.map((item) => (
+                    <View
+                      key={item}
+                      style={[styles.cardChip, isDark && styles.cardChipDark]}
+                    >
+                      <Text
+                        style={[
+                          styles.cardChipText,
+                          font('GlacialIndifference', '400'),
+                          { color: isDark ? '#e6e7ff' : '#4a4a4a' },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {item}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            );
+          })()}
+
+          {p.bio && (
+            <>
               <Text
                 style={[
-                  styles.bottomLine,
-                  styles.bottomBio,
+                  styles.cardSectionTitle,
+                  font('GlacialIndifference', '700'),
+                  { color: theme.text },
+                ]}
+              >
+                Bio
+              </Text>
+              <Text
+                style={[
+                  styles.cardBio,
                   font('GlacialIndifference', '400'),
                   { color: isDark ? theme.text : '#555' },
                 ]}
-                numberOfLines={2}
+                numberOfLines={3}
               >
                 {p.bio}
               </Text>
-            )}
+            </>
+          )}
 
-            {chips.length > 0 && (
-              <View style={styles.chipsRow}>
-                {chips.map((chip) => (
-                  <View key={chip} style={[styles.chip, isDark && styles.chipDark]}>
-                    <Text
-                      style={[
-                        styles.chipText,
-                        font('GlacialIndifference', '400'),
-                        { color: isDark ? '#e6e7ff' : '#4a4a4a' },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {chip}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            <Text
-              style={[
-                styles.cardHintText,
-                font('GlacialIndifference', '400'),
-                { color: isDark ? '#cfd3ff' : '#777' },
-              ]}
+          {/* Skip / Connect buttons */}
+          <View style={styles.cardActionsRow}>
+            <TouchableOpacity
+              style={[styles.cardActionButton, styles.skipButton]}
+              onPress={onSkipPress}
+              disabled={swiping}
+              activeOpacity={0.7}
             >
-              Swipe to connect if you&apos;d like to meet {firstName}, tap {firstName}&apos;s card to view their profile.
-            </Text>
-          </View>
-
-          {/* Remaining indicator + role pill */}
-          <View style={styles.remainingRow}>
-            {roleLabel && (
-              <View style={[styles.roleBadge, isDark && styles.roleBadgeDark]}>
-                <Text
-                  style={[
-                    styles.roleBadgeText,
-                    font('GlacialIndifference', '400'),
-                    { color: isDark ? '#e6e7ff' : '#555' },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {roleLabel}
-                </Text>
-              </View>
-            )}
-            <View style={[styles.remainingBadge, isDark && styles.remainingBadgeDark]}>
+              <BlockSvg width={18} height={18} color="#c55" fill="#c55" />
               <Text
                 style={[
-                  styles.remainingText,
-                  { color: isDark ? '#f8f9ff' : '#555' },
+                  styles.skipButtonText,
+                  font('GlacialIndifference', '700'),
                 ]}
               >
-                {rem} more
+                Skip
               </Text>
-            </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.cardActionButton, styles.connectButton]}
+              onPress={onConnectPress}
+              disabled={swiping}
+              activeOpacity={0.7}
+            >
+              <Image source={HandshakeIcon} style={{ width: 38, height: 38 }} />
+              <Text
+                style={[
+                  styles.connectButtonText,
+                  font('GlacialIndifference', '700'),
+                ]}
+              >
+                Connect
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -758,7 +738,20 @@ function ProfileCard({
 
   return (
     <View style={styles.stackWrapper}>
-      {/* Next profile underneath */}
+      {/* Third card in stack */}
+      {remaining >= 2 && (
+        <View
+          style={[
+            styles.card,
+            styles.cardBehind2,
+            isDark && styles.cardDark,
+          ]}
+        >
+          <View style={styles.cardOverlay2} />
+        </View>
+      )}
+
+      {/* Second card in stack */}
       {nextProfile && (
         <View
           style={[
@@ -768,7 +761,8 @@ function ProfileCard({
             isDark && styles.cardDark,
           ]}
         >
-          {renderProfileCardBody(nextProfile, Math.max(remaining - 1, 0))}
+          {renderProfileCardBody(nextProfile)}
+          <View style={styles.cardOverlay1} />
         </View>
       )}
 
@@ -799,151 +793,201 @@ function ProfileCard({
               <Text style={styles.badgeText}>NO</Text>
             </Animated.View>
 
-            {renderProfileCardBody(profile, remaining)}
+            {renderProfileCardBody(profile)}
           </TouchableOpacity>
         </Animated.View>
       </GestureDetector>
     </View>
   );
 }
-type NavIconProps = {
-  label: string;
-  active?: boolean;
-  onPress?: () => void;
-};
-
-function NavIcon({ label, active, onPress }: NavIconProps) {
-  return (
-    <TouchableOpacity style={styles.navItem} onPress={onPress} disabled={active || !onPress}>
-      <View style={[styles.navDot, active && styles.navDotActive]} />
-      <Text style={[styles.navLabel, active && styles.navLabelActive]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
 
 const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
-    paddingHorizontal: 20,
+    paddingHorizontal: 8,
+    paddingBottom: 8,
   },
-  header: {
-    marginTop: 16,
-    marginBottom: 16,
+
+  /* ───── Header ───── */
+  headerSection: {
+    marginBottom: 6,
+    paddingHorizontal: 8,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  /* ───── Content ───── */
   content: {
     flex: 1,
-    justifyContent: 'flex-start',
+  },
+  contentInner: {
+    paddingBottom: 80,
   },
   cardArea: {
-    flex: 1,
     width: '100%',
-    paddingTop: 4,
   },
+
+  /* ───── Card + arrows row ───── */
+  cardWithArrows: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+
+  /* ───── Profile card ───── */
   stackWrapper: {
     alignItems: 'center',
-    marginTop: 4,
+    paddingBottom: 28,
   },
   card: {
     width: '100%',
-    borderRadius: 20,
-    backgroundColor: '#f4f4f4',
+    height: CARD_HEIGHT,
+    borderRadius: 18,
+    backgroundColor: '#fff',
     overflow: 'hidden',
-    minHeight: 340,
   },
   cardDark: {
     backgroundColor: '#111524',
   },
-  metaSection: {
-    marginBottom: 12,
-  },
-  progressRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  progressBar: {
-    flex: 1,
-    height: 4,
-    borderRadius: 999,
-    backgroundColor: '#e0dfd5',
-    overflow: 'hidden',
-    marginRight: 12,
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: 999,
-    backgroundColor: '#968c6c',
-  },
-  progressText: {
-    fontSize: 14,
-    color: '#555',
-  },
-  progressSubText: {
-    fontSize: 12,
-    color: '#777',
-  },
-  filtersRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 6,
-  },
-  filterPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#f0eee5',
-    marginRight: 8,
-    marginBottom: 4,
-  },
-  filterPillActive: {
-    backgroundColor: '#968c6c',
-  },
-  filterPillText: {
-    fontSize: 12,
-    color: '#555',
-  },
-  filterPillTextActive: {
-    color: '#fff',
-  },
-  helperText: {
-    fontSize: 12,
-    color: '#777',
-  },
-  cardRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    flex: 1,
-  },
-  cardLeft: {
-    width: '42%',
-    alignSelf: 'stretch',
-  },
-  cardRight: {
-    flex: 1,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    justifyContent: 'center',
-  },
   cardShadow: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.2,
-    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
     elevation: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
   },
   cardBehind1: {
     position: 'absolute',
-    top: 16,
-    width: '92%',
-    opacity: 0.4,
+    top: 10,
+    alignSelf: 'center',
+    width: '94%',
+    height: '100%',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
   },
   cardBehind2: {
     position: 'absolute',
-    top: 28,
-    width: '85%',
-    opacity: 0.25,
+    top: 20,
+    alignSelf: 'center',
+    width: '88%',
+    height: '100%',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.06)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
   },
+  cardOverlay1: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(150, 150, 150, 0.25)',
+    borderRadius: 18,
+  },
+  cardOverlay2: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(150, 150, 150, 0.45)',
+    borderRadius: 18,
+  },
+
+  /* Card interior – vertical layout */
+  cardVertical: {
+    flex: 1,
+    flexDirection: 'column',
+  },
+  cardPhotoSection: {
+    width: '100%',
+    height: CARD_HEIGHT * 0.4,
+    backgroundColor: '#e8e8e8',
+  },
+  cardPhoto: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  cardPhotoPlaceholder: {
+    flex: 1,
+    backgroundColor: '#d9d9d9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardPhotoInitial: {
+    fontSize: 52,
+    fontWeight: '700',
+    color: '#5a5a5a',
+  },
+  cardInfoSection: {
+    flex: 1,
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 14,
+  },
+  cardName: {
+    fontSize: 24,
+    marginBottom: 2,
+  },
+  cardJobTitle: {
+    fontSize: 15,
+    color: '#555',
+    marginBottom: 1,
+  },
+  cardLocation: {
+    fontSize: 14,
+    color: '#999',
+    marginBottom: 8,
+  },
+  cardChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 8,
+  },
+  cardChip: {
+    marginRight: 6,
+    marginBottom: 4,
+  },
+  cardChipDark: {
+  },
+  cardChipPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: '#f5f5f3',
+    borderWidth: 1,
+    borderColor: '#e0dfd5',
+    marginRight: 6,
+    marginBottom: 4,
+  },
+  cardChipPillDark: {
+    backgroundColor: 'rgba(157, 168, 255, 0.18)',
+    borderColor: '#9da8ff',
+  },
+  cardChipText: {
+    fontSize: 13,
+    color: '#4a4a4a',
+  },
+  cardSectionTitle: {
+    fontSize: 15,
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  cardBio: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#555',
+  },
+
+  /* ───── YES / NO swipe badges ───── */
   badge: {
     position: 'absolute',
     top: 16,
@@ -966,193 +1010,55 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1.5,
   },
-  avatarWrapper: {
-    flex: 1,
-    width: '100%',
+
+  /* ───── Action buttons (inside card) ───── */
+  cardActionsRow: {
+    flexDirection: 'row',
+    columnGap: 10,
+    marginTop: 'auto',
   },
-  avatarPlaceholder: {
+  cardActionButton: {
     flex: 1,
-    width: '100%',
-    backgroundColor: '#d9d9d9',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 13,
+    borderRadius: 999,
+    columnGap: 8,
   },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
+  skipButton: {
+    backgroundColor: '#f5e0e0',
   },
-  avatarInitial: {
-    fontSize: 40,
-    fontWeight: '700',
-    color: '#5a5a5a',
-  },
-  textBlock: {
-    alignItems: 'flex-start',
-    marginBottom: 2,
-  },
-  nameText: {
-    fontSize: 22,
-    marginBottom: 0,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  statText: {
-    fontSize: 12,
-    color: '#666',
-  },
-  statDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    marginHorizontal: 6,
-    backgroundColor: '#b0a78e',
-  },
-  titleText: {
+  skipButtonText: {
+    color: '#c55',
     fontSize: 16,
-    color: '#666',
   },
-  bottomBlock: {
-    marginTop: 6,
-    alignItems: 'flex-start',
+  connectButton: {
+    backgroundColor: '#dceede',
   },
-  bottomLine: {
-    fontSize: 14,
-    color: '#555',
+  connectButtonText: {
+    color: '#5a7a5f',
+    fontSize: 16,
   },
-  bottomBio: {
-    marginTop: 0,
-    textAlign: 'left',
-  },
-  chipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 6,
-  },
-  chip: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#e0dfd5',
-    backgroundColor: '#f9f9f7',
-    marginRight: 6,
-    marginBottom: 4,
-  },
-  chipDark: {
-    backgroundColor: 'rgba(157, 168, 255, 0.18)',
-    borderColor: '#9da8ff',
-  },
-  chipText: {
-    fontSize: 12,
-    color: '#4a4a4a',
-  },
-  cardHintText: {
-    marginTop: 6,
-    fontSize: 12,
-    color: '#777',
-  },
-  remainingRow: {
-    position: 'absolute',
-    bottom: 12,
-    right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  roleBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: '#f0eee5',
-    marginRight: 8,
-  },
-  roleBadgeDark: {
-    backgroundColor: 'rgba(157, 168, 255, 0.24)',
-    borderWidth: 1,
-    borderColor: '#9da8ff',
-  },
-  roleBadgeText: {
-    fontSize: 12,
-    color: '#555',
-  },
-  remainingBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: '#e0dfd5',
-  },
-  remainingBadgeDark: {
-    backgroundColor: 'rgba(157, 168, 255, 0.32)',
-    borderWidth: 1,
-    borderColor: '#9da8ff',
-  },
-  remainingText: {
-    fontSize: 12,
-    color: '#555',
-  },
-  belowCardInfo: {
-    marginTop: 56,
-    marginBottom: 2,
-    alignItems: 'center',
-  },
-  matchTagline: {
-    fontSize: 13,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
+
+  /* ───── Undo ───── */
   undoButton: {
-    alignSelf: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#968c6c',
-    marginBottom: 8,
   },
   undoButtonText: {
     fontSize: 12,
     color: '#968c6c',
   },
-  actionsSection: {
-    marginTop: 0,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 4,
-    marginBottom: 0,
-  },
-  actionItem: {
-    alignItems: 'center',
-  },
-  actionLabel: {
-    marginTop: 4,
-    fontSize: 12,
-    color: '#555',
-  },
-  circleButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  passButton: {
-    backgroundColor: '#f3e4e4',
-  },
-  likeButton: {
-    backgroundColor: '#e3f1e6',
-  },
-  circleButtonText: {
-    fontSize: 26,
-  },
+
+  /* ───── Empty state ───── */
   emptyState: {
     alignItems: 'center',
     paddingHorizontal: 16,
+    paddingTop: 60,
   },
   emptyTitle: {
     fontSize: 20,
@@ -1175,33 +1081,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#968c6c',
   },
-  navBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-    paddingTop: 8,
-  },
-  navItem: {
-    alignItems: 'center',
-  },
-  navDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginBottom: 2,
-    backgroundColor: 'transparent',
-  },
-  navDotActive: {
-    backgroundColor: '#968c6c',
-  },
-  navLabel: {
-    fontSize: 10,
-    color: '#777',
-  },
-  navLabelActive: {
-    color: '#000',
-    fontWeight: '600',
-  },
+
+  /* ───── Match modal ───── */
   matchModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',

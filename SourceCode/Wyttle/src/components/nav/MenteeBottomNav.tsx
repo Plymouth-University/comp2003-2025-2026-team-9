@@ -80,6 +80,7 @@ export default function MenteeBottomNav(_: Props) {
 
   return (
     <View
+      pointerEvents="box-none"
       style={[
         styles.container,
         { paddingBottom: bottomFillHeight },
@@ -93,6 +94,7 @@ export default function MenteeBottomNav(_: Props) {
     >
       {/* solid fill at the very bottom to avoid any white strip */}
       <View
+        pointerEvents="none"
         style={[
           styles.bottomFill,
           { height: bottomFillHeight },
@@ -105,13 +107,13 @@ export default function MenteeBottomNav(_: Props) {
       {/* Side fills for web to extend to edges */}
       {Platform.OS === 'web' && (
         <>
-          <View style={[styles.leftFill, { height: svgHeight, width: fillerWidth }]} />
-          <View style={[styles.rightFill, { height: svgHeight, width: fillerWidth }]} />
+          <View pointerEvents="none" style={[styles.leftFill, { height: svgHeight, width: fillerWidth }]} />
+          <View pointerEvents="none" style={[styles.rightFill, { height: svgHeight, width: fillerWidth }]} />
         </>
       )}
 
       {/* Centered content wrapper constrained to max SVG-like width */}
-      <View style={styles.contentWrapper}>
+      <View style={styles.contentWrapper} pointerEvents="box-none">
         {/* main bar content (tabs) */}
         <View style={styles.bar}>
           {/* left group */}
