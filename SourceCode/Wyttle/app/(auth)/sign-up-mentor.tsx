@@ -25,6 +25,7 @@ import { Toast } from '@/components/ui/Toast';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../src/lib/fonts';
+import { initializeNotificationsForUser } from '../../src/lib/notifications';
 
 export default function SignUpMentor() {
   const [fullName, setFullName] = useState('');
@@ -117,6 +118,12 @@ export default function SignUpMentor() {
     } catch (e) {
       console.warn('Failed to upload profile photo', e);
     }
+  }
+
+  try {
+    await initializeNotificationsForUser(user.id);
+  } catch (notificationError) {
+    console.warn('Failed to initialize push notifications after sign-up', notificationError);
   }
 
   // Send mentors to their main app area (Mentor connections tab)

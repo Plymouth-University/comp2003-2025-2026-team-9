@@ -21,6 +21,7 @@ import { Toast } from '@/components/ui/Toast';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../src/lib/fonts';
+import { initializeNotificationsForUser } from '../../src/lib/notifications';
 
 export default function SignIn() {
   const params = useLocalSearchParams<{ role?: string; from?: string; expired?: string }>();
@@ -75,6 +76,12 @@ export default function SignIn() {
     }
 
     const role = profile?.role ?? 'member';
+
+    try {
+      await initializeNotificationsForUser(user.id);
+    } catch (notificationError) {
+      console.warn('Failed to initialize push notifications after sign-in', notificationError);
+    }
 
     // 4) Route based on role
     if (role === 'mentor') {

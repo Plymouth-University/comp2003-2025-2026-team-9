@@ -2,13 +2,20 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-get-random-values';
 import 'react-native-reanimated';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import {
+  attachNotificationResponseListener,
+  configureNotificationDisplayBehavior,
+  initializeNotificationsForUser,
+} from '../src/lib/notifications';
 import { NavigationHistoryProvider } from '../src/lib/navigation-history';
+import { supabase } from '../src/lib/supabase';
 import ToastProvider from '../src/lib/toast';
 
 export const unstable_settings = {
@@ -18,6 +25,27 @@ export const unstable_settings = {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
+
+  useEffect(() => {
+    configureNotificationDisplayBehavior();
+    const detachResponseListener = attachNotificationResponseListener();
+
+    (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const session = data.session;
+        if (session?.user?.id) {
+          await initializeNotificationsForUser(session.user.id);
+        }
+      } catch (error) {
+        console.warn('Failed to initialize notifications during app bootstrap', error);
+      }
+    })();
+
+    return () => {
+      detachResponseListener();
+    };
+  }, []);
   const [fontsLoaded] = useFonts({
     'Montserrat-Light': require('@/assets/fonts/Montserrat/static/Montserrat-Light.ttf'),
     'Montserrat-LightItalic': require('@/assets/fonts/Montserrat/static/Montserrat-LightItalic.ttf'),

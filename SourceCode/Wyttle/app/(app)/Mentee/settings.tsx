@@ -30,6 +30,14 @@ import { TextInput } from 'react-native';
 import OnboardingOverlay from '../../../src/components/OnboardingOverlay';
 import { font } from '../../../src/lib/fonts';
 import { useNavigationHistory } from '../../../src/lib/navigation-history';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  type NotificationPreferences,
+  getNotificationPreferences,
+  registerPushToken,
+  unregisterPushToken,
+  updateNotificationPreferences,
+} from '../../../src/lib/notifications';
 import { MENTEE_STEPS } from '../../../src/lib/onboarding';
 import { supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
@@ -174,8 +182,10 @@ export default function MenteeSettingsScreen() {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
   const [openSection, setOpenSection] = useState<string | null>(null);
-  const [pushEnabled, setPushEnabled] = useState<boolean>(true);
-  const [emailEnabled, setEmailEnabled] = useState<boolean>(false);
+  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences>(
+    DEFAULT_NOTIFICATION_PREFERENCES,
+  );
+  const [savingPreferenceKey, setSavingPreferenceKey] = useState<keyof NotificationPreferences | null>(null);
   const textSize = useTextSize();
 
   const [title, setTitle] = useState('');
@@ -202,9 +212,11 @@ export default function MenteeSettingsScreen() {
         .select('photo_url, tokens_balance')
         .eq('id', user.id)
         .maybeSingle();
+      const prefs = await getNotificationPreferences(user.id);
 
       setPhotoUrl(profile?.photo_url ?? null);
       setTokensBalance(profile?.tokens_balance ?? null);
+      setNotificationPrefs(prefs);
     })();
   }, []);
 
@@ -287,14 +299,32 @@ export default function MenteeSettingsScreen() {
   }
   
 
-  // Handlers used by toggles and accessibility items
-  function handleTogglePush(enabled: boolean) {
-    setPushEnabled(enabled);
-  }
+  const handleNotificationToggle = async (
+    key: keyof NotificationPreferences,
+    enabled: boolean,
+  ) => {
+    const previous = notificationPrefs;
+    const next = { ...notificationPrefs, [key]: enabled };
+    setNotificationPrefs(next);
+    setSavingPreferenceKey(key);
 
-  function handleToggleEmail(enabled: boolean) {
-    setEmailEnabled(enabled);
-  }
+    try {
+      await updateNotificationPreferences({ [key]: enabled } as Partial<NotificationPreferences>);
+
+      if (key === 'push_enabled') {
+        if (enabled) {
+          await registerPushToken();
+        } else {
+          await unregisterPushToken();
+        }
+      }
+    } catch (error) {
+      console.warn(`Failed to update notification preference: ${key}`, error);
+      setNotificationPrefs(previous);
+    } finally {
+      setSavingPreferenceKey(null);
+    }
+  };
  
   function handleBuyTokensPlaceholder() {
     router.push('/(app)/Mentee/buy-tokens' as any);
@@ -362,10 +392,22 @@ export default function MenteeSettingsScreen() {
 
   {/*Functio to handle the user logging out of their account*/}
   const handleLogout = async () => {
+      await unregisterPushToken();
       await supabase.auth.signOut();
       resetHistory('/');
       router.replace({ pathname: '/', params: { from: 'logout' } });
     };
+
+  const notificationOptions: { key: keyof NotificationPreferences; label: string }[] = [
+    { key: 'push_enabled', label: 'Push notifications' },
+    { key: 'notify_new_message', label: 'New messages' },
+    { key: 'notify_incoming_like', label: 'Incoming connection requests' },
+    { key: 'notify_mutual_connection', label: 'Mutual connections' },
+    { key: 'notify_mentor_request_updates', label: 'Mentor request updates' },
+    { key: 'notify_session_reminder_1h', label: 'Session reminder (1 hour)' },
+    { key: 'notify_session_reminder_15m', label: 'Session reminder (15 minutes)' },
+    { key: 'notify_session_starting_now', label: 'Session starting now' },
+  ];
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -628,15 +670,30 @@ export default function MenteeSettingsScreen() {
         toggleSection={toggleSection}
         theme={theme}
       >
-        <View style={styles.itemRowWithSwitch}>
-          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400')]}>Push notifications</ThemedText>
-          <Switch value={pushEnabled} onValueChange={handleTogglePush} />
-        </View>
+        {notificationOptions.map((item) => {
+          const isMaster = item.key === 'push_enabled';
+          const rowDisabled = !isMaster && !notificationPrefs.push_enabled;
+          const switchDisabled = savingPreferenceKey != null || rowDisabled;
 
-        <View style={styles.itemRowWithSwitch}>
-          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400')]}>Email notifications</ThemedText>
-          <Switch value={emailEnabled} onValueChange={handleToggleEmail} />
-        </View>
+          return (
+            <View key={item.key} style={styles.itemRowWithSwitch}>
+              <ThemedText
+                style={[
+                  styles.itemText,
+                  font('GlacialIndifference', '400'),
+                  rowDisabled ? { opacity: 0.45 } : null,
+                ]}
+              >
+                {item.label}
+              </ThemedText>
+              <Switch
+                value={notificationPrefs[item.key]}
+                onValueChange={(enabled) => handleNotificationToggle(item.key, enabled)}
+                disabled={switchDisabled}
+              />
+            </View>
+          );
+        })}
       </SettingsDropdown>
 
       {/* Replay tutorial */}

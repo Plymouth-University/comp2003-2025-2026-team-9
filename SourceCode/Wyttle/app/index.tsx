@@ -11,6 +11,7 @@ import { supabase } from '../src/lib/supabase';
 
 import { ThemedText } from '@/components/themed-text';
 import { font } from '../src/lib/fonts';
+import { initializeNotificationsForUser } from '../src/lib/notifications';
 import { commonStyles } from '../src/styles/common';
 
 import initializeRevenueCat from '../payment/RevenueCat';
@@ -49,6 +50,12 @@ export default function Index() {
       }
 
       const role = profile?.role ?? 'member';
+
+      try {
+        await initializeNotificationsForUser(session.user.id);
+      } catch (notificationError) {
+        console.warn('Failed to initialize notifications on app entry', notificationError);
+      }
 
       if (role === 'mentor') {
         router.replace('/(app)/Mentor/connections');
