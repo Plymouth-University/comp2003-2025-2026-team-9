@@ -618,7 +618,7 @@ function ProfileCard({
               disabled={swiping}
               activeOpacity={0.7}
             >
-              <BlockSvg width={18} height={18} color="#c55" fill="#c55" />
+              <BlockSvg width={28} height={28} color="#c55" fill="#c55" />
               <Text
                 style={[
                   styles.skipButtonText,

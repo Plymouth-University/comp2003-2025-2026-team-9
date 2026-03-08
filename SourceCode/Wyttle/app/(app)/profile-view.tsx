@@ -431,7 +431,13 @@ export default function ProfileViewScreen() {
                   About
                 </ThemedText>
               </View>
-              <ThemedText style={[styles.sectionBody, font('GlacialIndifference', '400')]}> 
+              <ThemedText
+                style={[
+                  styles.sectionBody,
+                  font('GlacialIndifference', '400'),
+                  { color: colorScheme === 'dark' ? 'rgba(248,249,255,0.85)' : '#555' },
+                ]}
+              >
                 {profile.bio?.trim() || 'No bio added yet.'}
               </ThemedText>
             </View>
@@ -446,7 +452,7 @@ export default function ProfileViewScreen() {
               }
               if (items.length === 0) return null;
               return (
-                <View style={[styles.sectionCard, { backgroundColor: theme.background }]}>
+                <View style={[styles.sectionCard, colorScheme === 'dark' ? undefined : styles.sectionCardShadow, { backgroundColor: theme.background }]}> 
                   <View style={styles.sectionHeaderRow}>
                     <Ionicons name="search-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
                     <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '700'), { color: theme.text }]}>
@@ -455,7 +461,14 @@ export default function ProfileViewScreen() {
                   </View>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
                     {items.map((item: string, i: number) => (
-                      <ThemedText key={item} style={[styles.sectionBody, font('GlacialIndifference', '400')]}>
+                      <ThemedText
+                        key={item}
+                        style={[
+                          styles.sectionBody,
+                          font('GlacialIndifference', '400'),
+                          { color: colorScheme === 'dark' ? 'rgba(248,249,255,0.85)' : '#555' },
+                        ]}
+                      >
                         {item}{i < items.length - 1 ? ',' : ''}
                       </ThemedText>
                     ))}
@@ -465,21 +478,27 @@ export default function ProfileViewScreen() {
             })()}
 
             {!!(profile as any).work_experience && (
-              <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
+              <View style={[styles.sectionCard, colorScheme === 'dark' ? undefined : styles.sectionCardShadow, { backgroundColor: theme.background }]}> 
                 <View style={styles.sectionHeaderRow}>
                   <Ionicons name="briefcase-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
                   <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '700'), { color: theme.text }]}> 
                     Work Experience
                   </ThemedText>
                 </View>
-                <ThemedText style={[styles.sectionBody, font('GlacialIndifference', '400')]}> 
+                <ThemedText
+                  style={[
+                    styles.sectionBody,
+                    font('GlacialIndifference', '400'),
+                    { color: colorScheme === 'dark' ? 'rgba(248,249,255,0.85)' : '#555' },
+                  ]}
+                > 
                   {(profile as any).work_experience}
                 </ThemedText>
               </View>
             )}
 
             {(Array.isArray((profile as any).skills) && (profile as any).skills.length > 0) && (
-              <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
+              <View style={[styles.sectionCard, colorScheme === 'dark' ? undefined : styles.sectionCardShadow, { backgroundColor: theme.background }]}> 
                 <View style={styles.sectionHeaderRow}>
                   <Ionicons name="school-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
                   <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '700'), { color: theme.text }]}> 
@@ -497,7 +516,7 @@ export default function ProfileViewScreen() {
             )}
 
             {(Array.isArray((profile as any).interests) && (profile as any).interests.length > 0) && (
-              <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
+              <View style={[styles.sectionCard, colorScheme === 'dark' ? undefined : styles.sectionCardShadow, { backgroundColor: theme.background }]}> 
                 <View style={styles.sectionHeaderRow}>
                   <Ionicons name="heart-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
                   <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '700'), { color: theme.text }]}> 
@@ -515,7 +534,7 @@ export default function ProfileViewScreen() {
             )}
 
             {(canShowBooking || canDisconnect) && (
-              <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
+              <View style={[styles.sectionCard, colorScheme === 'dark' ? undefined : styles.sectionCardShadow, { backgroundColor: theme.background }]}> 
                 <View style={styles.sectionHeaderRow}>
                   <Ionicons name="flash-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
                   <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '700'), { color: theme.text }]}> 
@@ -568,7 +587,7 @@ export default function ProfileViewScreen() {
             onRequestClose={() => setBookingModalVisible(false)}
           >
             <View style={styles.bookingOverlay}>
-              <View style={[styles.bookingCard, { backgroundColor: theme.card }]}>
+              <View style={[styles.bookingCard, { backgroundColor: theme.card }]}> 
                 <ThemedText style={[styles.bookingTitle, font('GlacialIndifference', '800'), { color: theme.text }]}>
                   Book a session
                 </ThemedText>
@@ -881,6 +900,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingVertical: 18,
     paddingHorizontal: 18,
+    // Border/shadow removed from base style so it can be toggled per-theme
+  },
+  sectionCardShadow: {
     borderWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.4)',
     borderLeftColor: 'rgba(255,255,255,0.25)',
