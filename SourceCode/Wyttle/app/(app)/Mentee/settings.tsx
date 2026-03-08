@@ -15,6 +15,9 @@ import {
   View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Purchases from 'react-native-purchases';
+import { PAYWALL_RESULT } from 'react-native-purchases-ui';
 
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -191,6 +194,15 @@ export default function MenteeSettingsScreen() {
   const [savingPreferenceKey, setSavingPreferenceKey] = useState<keyof NotificationPreferences | null>(null);
   const textSize = useTextSize();
 
+  const TOKEN_CREDIT_BY_PRODUCT_ID: Record<string, number> = {
+    fifty_tokens: 50,
+    onehundred_tokens: 100,
+    // add exact RevenueCat/App Store product IDs here
+    twohundred_tokens_monthly: 200,
+  };
+
+  const LAST_PROCESSED_TX_KEY_PREFIX = 'rc:last-token-tx:';
+
   const [title, setTitle] = useState('');
   const [industry, setIndustry] = useState('');
   const [location, setLocation] = useState('');
@@ -337,12 +349,46 @@ export default function MenteeSettingsScreen() {
       setSavingPreferenceKey(null);
     }
   };
+
+  async function creditLatestTokenPurchase(userId: string, currentBalance: number): Promise<number> {
+    const customerInfo = await Purchases.getCustomerInfo();
+    const txs = [...(customerInfo.nonSubscriptionTransactions ?? [])].sort(
+      (a, b) => new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime()
+    );
+
+    if (txs.length === 0) return 0;
+
+    const latest = txs[0];
+    const storageKey = `${LAST_PROCESSED_TX_KEY_PREFIX}${userId}`;
+    const lastProcessedTx = await AsyncStorage.getItem(storageKey);
+
+    // Avoid duplicate credit for same tx on this device
+    if (lastProcessedTx === latest.transactionIdentifier) return 0;
+
+    const credit = TOKEN_CREDIT_BY_PRODUCT_ID[latest.productIdentifier] ?? 0;
+
+    // Mark processed even if not mapped, so it doesn't keep retrying forever
+    await AsyncStorage.setItem(storageKey, latest.transactionIdentifier);
+
+    if (credit <= 0) return 0;
+
+    const newBalance = currentBalance + credit;
+    const { error } = await supabase
+      .from('profiles')
+      .update({ tokens_balance: newBalance })
+      .eq('id', userId);
+
+    if (error) throw error;
+
+    setTokensBalance(newBalance);
+    return credit;
+  }
  
+  // REPLACE YOUR EXISTING handleBuyTokens WITH THIS
   async function handleBuyTokens() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Pull latest balance so paywall variable is always current
     const { data: profile } = await supabase
       .from('profiles')
       .select('tokens_balance')
@@ -352,17 +398,23 @@ export default function MenteeSettingsScreen() {
     const liveBalance = profile?.tokens_balance ?? 0;
     setTokensBalance(liveBalance);
 
-    const purchasedOrRestored = await presentPaywall(liveBalance);
+    const paywallResult = await presentPaywall(liveBalance);
 
-    if (purchasedOrRestored) {
-      // Refresh local balance after purchase flow
-      const { data: updatedProfile } = await supabase
-        .from('profiles')
-        .select('tokens_balance')
-        .eq('id', user.id)
-        .maybeSingle();
+    if (
+      paywallResult === PAYWALL_RESULT.PURCHASED ||
+      paywallResult === PAYWALL_RESULT.RESTORED
+    ) {
+      try {
+        const credited = await creditLatestTokenPurchase(user.id, liveBalance);
 
-      setTokensBalance(updatedProfile?.tokens_balance ?? liveBalance);
+        if (credited > 0) {
+          Alert.alert('Purchase complete', `${credited} tokens added to your account.`);
+        } else {
+          Alert.alert('Purchase complete', 'No token mapping matched the purchased product ID.');
+        }
+      } catch (err: any) {
+        Alert.alert('Credit failed', err?.message ?? 'Purchase succeeded but crediting failed.');
+      }
     }
   }
  
