@@ -1,14 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    Alert,
-    Image,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    useWindowDimensions,
-    View,
+  Alert,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
 } from 'react-native';
 import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
 
@@ -627,17 +627,27 @@ export default function MentorHub() {
                     {item.photo_url ? (
                       <Image source={{ uri: (item as Mentor).photo_url }} style={styles.avatar} />
                     ) : (
-                      <View style={styles.avatar} />
+                      <View style={styles.avatar}>
+                        <Text style={styles.avatarText}>
+                          {(((item as Mentor).full_name ?? 'M').charAt(0) || 'M').toUpperCase()}
+                        </Text>
+                      </View>
                     )}
 
-                    {typeof (item as Mentor).mentor_session_rate === 'number' &&
-                      (item as Mentor).mentor_session_rate! > 0 && (
+                    {(() => {
+                      const rate = (item as Mentor).mentor_session_rate;
+                      const display = rate == null ? '—' : rate === 0 ? 'Free' : String(rate);
+                      return (
                         <View style={styles.priceTag}>
-                        <Text style={styles.priceEmoji}>💎</Text>
-                        <Text style={styles.priceText}>{(item as Mentor).mentor_session_rate}</Text>
-                        <Text style={styles.priceUnit}>/session</Text>
-                    </View>
-                      )}
+                          <Image
+                            source={require('../../../assets/icons/diamond_small.png')}
+                            style={styles.priceIcon}
+                          />
+                          <Text style={styles.priceText}>{display}</Text>
+                          <Text style={styles.priceUnit}>/session</Text>
+                        </View>
+                      );
+                    })()}
 
                     <Text style={[styles.name, { color: theme.text, top: -12 }]}>
                       {(item as Mentor).full_name ?? 'Unnamed mentor'}
@@ -738,6 +748,13 @@ const styles = StyleSheet.create({
     borderRadius: AVATAR_SIZE / 2,
     backgroundColor: '#d9d9d9',
     marginBottom: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    color: '#333',
+    fontSize: 18,
+    fontWeight: '700',
   },
   tokenRate: {
     fontSize: 10,
@@ -772,6 +789,11 @@ const styles = StyleSheet.create({
   priceEmoji: {
     marginRight: 4,
     fontSize: 14,
+  },
+  priceIcon: {
+    width: 14,
+    height: 14,
+    marginRight: 6,
   },
   priceText: {
     fontWeight: '700',
