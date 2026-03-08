@@ -531,11 +531,17 @@ export default function ProfileViewScreen() {
                       setBookingModalVisible(true);
                     }}
                   >
-                    <Text style={styles.bookButtonTitle}>
-                      {typeof profile.mentor_session_rate === 'number' && profile.mentor_session_rate > 0
-                        ? `💎 ${profile.mentor_session_rate} tokens/session`
-                        : 'Free session'}
-                    </Text>
+                    {typeof profile.mentor_session_rate === 'number' && profile.mentor_session_rate > 0 ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Image
+                          source={require('../../assets/icons/diamond_small.png')}
+                          style={styles.bookButtonIcon}
+                        />
+                        <Text style={styles.bookButtonTitle}>{`${profile.mentor_session_rate} tokens/session`}</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.bookButtonTitle}>Free session</Text>
+                    )}
                     <Text style={styles.bookButtonSubtitle}>Choose a date & time</Text>
                   </TouchableOpacity>
                 )}
@@ -837,6 +843,11 @@ const styles = StyleSheet.create({
   heroPillText: {
     color: '#fff',
     fontSize: 13,
+  },
+  bookButtonIcon: {
+    width: 14,
+    height: 14,
+    marginRight: 8,
   },
   contentPanel: {
     width: '100%',
