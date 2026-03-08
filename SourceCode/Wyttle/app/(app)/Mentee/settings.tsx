@@ -456,7 +456,11 @@ export default function MenteeSettingsScreen() {
             }
           }}
         >
-          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400'), { flex: 1 }]}>View profile</ThemedText>
+          <ThemedText darkColor="#cfd3ff" style={[
+            styles.itemText,
+            font('GlacialIndifference', '400'),
+            { flex: 1 },
+          ]}>View profile</ThemedText>
           <Ionicons name="chevron-forward" size={18} color={theme.text} style={{ opacity: 0.4 }} />
         </TouchableOpacity>
 
@@ -466,7 +470,11 @@ export default function MenteeSettingsScreen() {
           accessibilityRole="button"
           accessibilityState={{ expanded: isEditingProfile }}
         >
-          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400'), { flex: 1 }]}>Edit profile</ThemedText>
+          <ThemedText darkColor="#cfd3ff" style={[
+            styles.itemText,
+            font('GlacialIndifference', '400'),
+            { flex: 1 },
+          ]}>Edit profile</ThemedText>
           <Ionicons name={isEditingProfile ? 'chevron-up' : 'chevron-down'} size={18} color={theme.text} style={{ opacity: 0.4 }} />
         </TouchableOpacity>
           {isEditingProfile && (
@@ -527,8 +535,7 @@ export default function MenteeSettingsScreen() {
                 maxLength={500}
               />
 
-              <Text style={[styles.fieldLabel, { color: theme.text }]}>Work Experience</Text>
-              {/* Work Experience text input */}
+              <Text style={[styles.fieldLabel, { color: theme.text }]}>Previous work experience</Text>
               <TextInput
                 style={[styles.textInput, { color: theme.text }]}
                 placeholder="Previous work experience"
@@ -612,10 +619,16 @@ export default function MenteeSettingsScreen() {
         theme={theme}
       >
         <View style={styles.itemRow}>
-          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400')]}>Token balance: {tokensBalance ?? 0}</ThemedText>
+          <ThemedText darkColor="#cfd3ff" style={[
+            styles.itemText,
+            font('GlacialIndifference', '400'),
+          ]}>Token balance: {tokensBalance ?? 0}</ThemedText>
         </View>
         <TouchableOpacity style={styles.itemRow} onPress={handleBuyTokensPlaceholder}>
-          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400')]}>Buy tokens (coming soon)</ThemedText>
+          <ThemedText darkColor="#cfd3ff" style={[
+            styles.itemText,
+            font('GlacialIndifference', '400'),
+          ]}>Buy tokens (coming soon)</ThemedText>
         </TouchableOpacity>
       </SettingsDropdown>
 
@@ -628,7 +641,10 @@ export default function MenteeSettingsScreen() {
         theme={theme}
       >
         <View style={styles.itemRow}>
-          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400')]}>Text size</ThemedText>
+          <ThemedText darkColor="#cfd3ff" style={[
+            styles.itemText,
+            font('GlacialIndifference', '400'),
+          ]}>Text size</ThemedText>
           <View style={styles.sliderContainer}>
             <ThemedText style={styles.sliderValue}>{Math.round(textSize * 100)}%</ThemedText>
             <Slider
@@ -723,14 +739,7 @@ export default function MenteeSettingsScreen() {
         })}
       </SettingsDropdown>
 
-      {/* Replay tutorial */}
-      <TouchableOpacity
-        style={styles.replayTutorialRow}
-        onPress={() => setShowOnboarding(true)}
-      >
-        <Ionicons name="information-circle-outline" size={22} color={theme.text} />
-        <ThemedText style={[styles.itemText, font('GlacialIndifference', '400'), { marginLeft: 8 }]}>Replay tutorial</ThemedText>
-      </TouchableOpacity>
+      {/* Replay tutorial moved to bottom-left near logout button */}
 
       <SettingsDropdown
         id="acknowledgements"
@@ -745,26 +754,48 @@ export default function MenteeSettingsScreen() {
           onPress={() => Linking.openURL('https://iconscout.com/')}
         >
           <Ionicons name="logo-ionic" size={18} color={theme.tint} />
-          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400'), { marginLeft: 8, flex: 1 }]}>
+          <ThemedText darkColor="#cfd3ff" style={[
+            styles.itemText,
+            font('GlacialIndifference', '400'),
+            { marginLeft: 8, flex: 1 },
+          ]}>
             Unicons by IconScout
           </ThemedText>
           <Ionicons name="open-outline" size={16} color={theme.text} style={{ opacity: 0.4 }} />
         </TouchableOpacity>
       </SettingsDropdown>
 
-      {/* Log out button - hide while editing profile inside the Profiles dropdown */}
+      {/* Replay tutorial & Log out buttons - hide while editing profile inside the Profiles dropdown */}
       {!(isEditingProfile && openSection === 'profiles') && (
-        <Pressable
-          style={({ pressed }) => [
-            styles.logoutButton,
-            { bottom: 24 + insets.bottom + 56 },
-            pressed && styles.logoutButtonPressed,
-          ]}
-          onPress={handleLogout}
-          android_ripple={{ color: '#00000008' }}
-        >
-          <ThemedText style={styles.logoutButtonText}>Log out</ThemedText>
-        </Pressable>
+        <>
+          <Pressable
+            style={({ pressed }) => [
+              styles.replayButton,
+              { left: 18, bottom: 24 + insets.bottom + 56 },
+              pressed && styles.replayButtonPressed,
+            ]}
+            onPress={() => setShowOnboarding(true)}
+            android_ripple={{ color: '#00000008' }}
+          >
+            <Ionicons name="information-circle-outline" size={18} color={theme.text} />
+            <ThemedText darkColor="#cfd3ff" style={[
+              styles.replayButtonText,
+              { marginLeft: 8 },
+            ]}>Replay tutorial</ThemedText>
+          </Pressable>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.logoutButton,
+              { right: 18, bottom: 24 + insets.bottom + 56 },
+              pressed && styles.logoutButtonPressed,
+            ]}
+            onPress={handleLogout}
+            android_ripple={{ color: '#00000008' }}
+          >
+            <ThemedText style={styles.logoutButtonText}>Log out</ThemedText>
+          </Pressable>
+        </>
       )}
       </KeyboardAwareScrollView>
       <OnboardingOverlay
@@ -788,7 +819,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 32,
+    paddingBottom: 48,
   },
   button: {
     marginTop: 20,
@@ -1055,6 +1086,26 @@ logoutButtonText: {
   fontWeight: '700',
   fontSize: 16,
 },
+  replayButton: {
+    position: 'absolute',
+    left: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    backgroundColor: 'transparent',
+  },
+  replayButtonPressed: {
+    backgroundColor: '#00000006',
+    borderRadius: 10,
+  },
+  replayButtonText: {
+    color: '#333f5c',
+    fontWeight: '600',
+    fontSize: 14,
+  },
 replayTutorialRow: {
   flexDirection: 'row',
   alignItems: 'center',

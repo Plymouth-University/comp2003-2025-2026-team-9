@@ -6,8 +6,8 @@ import {
   Linking,
   Platform,
   Pressable,
-  Switch as RNSwitch,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   UIManager,
@@ -38,7 +38,7 @@ import {
   unregisterPushToken,
   updateNotificationPreferences,
 } from '../../../src/lib/notifications';
-import { MENTOR_STEPS } from '../../../src/lib/onboarding';
+import { MENTEE_STEPS } from '../../../src/lib/onboarding';
 import { supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 
@@ -178,7 +178,7 @@ function SettingsDropdown({
 }
 
 // Declare constants for layout animation
-export default function MentorSettingsScreen() {
+export default function MenteeSettingsScreen() {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
   const [openSection, setOpenSection] = useState<string | null>(null);
@@ -199,9 +199,9 @@ export default function MentorSettingsScreen() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [skills, setSkills] = useState<string[]>([]);
   const [newSkill, setNewSkill] = useState('');
+  const [lookingFor, setLookingFor] = useState('');
+  const [tokensBalance, setTokensBalance] = useState<number | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
-
-
 
   useEffect(() => {
     (async () => {
@@ -210,12 +210,13 @@ export default function MentorSettingsScreen() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('photo_url')
+        .select('photo_url, tokens_balance')
         .eq('id', user.id)
         .maybeSingle();
       const prefs = await getNotificationPreferences(user.id);
 
       setPhotoUrl(profile?.photo_url ?? null);
+      setTokensBalance(profile?.tokens_balance ?? null);
       setNotificationPrefs(prefs);
     })();
   }, []);
@@ -245,56 +246,66 @@ export default function MentorSettingsScreen() {
     }
   };
 
- 
+    
 
-
-  const fetchAndPrefillProfile = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('title, industry, location, bio, skills, work_experience')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (error) {
-        console.warn('Failed to load profile for editing', error);
-        return;
-      }
-
-      // If any of these are null/undefined, fall back to empty string so inputs are controlled
-      setTitle(profile?.title ?? '');
-      setIndustry(profile?.industry ?? '');
-      setLocation(profile?.location ?? '');
-      setBio(profile?.bio ?? '');
-      setWorkExperience(profile?.work_experience ?? '');
-      setSkills(profile?.skills ?? []);
-    } catch (err) {
-      console.warn('Error fetching profile for edit', err);
-    }
-  };
-
-  const toggleEditProfile = async () => {
-    // If opening the editor, prefill first.
-    if (!isEditingProfile) {
-      setIsEditingProfile(true);
-      await fetchAndPrefillProfile();
-    } else {
-      // closing editor
-      setIsEditingProfile(false);
-    }
-  };
+    const fetchAndPrefillProfile = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
   
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('title, industry, location, bio, skills, work_experience, looking_for')
+          .eq('id', user.id)
+          .maybeSingle();
+  
+        if (error) {
+          console.warn('Failed to load profile for editing', error);
+          return;
+        }
+  
+        // If any of these are undefined then fall back to empty string so inputs are controlled
+        setTitle(profile?.title ?? '');
+        setIndustry(profile?.industry ?? '');
+        setLocation(profile?.location ?? '');
+        setBio(profile?.bio ?? '');
+        setWorkExperience(profile?.work_experience ?? '');  
+        setSkills(profile?.skills ?? []);
+        const rawLf = (profile as any)?.looking_for;
+        if (Array.isArray(rawLf)) {
+          setLookingFor(rawLf.filter(Boolean).join(', '));
+        } else if (typeof rawLf === 'string') {
+          setLookingFor(rawLf);
+        } else {
+          setLookingFor('');
+        } 
+      } catch (err) {
+        console.warn('Error fetching profile for edit', err);
+      }
+    };
+  
+    const toggleEditProfile = async () => {
+      // If opening the editor, set state, then prefill.
+      if (!isEditingProfile) {
+        setIsEditingProfile(true);
+        await fetchAndPrefillProfile();
+      } else {
+        // closing editor
+        setIsEditingProfile(false);
+      }
+    };
+
+    
+
+
+
+
+
 
   // Toggle dropdown sections
   function toggleSection(id: string) {
     setOpenSection((prev) => (prev === id ? null : id));
   }
-
-  
-
   
 
   const handleNotificationToggle = async (
@@ -323,9 +334,11 @@ export default function MentorSettingsScreen() {
       setSavingPreferenceKey(null);
     }
   };
-  
-  
-  
+ 
+  function handleBuyTokensPlaceholder() {
+    router.push('/(app)/Mentee/buy-tokens' as any);
+  }
+ 
   const handleSaveProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -338,6 +351,7 @@ export default function MentorSettingsScreen() {
       bio: bio.trim().length > 0 ? bio.trim() : null,
       work_experience: workExperience.trim().length > 0 ? workExperience.trim() : null,
       skills: skills.length > 0 ? skills : null,
+      looking_for: lookingFor.trim().length > 0 ? lookingFor.trim() : null,
     };
 
     try {
@@ -359,6 +373,7 @@ export default function MentorSettingsScreen() {
     }
   };
  
+
   const handleUseMyLocation = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted')  return;
@@ -435,13 +450,17 @@ export default function MentorSettingsScreen() {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
               router.push({
-                pathname: '/(app)/Mentor/profile-view',
+                pathname: '/(app)/Mentee/profile-view' as any,
                 params: { userId: user.id },
               });
             }
           }}
         >
-          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400'), { flex: 1 }]}>View profile</ThemedText>
+          <ThemedText darkColor="#cfd3ff" style={[
+            styles.itemText,
+            font('GlacialIndifference', '400'),
+            { flex: 1 },
+          ]}>View profile</ThemedText>
           <Ionicons name="chevron-forward" size={18} color={theme.text} style={{ opacity: 0.4 }} />
         </TouchableOpacity>
 
@@ -451,7 +470,11 @@ export default function MentorSettingsScreen() {
           accessibilityRole="button"
           accessibilityState={{ expanded: isEditingProfile }}
         >
-          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400'), { flex: 1 }]}>Edit profile</ThemedText>
+          <ThemedText darkColor="#cfd3ff" style={[
+            styles.itemText,
+            font('GlacialIndifference', '400'),
+            { flex: 1 },
+          ]}>Edit profile</ThemedText>
           <Ionicons name={isEditingProfile ? 'chevron-up' : 'chevron-down'} size={18} color={theme.text} style={{ opacity: 0.4 }} />
         </TouchableOpacity>
           {isEditingProfile && (
@@ -472,6 +495,7 @@ export default function MentorSettingsScreen() {
                 </TouchableOpacity>
               </View>
               
+              <Text style={[styles.fieldLabel, { color: theme.text }]}>Career / Role Title</Text>
               <TextInput
                 style={[styles.textInput, { color: theme.text }]}
                 placeholder="Career / Role Title"
@@ -479,6 +503,7 @@ export default function MentorSettingsScreen() {
                 value={title}
                 onChangeText={setTitle}
               />
+              <Text style={[styles.fieldLabel, { color: theme.text }]}>Industry</Text>
               <TextInput
                 style={[styles.textInput, { color: theme.text }]}
                 placeholder="Industry"
@@ -486,6 +511,7 @@ export default function MentorSettingsScreen() {
                 value={industry}
                 onChangeText={setIndustry}
               />
+              <Text style={[styles.fieldLabel, { color: theme.text }]}>Location</Text>
               <TextInput
                 style={[styles.textInput, { color: theme.text }]}
                 placeholder="Location"
@@ -498,6 +524,7 @@ export default function MentorSettingsScreen() {
               </TouchableOpacity>
 
 
+              <Text style={[styles.fieldLabel, { color: theme.text }]}>Bio</Text>
               <TextInput
                 style={[styles.textArea, { color: theme.text }]}
                 placeholder="Short Bio"
@@ -508,6 +535,7 @@ export default function MentorSettingsScreen() {
                 maxLength={500}
               />
 
+              <Text style={[styles.fieldLabel, { color: theme.text }]}>Work Experience</Text>
               {/* Work Experience text input */}
               <TextInput
                 style={[styles.textInput, { color: theme.text }]}
@@ -518,6 +546,7 @@ export default function MentorSettingsScreen() {
               />
 
 
+              <Text style={[styles.fieldLabel, { color: theme.text }]}>Skills</Text>
               {/* Skills Section */}
               {/* Display existing skill tags */}
 <View style={styles.skillsContainer}>
@@ -561,7 +590,18 @@ export default function MentorSettingsScreen() {
     <Ionicons name="add-circle" size={28} color="#333f5c" />
   </TouchableOpacity>
 </View>
-              
+
+              <Text style={[styles.fieldLabel, { color: theme.text }]}>I am looking for</Text>
+              {/* Looking For Section */}
+              <TextInput
+                style={[styles.textArea, { color: theme.text }]}
+                placeholder="I am looking for..."
+                placeholderTextColor="#7f8186"
+                value={lookingFor}
+                onChangeText={setLookingFor}
+                multiline
+                maxLength={500}
+              />
 
               <TouchableOpacity style={styles.saveButton} onPress={handleSaveProfile}>
                 <Text style={styles.saveButtonText}>Save profile</Text>
@@ -572,39 +612,26 @@ export default function MentorSettingsScreen() {
       </SettingsDropdown>
 
       <SettingsDropdown 
-        id="notifications" 
-        title="Notifications"
-        icon="notifications-outline"
+        id="tokens" 
+        title="Tokens"
+        icon="wallet-outline"
         openSection={openSection}
         toggleSection={toggleSection}
         theme={theme}
       >
-        {notificationOptions.map((item) => {
-          const isMaster = item.key === 'push_enabled';
-          const rowDisabled = !isMaster && !notificationPrefs.push_enabled;
-          const switchDisabled = savingPreferenceKey != null || rowDisabled;
-
-          return (
-            <View key={item.key} style={styles.itemRowWithSwitch}>
-              <ThemedText
-                style={[
-                  styles.itemText,
-                  font('GlacialIndifference', '400'),
-                  rowDisabled ? { opacity: 0.45 } : null,
-                ]}
-              >
-                {item.label}
-              </ThemedText>
-              <RNSwitch
-                value={notificationPrefs[item.key]}
-                onValueChange={(enabled) => handleNotificationToggle(item.key, enabled)}
-                disabled={switchDisabled}
-              />
-            </View>
-          );
-        })}
+        <View style={styles.itemRow}>
+          <ThemedText darkColor="#cfd3ff" style={[
+            styles.itemText,
+            font('GlacialIndifference', '400'),
+          ]}>Token balance: {tokensBalance ?? 0}</ThemedText>
+        </View>
+        <TouchableOpacity style={styles.itemRow} onPress={handleBuyTokensPlaceholder}>
+          <ThemedText darkColor="#cfd3ff" style={[
+            styles.itemText,
+            font('GlacialIndifference', '400'),
+          ]}>Buy tokens (coming soon)</ThemedText>
+        </TouchableOpacity>
       </SettingsDropdown>
-
 
       <SettingsDropdown 
         id="accessibility" 
@@ -615,7 +642,10 @@ export default function MentorSettingsScreen() {
         theme={theme}
       >
         <View style={styles.itemRow}>
-          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400')]}>Text size</ThemedText>
+          <ThemedText darkColor="#cfd3ff" style={[
+            styles.itemText,
+            font('GlacialIndifference', '400'),
+          ]}>Text size</ThemedText>
           <View style={styles.sliderContainer}>
             <ThemedText style={styles.sliderValue}>{Math.round(textSize * 100)}%</ThemedText>
             <Slider
@@ -645,7 +675,6 @@ export default function MentorSettingsScreen() {
               <Text
                 style={[
                   styles.themeChipText,
-                  // active when not dark
                   colorScheme !== 'dark'
                     ? { color: '#fff' }
                     : { color: theme.text },
@@ -664,7 +693,6 @@ export default function MentorSettingsScreen() {
               <Text
                 style={[
                   styles.themeChipText,
-                  // active when dark
                   colorScheme === 'dark'
                     ? { color: '#fff' }
                     : { color: theme.text },
@@ -678,14 +706,41 @@ export default function MentorSettingsScreen() {
 
       </SettingsDropdown>
 
-      {/* Replay tutorial */}
-      <TouchableOpacity
-        style={styles.replayTutorialRow}
-        onPress={() => setShowOnboarding(true)}
+      <SettingsDropdown 
+        id="notifications" 
+        title="Notifications"
+        icon="notifications-outline"
+        openSection={openSection}
+        toggleSection={toggleSection}
+        theme={theme}
       >
-        <Ionicons name="information-circle-outline" size={22} color={theme.text} />
-        <ThemedText style={[styles.itemText, font('GlacialIndifference', '400'), { marginLeft: 8 }]}>Replay tutorial</ThemedText>
-      </TouchableOpacity>
+        {notificationOptions.map((item) => {
+          const isMaster = item.key === 'push_enabled';
+          const rowDisabled = !isMaster && !notificationPrefs.push_enabled;
+          const switchDisabled = savingPreferenceKey != null || rowDisabled;
+
+          return (
+            <View key={item.key} style={styles.itemRowWithSwitch}>
+              <ThemedText
+                style={[
+                  styles.itemText,
+                  font('GlacialIndifference', '400'),
+                  rowDisabled ? { opacity: 0.45 } : null,
+                ]}
+              >
+                {item.label}
+              </ThemedText>
+              <Switch
+                value={notificationPrefs[item.key]}
+                onValueChange={(enabled) => handleNotificationToggle(item.key, enabled)}
+                disabled={switchDisabled}
+              />
+            </View>
+          );
+        })}
+      </SettingsDropdown>
+
+      {/* Replay tutorial moved to bottom-left near logout button */}
 
       <SettingsDropdown
         id="acknowledgements"
@@ -700,42 +755,62 @@ export default function MentorSettingsScreen() {
           onPress={() => Linking.openURL('https://iconscout.com/')}
         >
           <Ionicons name="logo-ionic" size={18} color={theme.tint} />
-          <ThemedText style={[styles.itemText, font('GlacialIndifference', '400'), { marginLeft: 8, flex: 1 }]}>
+          <ThemedText darkColor="#cfd3ff" style={[
+            styles.itemText,
+            font('GlacialIndifference', '400'),
+            { marginLeft: 8, flex: 1 },
+          ]}>
             Unicons by IconScout
           </ThemedText>
           <Ionicons name="open-outline" size={16} color={theme.text} style={{ opacity: 0.4 }} />
         </TouchableOpacity>
       </SettingsDropdown>
 
-      {/* Log out button - hide while editing profile inside the Profiles dropdown */}
+      {/* Replay tutorial & Log out buttons - hide while editing profile inside the Profiles dropdown */}
       {!(isEditingProfile && openSection === 'profiles') && (
-        <Pressable
-          style={({ pressed }) => [
-            styles.logoutButton,
-            { bottom: 24 + insets.bottom + 56 },
-            pressed && styles.logoutButtonPressed,
-          ]}
-          onPress={handleLogout}
-          android_ripple={{ color: '#00000008' }}
-        >
-          <ThemedText style={styles.logoutButtonText}>Log out</ThemedText>
-        </Pressable>
+        <>
+          <Pressable
+            style={({ pressed }) => [
+              styles.replayButton,
+              { left: 18, bottom: 24 + insets.bottom + 56 },
+              pressed && styles.replayButtonPressed,
+            ]}
+            onPress={() => setShowOnboarding(true)}
+            android_ripple={{ color: '#00000008' }}
+          >
+            <Ionicons name="information-circle-outline" size={18} color={theme.text} />
+            <ThemedText darkColor="#cfd3ff" style={[
+              styles.replayButtonText,
+              { marginLeft: 8 },
+            ]}>Replay tutorial</ThemedText>
+          </Pressable>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.logoutButton,
+              { right: 18, bottom: 24 + insets.bottom + 56 },
+              pressed && styles.logoutButtonPressed,
+            ]}
+            onPress={handleLogout}
+            android_ripple={{ color: '#00000008' }}
+          >
+            <ThemedText style={styles.logoutButtonText}>Log out</ThemedText>
+          </Pressable>
+        </>
       )}
       </KeyboardAwareScrollView>
       <OnboardingOverlay
         visible={showOnboarding}
-        steps={MENTOR_STEPS}
+        steps={MENTEE_STEPS}
         onComplete={() => setShowOnboarding(false)}
       />
     </View>
   );
 }
 
+ 
 
-
-
-
-
+{/* Style sheets */}
 
 const styles = StyleSheet.create({
   container: {
@@ -745,7 +820,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 32,
+    paddingBottom: 48,
   },
   button: {
     marginTop: 20,
@@ -786,6 +861,12 @@ const styles = StyleSheet.create({
   themeLabel: {
     fontSize: 14,
     marginBottom: 8,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 12,
+    marginBottom: 4,
   },
   themeButtonsRow: {
     flexDirection: 'row',
@@ -1006,6 +1087,26 @@ logoutButtonText: {
   fontWeight: '700',
   fontSize: 16,
 },
+  replayButton: {
+    position: 'absolute',
+    left: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    backgroundColor: 'transparent',
+  },
+  replayButtonPressed: {
+    backgroundColor: '#00000006',
+    borderRadius: 10,
+  },
+  replayButtonText: {
+    color: '#333f5c',
+    fontWeight: '600',
+    fontSize: 14,
+  },
 replayTutorialRow: {
   flexDirection: 'row',
   alignItems: 'center',
@@ -1021,3 +1122,5 @@ acknowledgementRow: {
   paddingVertical: 10,
 },
 });
+
+

@@ -44,6 +44,9 @@ export default function OnboardingOverlay({ visible, steps, onComplete }: Props)
 
   const [currentStep, setCurrentStep] = useState(0);
 
+  const bottomInset = insets.bottom > 0 ? insets.bottom : 0;
+  const bottomFillHeight = bottomInset;
+
   // Photo picker state
   const [pickedPhotoUri, setPickedPhotoUri] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -110,12 +113,21 @@ export default function OnboardingOverlay({ visible, steps, onComplete }: Props)
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
       <View style={[styles.overlay, { backgroundColor: overlayBg }]}>
-        {/* Decorative nav bar at bottom */}
-        <View style={styles.decorativeNav}>
-          <NavBlankShape 
-            width={Dimensions.get('window').width} 
+                {/* Decorative nav + safe area fill */}
+        <View style={styles.bottomDecoration} pointerEvents="none">
+          <NavBlankShape
+            width={Dimensions.get('window').width}
             showCenter={true}
-            style={{ opacity: 0.3 }}
+            color={isDark ? '#20263a' : '#d9deea'}
+          />
+          <View
+            style={[
+              styles.bottomFill,
+              {
+                height: bottomFillHeight + 2,
+                backgroundColor: isDark ? '#20263a' : '#d9deea',
+              },
+            ]}
           />
         </View>
         <View
@@ -421,5 +433,17 @@ const styles = StyleSheet.create({
   },
   nextText: {
     fontSize: 16,
+  },
+  bottomDecoration: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  bottomFill: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: -1,
   },
 });
