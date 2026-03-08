@@ -10,7 +10,7 @@ export default function initializeRevenueCat() {
   //const androidApiKey = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY;
 
   //TEST KEYS
-  const iosApiKey = "test_nudpCnbOFhpVhzFNCOjbzNLASgE";
+  const iosApiKey     = "test_nudpCnbOFhpVhzFNCOjbzNLASgE";
   const androidApiKey = "test_nudpCnbOFhpVhzFNCOjbzNLASgE";
 
   //REAL KEYS
