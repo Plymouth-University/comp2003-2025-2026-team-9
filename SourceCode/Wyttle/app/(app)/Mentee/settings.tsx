@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   Image,
   Linking,
@@ -41,6 +42,8 @@ import {
 import { MENTEE_STEPS } from '../../../src/lib/onboarding';
 import { supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
+
+import { presentPaywall } from '../../../payment/Paywall';
 
 
 // Enable LayoutAnimation on Android
@@ -335,8 +338,32 @@ export default function MenteeSettingsScreen() {
     }
   };
  
-  function handleBuyTokensPlaceholder() {
-    router.push('/(app)/Mentee/buy-tokens' as any);
+  async function handleBuyTokens() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Pull latest balance so paywall variable is always current
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('tokens_balance')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const liveBalance = profile?.tokens_balance ?? 0;
+    setTokensBalance(liveBalance);
+
+    const purchasedOrRestored = await presentPaywall(liveBalance);
+
+    if (purchasedOrRestored) {
+      // Refresh local balance after purchase flow
+      const { data: updatedProfile } = await supabase
+        .from('profiles')
+        .select('tokens_balance')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      setTokensBalance(updatedProfile?.tokens_balance ?? liveBalance);
+    }
   }
  
   const handleSaveProfile = async () => {
@@ -624,7 +651,7 @@ export default function MenteeSettingsScreen() {
             font('GlacialIndifference', '400'),
           ]}>Token balance: {tokensBalance ?? 0}</ThemedText>
         </View>
-        <TouchableOpacity style={styles.itemRow} onPress={handleBuyTokensPlaceholder}>
+        <TouchableOpacity style={styles.itemRow} onPress={handleBuyTokens}>
           <ThemedText darkColor="#cfd3ff" style={[
             styles.itemText,
             font('GlacialIndifference', '400'),
