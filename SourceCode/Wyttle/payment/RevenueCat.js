@@ -9,8 +9,13 @@ export default function initializeRevenueCat() {
   //const iosApiKey = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
   //const androidApiKey = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY;
 
-  const iosApiKey = "appl_yHKdhPpSapIfDmCxttrlDNqMJcE";
-  const androidApiKey = "goog_djydSEqGgwdevzrJyAlnHTZPPdy";
+  //TEST KEYS
+  const iosApiKey = "test_nudpCnbOFhpVhzFNCOjbzNLASgE";
+  const androidApiKey = "test_nudpCnbOFhpVhzFNCOjbzNLASgE";
+
+  //REAL KEYS
+  //const iosApiKey = "appl_yHKdhPpSapIfDmCxttrlDNqMJcE";
+  //const androidApiKey = "goog_djydSEqGgwdevzrJyAlnHTZPPdy";
 
   if (Platform.OS === 'ios') {
     Purchases.configure({ apiKey: iosApiKey });

@@ -384,7 +384,7 @@ export default function MenteeSettingsScreen() {
     return credit;
   }
  
-  // REPLACE YOUR EXISTING handleBuyTokens WITH THIS
+  
   async function handleBuyTokens() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
