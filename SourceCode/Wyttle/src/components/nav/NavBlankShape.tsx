@@ -1,72 +1,46 @@
 import React from 'react';
 import { Dimensions, type StyleProp, type ViewStyle } from 'react-native';
-import Svg, { G, Path, Rect } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 
-const VIEWBOX_WIDTH = 200.27968;
-const VIEWBOX_HEIGHT = 53.78904;
+const VIEWBOX_WIDTH = 200.28;
+const CROPPED_VIEWBOX_Y = 15.82746;
+const CROPPED_VIEWBOX_HEIGHT = 37.96313;
 const NAV_SCALE = 1.3;
-// Design-time width used to clamp vertical scale so the bar height
-// never grows beyond what looks good on a typical phone.
-const BASE_NAV_WIDTH = 390; // px
+const BASE_NAV_WIDTH = 390;
 
 export type NavBlankShapeProps = {
   color?: string;
   style?: StyleProp<ViewStyle>;
-  /**
-   * Optional explicit width to render at. Falls back to window width.
-   * This lets parents pass their measured layout width so the SVG
-   * matches the actual nav bar width on web / tablets.
-   */
   width?: number;
-  /**
-   * Whether to render the center circle bump. Defaults to true.
-   * Set to false to render a flat nav without the floating circle.
-   */
   showCenter?: boolean;
 };
 
-/**
- * SVG background that recreates nav-blank.svg as a scalable nav bar shape.
- *
- * On very wide screens (web / tablets), we clamp the vertical scale based on
- * the initial window width so the bar doesn't become excessively tall. This
- * makes it "flatter but longer" on large screens while keeping phone height.
- */
-export function NavBlankShape({ color = '#333f5c', style, width, showCenter = true }: NavBlankShapeProps) {
+export function NavBlankShape({
+  color = '#333f5c',
+  style,
+  width,
+}: NavBlankShapeProps) {
   const windowWidth = Dimensions.get('window').width;
   const effectiveWidth = width ?? windowWidth;
 
-  // Natural uniform scale for the current nav width
   const widthScale = (effectiveWidth / VIEWBOX_WIDTH) * NAV_SCALE;
-  // Baseline scale based on a fixed "design" width (approx phone width)
   const designScale = (BASE_NAV_WIDTH / VIEWBOX_WIDTH) * NAV_SCALE;
-  // Clamp so vertical scale never exceeds the design-time scale
   const scale = Math.min(widthScale, designScale);
 
-  const height = VIEWBOX_HEIGHT * scale + 10; // Extra 50px to extend below screen
+  const height = CROPPED_VIEWBOX_HEIGHT * scale;
 
   return (
     <Svg
       width={effectiveWidth}
       height={height}
-      viewBox="0 0 200.27968 53.78904"
+      viewBox={`0 ${CROPPED_VIEWBOX_Y} ${VIEWBOX_WIDTH} ${CROPPED_VIEWBOX_HEIGHT}`}
       style={style}
     >
-      <G transform="translate(0,-243.45863)">
-        <Path
-          d="m 200.27968,259.33363 c 0,0 -40.83271,-1.49945 -60.27968,3.70417 -14.5795,3.90119 -20.92738,20.60464 -40.539839,20.16311 C 82.913314,282.8284 80.216072,268.1582 60,263.0378 39.99934,257.97196 0,259.33363 0,259.33363 v 37.91404 h 200.27968 z"
-          fill={color}
-        />
-        {/* Extension rectangle to fill below the screen */}
-        <Rect
-          x="0"
-          y="297.24767"
-          width="200.27968"
-          height="50"
-          fill={color}
-        />
-      </G>
-      
+      <Path
+        d="M 22.499919 259.28609 C 10.000001 258.99328 0 259.33363 0 259.33363 L 0 297.24759 L 100.13394 297.24759 L 100.13394 297.24966 L 200.29423 297.24966 L 200.29423 259.3357 C 200.29423 259.3357 190.29423 258.99586 177.79432 259.28867 L 177.79432 259.28815 C 165.2944 259.58096 150.29461 260.50694 140.29428 263.03986 C 120.07821 268.16026 117.38101 282.83071 100.83416 283.20349 C 100.60785 283.2083 100.38319 283.21073 100.16029 283.21124 L 100.16029 283.20918 C 99.928822 283.20882 99.695245 283.20642 99.460079 283.20142 C 82.913232 282.82864 80.216027 268.1582 59.999955 263.0378 C 49.999625 260.50488 34.999836 259.5789 22.499919 259.28609 z"
+        fill={color}
+        transform="translate(0,-243.45863)"
+      />
     </Svg>
   );
 }

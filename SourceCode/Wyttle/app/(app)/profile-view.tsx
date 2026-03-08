@@ -351,7 +351,7 @@ export default function ProfileViewScreen() {
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={[styles.scrollContent, { flexGrow: 1 }]}
+          contentContainerStyle={[styles.scrollContent, { flexGrow: 1, paddingBottom: insets.bottom }]}
           showsVerticalScrollIndicator={false}
           contentInsetAdjustmentBehavior="never"
           automaticallyAdjustContentInsets={false}
@@ -423,7 +423,7 @@ export default function ProfileViewScreen() {
             pointerEvents="none"
           />
 
-          <View style={[styles.contentPanel, { backgroundColor: theme.card }]}> 
+          <View style={[styles.contentPanel, { backgroundColor: theme.card, paddingBottom: 120 + insets.bottom }]}> 
             <View style={[styles.sectionCard, { backgroundColor: theme.background }]}> 
               <View style={styles.sectionHeaderRow}>
                 <Ionicons name="person-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />

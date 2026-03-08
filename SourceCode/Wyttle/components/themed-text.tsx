@@ -22,10 +22,14 @@ export function ThemedText({
   // Extract fontSize from style prop if it exists
   const styleArray = Array.isArray(style) ? style : [style];
   let existingFontSize: number | undefined;
+  let existingLineHeight: number | undefined;
   
   for (const s of styleArray) {
     if (s && typeof s === 'object' && 'fontSize' in s) {
       existingFontSize = s.fontSize as number;
+    }
+    if (s && typeof s === 'object' && 'lineHeight' in s) {
+      existingLineHeight = s.lineHeight as number;
     }
   }
 
@@ -43,6 +47,13 @@ export function ThemedText({
 
   const scaledFontSize = baseFontSize * textScale;
 
+  // If the caller provided a fontSize but no explicit lineHeight, compute a sensible
+  // default lineHeight based on the scaled font size to avoid clipping (useful for
+  // large display initials / headings).
+  const computedLineHeight = existingFontSize && !existingLineHeight
+    ? Math.round(scaledFontSize * 1.05)
+    : undefined;
+
   return (
     <Text
       style={[
@@ -54,6 +65,7 @@ export function ThemedText({
         type === 'link' ? styles.link : undefined,
         style,
         { fontSize: scaledFontSize },
+        computedLineHeight ? { lineHeight: computedLineHeight } : undefined,
       ]}
       {...rest}
     />

@@ -31,8 +31,8 @@ export default function MenteeBottomNav(_: Props) {
   const widthScale = (width / VIEWBOX_WIDTH) * NAV_SCALE;
   const designScale = (BASE_NAV_WIDTH / VIEWBOX_WIDTH) * NAV_SCALE;
   const scale = Math.min(widthScale, designScale);
-  const svgHeight = VIEWBOX_HEIGHT * scale / 1.42;
-  const circleCenterOffset = (VIEWBOX_HEIGHT - VIEWBOX_CIRCLE_CENTER_Y) * scale - 45;
+  const CROPPED_VIEWBOX_HEIGHT = 37.91404;
+  const svgHeight = CROPPED_VIEWBOX_HEIGHT * scale;  const circleCenterOffset = (VIEWBOX_HEIGHT - VIEWBOX_CIRCLE_CENTER_Y) * scale - 45;
   const contentMaxWidth = Platform.OS === 'web' ? 600 : width;
   const contentWidth = Math.min(width, contentMaxWidth);
   const fillerExtra = Platform.OS === 'web' ? 50 : 0;
@@ -80,7 +80,6 @@ export default function MenteeBottomNav(_: Props) {
 
   return (
     <View
-      pointerEvents="box-none"
       style={[
         styles.container,
         { paddingBottom: bottomFillHeight },
@@ -94,7 +93,6 @@ export default function MenteeBottomNav(_: Props) {
     >
       {/* solid fill at the very bottom to avoid any white strip */}
       <View
-        pointerEvents="none"
         style={[
           styles.bottomFill,
           { height: bottomFillHeight },
@@ -107,13 +105,13 @@ export default function MenteeBottomNav(_: Props) {
       {/* Side fills for web to extend to edges */}
       {Platform.OS === 'web' && (
         <>
-          <View pointerEvents="none" style={[styles.leftFill, { height: svgHeight, width: fillerWidth }]} />
-          <View pointerEvents="none" style={[styles.rightFill, { height: svgHeight, width: fillerWidth }]} />
+          <View style={[styles.leftFill, { height: svgHeight, width: fillerWidth }]} />
+          <View style={[styles.rightFill, { height: svgHeight, width: fillerWidth }]} />
         </>
       )}
 
       {/* Centered content wrapper constrained to max SVG-like width */}
-      <View style={styles.contentWrapper} pointerEvents="box-none">
+      <View style={styles.contentWrapper}>
         {/* main bar content (tabs) */}
         <View style={styles.bar}>
           {/* left group */}
@@ -185,7 +183,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'transparent',
+    backgroundColor: 'transparent', // for debugging layout
   },
   bottomFill: {
     position: 'absolute',

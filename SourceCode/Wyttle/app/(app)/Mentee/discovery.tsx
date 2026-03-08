@@ -35,7 +35,7 @@ const HandshakeIcon = require('@/assets/icons/handshake.png');
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
-const CARD_HEIGHT = SCREEN_HEIGHT * 0.68;
+const CARD_HEIGHT = SCREEN_HEIGHT * 0.70;
 
 export default function DiscoveryStackScreen() {
   const colorScheme = useColorScheme();
@@ -228,6 +228,53 @@ export default function DiscoveryStackScreen() {
         </View>
       </View>
 
+      {/* Card area rendered above scrollable content so it can overlap the header */}
+      {!loading && !showEmpty && (
+        <View style={styles.cardArea} pointerEvents="box-none">
+          <ProfileCard
+            key={current?.id ?? 'no-profile'}
+            profile={current}
+            nextProfile={nextProfile}
+            remaining={remaining}
+            onOpenProfile={(id: string) => {
+              router.push({
+                pathname: '/(app)/Mentee/profile-view' as any,
+                params: { userId: id },
+              });
+            }}
+            onSwipeLeft={() => {
+              if (!current) return;
+              const swipedId = current.id;
+              const swipedProfile = current;
+              setLastPass({ profile: swipedProfile, index });
+              setIndex((prev) => prev + 1);
+              setSwiping(false);
+              void handlePass(swipedId);
+            }}
+            onSwipeRight={() => {
+              if (!current) return;
+              const swipedId = current.id;
+              setLastPass(null);
+              setIndex((prev) => prev + 1);
+              setSwiping(false);
+              void handleLike(swipedId);
+            }}
+            onSwipeStart={handleSwipeStart}
+            swipeCommand={swipeCommand}
+            onSwipeCommandHandled={handleSwipeCommandHandled}
+            swiping={swiping}
+            enterFrom={enterFrom}
+            onEnterComplete={() => setEnterFrom(null)}
+            onSkipPress={() => {
+              if (!swiping && current) setSwipeCommand('left');
+            }}
+            onConnectPress={() => {
+              if (!swiping && current) setSwipeCommand('right');
+            }}
+          />
+        </View>
+      )}
+
       {/* Content */}
       <ScrollView style={styles.content} contentContainerStyle={styles.contentInner} showsVerticalScrollIndicator={false}>
         {loading ? (
@@ -252,53 +299,7 @@ export default function DiscoveryStackScreen() {
               <Text style={styles.secondaryButtonText}>Refresh</Text>
             </TouchableOpacity>
           </View>
-        ) : (
-          <View style={styles.cardArea}>
-            {/* Card */}
-            <ProfileCard
-              key={current?.id ?? 'no-profile'}
-              profile={current}
-              nextProfile={nextProfile}
-              remaining={remaining}
-              onOpenProfile={(id: string) => {
-                router.push({
-                  pathname: '/(app)/Mentee/profile-view' as any,
-                  params: { userId: id },
-                });
-              }}
-              onSwipeLeft={() => {
-                if (!current) return;
-                const swipedId = current.id;
-                const swipedProfile = current;
-                setLastPass({ profile: swipedProfile, index });
-                setIndex((prev) => prev + 1);
-                setSwiping(false);
-                void handlePass(swipedId);
-              }}
-              onSwipeRight={() => {
-                if (!current) return;
-                const swipedId = current.id;
-                setLastPass(null);
-                setIndex((prev) => prev + 1);
-                setSwiping(false);
-                void handleLike(swipedId);
-              }}
-              onSwipeStart={handleSwipeStart}
-              swipeCommand={swipeCommand}
-              onSwipeCommandHandled={handleSwipeCommandHandled}
-              swiping={swiping}
-              enterFrom={enterFrom}
-              onEnterComplete={() => setEnterFrom(null)}
-              onSkipPress={() => {
-                if (!swiping && current) setSwipeCommand('left');
-              }}
-              onConnectPress={() => {
-                if (!swiping && current) setSwipeCommand('right');
-              }}
-            />
-
-          </View>
-        )}
+        ) : null}
       </ScrollView>
 
       {/* Match modal */}
@@ -326,7 +327,7 @@ export default function DiscoveryStackScreen() {
                   {myProfile?.photo_url ? (
                     <Image source={{ uri: myProfile.photo_url }} style={styles.matchAvatarImage} />
                   ) : (
-                    <Text style={styles.matchAvatarInitial}>
+                    <Text style={[styles.matchAvatarInitial, font('GlacialIndifference', '700')] }>
                       {(myProfile?.full_name ?? 'You').charAt(0).toUpperCase()}
                     </Text>
                   )}
@@ -339,7 +340,7 @@ export default function DiscoveryStackScreen() {
                       style={styles.matchAvatarImage}
                     />
                   ) : (
-                    <Text style={styles.matchAvatarInitial}>
+                    <Text style={[styles.matchAvatarInitial, font('GlacialIndifference', '700')] }>
                       {(matchModalProfile.full_name ?? 'Peer').charAt(0).toUpperCase()}
                     </Text>
                   )}
@@ -828,6 +829,10 @@ const styles = StyleSheet.create({
   },
   cardArea: {
     width: '100%',
+    position: 'relative',
+    zIndex: 200,
+    elevation: 200,
+    marginTop: 6,
   },
 
   /* ───── Card + arrows row ───── */
@@ -839,7 +844,10 @@ const styles = StyleSheet.create({
   /* ───── Profile card ───── */
   stackWrapper: {
     alignItems: 'center',
-    paddingBottom: 28,
+    paddingBottom: 20,
+    position: 'relative',
+    zIndex: 100,
+    elevation: 100,
   },
   card: {
     width: '100%',
@@ -847,6 +855,8 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: '#fff',
     overflow: 'hidden',
+    zIndex: 20,
+    elevation: 20,
   },
   cardDark: {
     backgroundColor: '#111524',
@@ -856,7 +866,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18,
     shadowRadius: 12,
-    elevation: 10,
+    elevation: 18,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.08)',
   },
@@ -874,6 +884,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 6,
+    zIndex: 5,
   },
   cardBehind2: {
     position: 'absolute',
@@ -889,6 +900,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 6,
     elevation: 4,
+    zIndex: 3,
   },
   cardOverlay1: {
     ...StyleSheet.absoluteFillObject,
@@ -908,7 +920,7 @@ const styles = StyleSheet.create({
   },
   cardPhotoSection: {
     width: '100%',
-    height: CARD_HEIGHT * 0.4,
+    height: CARD_HEIGHT * 0.35,
     backgroundColor: '#e8e8e8',
   },
   cardPhoto: {
@@ -929,28 +941,28 @@ const styles = StyleSheet.create({
   },
   cardInfoSection: {
     flex: 1,
-    paddingHorizontal: 18,
-    paddingTop: 12,
-    paddingBottom: 14,
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    paddingBottom: 10,
   },
   cardName: {
-    fontSize: 24,
-    marginBottom: 2,
+    fontSize: 22,
+    marginBottom: 0,
   },
   cardJobTitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#555',
-    marginBottom: 1,
+    marginBottom: 0,
   },
   cardLocation: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#999',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   cardChipsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   cardChip: {
     marginRight: 6,
@@ -959,14 +971,14 @@ const styles = StyleSheet.create({
   cardChipDark: {
   },
   cardChipPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 999,
     backgroundColor: '#f5f5f3',
     borderWidth: 1,
     borderColor: '#e0dfd5',
     marginRight: 6,
-    marginBottom: 4,
+    marginBottom: 3,
   },
   cardChipPillDark: {
     backgroundColor: 'rgba(157, 168, 255, 0.18)',
@@ -977,22 +989,22 @@ const styles = StyleSheet.create({
     color: '#4a4a4a',
   },
   cardSectionTitle: {
-    fontSize: 15,
-    marginTop: 10,
-    marginBottom: 4,
+    fontSize: 14,
+    marginTop: 6,
+    marginBottom: 2,
   },
   cardBio: {
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 18,
     color: '#555',
   },
 
   /* ───── YES / NO swipe badges ───── */
   badge: {
     position: 'absolute',
-    top: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    top: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 999,
     zIndex: 10,
     elevation: 10,
@@ -1022,7 +1034,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 13,
+    paddingVertical: 10,
     borderRadius: 999,
     columnGap: 8,
   },
@@ -1031,14 +1043,14 @@ const styles = StyleSheet.create({
   },
   skipButtonText: {
     color: '#c55',
-    fontSize: 16,
+    fontSize: 15,
   },
   connectButton: {
     backgroundColor: '#dceede',
   },
   connectButtonText: {
     color: '#5a7a5f',
-    fontSize: 16,
+    fontSize: 15,
   },
 
   /* ───── Undo ───── */
