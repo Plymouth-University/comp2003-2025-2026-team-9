@@ -701,13 +701,23 @@ export default function MenteeSettingsScreen() {
           <ThemedText darkColor="#cfd3ff" style={[
             styles.itemText,
             font('GlacialIndifference', '400'),
-          ]}>Token balance: {tokensBalance ?? 0}</ThemedText>
+          ]}>
+            Token balance:{' '}
+            <ThemedText darkColor="#cfd3ff" style={[
+              styles.itemText,
+              font('GlacialIndifference', '400'),
+              { fontWeight: '700' },
+            ]}>
+              {tokensBalance ?? 0}
+            </ThemedText>
+          </ThemedText>
         </View>
         <TouchableOpacity style={styles.itemRow} onPress={handleBuyTokens}>
+          <Image source={require('../../../assets/icons/diamond_small.png')} style={styles.tokenIcon} />
           <ThemedText darkColor="#cfd3ff" style={[
             styles.itemText,
             font('GlacialIndifference', '400'),
-          ]}>Buy tokens (coming soon)</ThemedText>
+          ]}>Buy tokens</ThemedText>
         </TouchableOpacity>
       </SettingsDropdown>
 
@@ -1184,6 +1194,12 @@ logoutButtonText: {
     color: '#333f5c',
     fontWeight: '600',
     fontSize: 14,
+  },
+  tokenIcon: {
+    width: 16,
+    height: 16,
+    marginRight: 8,
+    resizeMode: 'contain',
   },
 replayTutorialRow: {
   flexDirection: 'row',
