@@ -199,6 +199,7 @@ export default function MenteeSettingsScreen() {
     onehundred_tokens: 100,
     // add exact RevenueCat/App Store product IDs here
     twohundred_tokens_monthly: 200,
+    'twohundred_tokens_monthly:twohundred-tokens-monthly-base-plan-id': 200,
   };
 
   const LAST_PROCESSED_TX_KEY_PREFIX = 'rc:last-token-tx:';
