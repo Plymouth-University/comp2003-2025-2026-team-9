@@ -28,6 +28,7 @@
     },
     "android": {
       "googleServicesFile": "./google-services.json",
+      "windowSoftInputMode": "adjustResize",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
