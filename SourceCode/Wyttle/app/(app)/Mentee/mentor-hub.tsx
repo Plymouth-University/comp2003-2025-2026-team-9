@@ -520,79 +520,79 @@ export default function MentorHub() {
           ]}
           showsVerticalScrollIndicator={true}
         >
-        {/* centered block with fixed width exactly matching the columns */}
-        <View style={[styles.innerContainer, { width: contentWidth }]}>
-          {renderItems.map((item, index) => {
-            const isPlaceholder = '__placeholder' in item;
-            const key = isPlaceholder ? (item as { __placeholder: true; key: string }).key : (item as Mentor).id;
-            const isLastColumn = (index % columns) === (columns - 1);
+          {/* centered block with fixed width exactly matching the columns */}
+          <View style={[styles.innerContainer, { width: contentWidth }]}>
+            {renderItems.map((item, index) => {
+              const isPlaceholder = '__placeholder' in item;
+              const key = isPlaceholder ? (item as { __placeholder: true; key: string }).key : (item as Mentor).id;
+              const isLastColumn = (index % columns) === (columns - 1);
 
-            return (
-              <Pressable
-                key={key ?? index}
-                onPress={() => {
-                  if (!isPlaceholder) {
-                    router.push({
-                      pathname: '/(app)/Mentee/profile-view' as any,
-                      params: { userId: (item as Mentor).id },
-                    });
-                  }
-                }}
-                disabled={isPlaceholder}
-                accessibilityRole="button"
-                style={[
-                  styles.card,
-                  {
-                    width: CARD_WIDTH,
-                    marginRight: isLastColumn ? 0 : GAP,
-                    marginBottom: GAP,
-                    opacity: isPlaceholder ? 0 : 1,
-                  },
-                ]}
-              >
-                {isPlaceholder ? null : (
-                  <>
-                    {item.photo_url ? (
-                      <Image source={{ uri: (item as Mentor).photo_url }} style={styles.avatar} />
-                    ) : (
-                      <View style={styles.avatar}>
-                        <Text style={styles.avatarText}>
-                          {(((item as Mentor).full_name ?? 'M').charAt(0) || 'M').toUpperCase()}
-                        </Text>
-                      </View>
-                    )}
-
-                    {(() => {
-                      const rate = (item as Mentor).mentor_session_rate;
-                      const display = rate == null ? '—' : rate === 0 ? 'Free' : String(rate);
-                      return (
-                        <View style={styles.priceTag}>
-                          <Image
-                            source={require('../../../assets/icons/diamond_small.png')}
-                            style={styles.priceIcon}
-                          />
-                          <Text style={styles.priceText}>{display}</Text>
-                          <Text style={styles.priceUnit}>/session</Text>
+              return (
+                <Pressable
+                  key={key ?? index}
+                  onPress={() => {
+                    if (!isPlaceholder) {
+                      router.push({
+                        pathname: '/(app)/Mentee/profile-view' as any,
+                        params: { userId: (item as Mentor).id },
+                      });
+                    }
+                  }}
+                  disabled={isPlaceholder}
+                  accessibilityRole="button"
+                  style={[
+                    styles.card,
+                    {
+                      width: CARD_WIDTH,
+                      marginRight: isLastColumn ? 0 : GAP,
+                      marginBottom: GAP,
+                      opacity: isPlaceholder ? 0 : 1,
+                    },
+                  ]}
+                >
+                  {isPlaceholder ? null : (
+                    <>
+                      {item.photo_url ? (
+                        <Image source={{ uri: (item as Mentor).photo_url }} style={styles.avatar} />
+                      ) : (
+                        <View style={styles.avatar}>
+                          <Text style={styles.avatarText}>
+                            {(((item as Mentor).full_name ?? 'M').charAt(0) || 'M').toUpperCase()}
+                          </Text>
                         </View>
-                      );
-                    })()}
+                      )}
 
-                    <Text style={[styles.name, { color: theme.text, top: -12 }]}>
-                      {(item as Mentor).full_name ?? 'Unnamed mentor'}
-                    </Text>
+                      {(() => {
+                        const rate = (item as Mentor).mentor_session_rate;
+                        const display = rate == null ? '—' : rate === 0 ? 'Free' : String(rate);
+                        return (
+                          <View style={styles.priceTag}>
+                            <Image
+                              source={require('../../../assets/icons/diamond_small.png')}
+                              style={styles.priceIcon}
+                            />
+                            <Text style={styles.priceText}>{display}</Text>
+                            <Text style={styles.priceUnit}>/session</Text>
+                          </View>
+                        );
+                      })()}
 
-                    {(item as Mentor).title && (
-                      <Text style={[styles.subtitle, { color: theme.text }]}>
-                        {(item as Mentor).title}
+                      <Text style={[styles.name, { color: theme.text, top: -12 }]}>
+                        {(item as Mentor).full_name ?? 'Unnamed mentor'}
                       </Text>
-                    )}
 
-                  </>
-                )}
-              </Pressable>
-            );
-          })}
-        </View>
+                      {(item as Mentor).title && (
+                        <Text style={[styles.subtitle, { color: theme.text }]}>
+                          {(item as Mentor).title}
+                        </Text>
+                      )}
+
+                    </>
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
 
         </ScrollView>
       </Animated.View>
