@@ -1,10 +1,13 @@
 import { router, usePathname, type Href } from 'expo-router';
-import React, { JSX } from 'react';
+import React, { JSX, useEffect, useState } from 'react';
 import { Dimensions, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CalendarIcon, ChatIcon, SettingIcon, VideoIcon } from './MentorNavIcons';
 import { NavBlankShape } from './NavBlankShape';
+import { supabase } from '../../lib/supabase';
+import { Text } from 'react-native';
+import { Logo } from '@/components/Logo';
 
 const VIEWBOX_WIDTH = 200.27968;
 const VIEWBOX_HEIGHT = 53.78904;
@@ -73,6 +76,27 @@ export default function MentorBottomNav() {
   }
 
   const active = activeKey;
+
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('account_type')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (!error && data) {
+          setIsAdmin(!!data.account_type);
+        }
+      } catch (err) {
+        // ignore errors — default to non-admin
+      }
+    })();
+  }, []);
 
   const goTo = (path: string, key: (typeof tabs)[number]['key']) => {
     // If this tab is already active, do nothing to avoid re-running
@@ -152,6 +176,18 @@ export default function MentorBottomNav() {
       </View>
 
       {/* floating middle logo circle */}
+      {isAdmin && (
+        <TouchableOpacity
+          accessibilityLabel="Admin"
+          onPress={() => goTo('/(app)/(admin)/admin', 'admin')}
+          style={[
+            styles.adminCircle,
+            { bottom: bottomFillHeight + svgHeight / 2 - 10 },
+          ]}
+        >
+          <Logo size={32} />
+        </TouchableOpacity>
+      )}
      
     </View>
   );
@@ -233,5 +269,22 @@ const styles = StyleSheet.create({
   },
   navItem: {
     alignItems: 'center',
+  },
+  adminCircle: {
+    position: 'absolute',
+    left: '50%',
+    marginLeft: -28,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#333f5c',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 6,
+    zIndex: 20,
   },
 });
