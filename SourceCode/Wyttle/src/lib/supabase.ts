@@ -37,6 +37,7 @@ export type Profile = {
   erience: string | null;
   photo_url: string | null;
   role: 'member' | 'mentor' | 'admin' | null;
+  account_type?: boolean | null; // 0 = normal user, 1 = admin (stored as boolean in profiles)
   location?: string | null;  // optional location field
   skills?: string[] | null;
   interests?: string[] | null;
