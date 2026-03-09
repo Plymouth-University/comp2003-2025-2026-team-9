@@ -200,7 +200,7 @@ export default function MenteeSettingsScreen() {
   const [skills, setSkills] = useState<string[]>([]);
   const [newSkill, setNewSkill] = useState('');
   const [lookingFor, setLookingFor] = useState('');
-  const [tokensBalance, setTokensBalance] = useState<number | null>(null);
+  //const [tokensBalance, setTokensBalance] = useState<number | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
@@ -216,7 +216,7 @@ export default function MenteeSettingsScreen() {
       const prefs = await getNotificationPreferences(user.id);
 
       setPhotoUrl(profile?.photo_url ?? null);
-      setTokensBalance(profile?.tokens_balance ?? null);
+      //setTokensBalance(profile?.tokens_balance ?? null);
       setNotificationPrefs(prefs);
     })();
   }, []);
@@ -334,10 +334,6 @@ export default function MenteeSettingsScreen() {
       setSavingPreferenceKey(null);
     }
   };
- 
-  function handleBuyTokensPlaceholder() {
-    router.push('/(app)/Mentee/buy-tokens' as any);
-  }
  
   const handleSaveProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -609,28 +605,6 @@ export default function MenteeSettingsScreen() {
             </View>
             
           )}
-      </SettingsDropdown>
-
-      <SettingsDropdown 
-        id="tokens" 
-        title="Tokens"
-        icon="wallet-outline"
-        openSection={openSection}
-        toggleSection={toggleSection}
-        theme={theme}
-      >
-        <View style={styles.itemRow}>
-          <ThemedText darkColor="#cfd3ff" style={[
-            styles.itemText,
-            font('GlacialIndifference', '400'),
-          ]}>Token balance: {tokensBalance ?? 0}</ThemedText>
-        </View>
-        <TouchableOpacity style={styles.itemRow} onPress={handleBuyTokensPlaceholder}>
-          <ThemedText darkColor="#cfd3ff" style={[
-            styles.itemText,
-            font('GlacialIndifference', '400'),
-          ]}>Buy tokens (coming soon)</ThemedText>
-        </TouchableOpacity>
       </SettingsDropdown>
 
       <SettingsDropdown 
