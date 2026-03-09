@@ -117,29 +117,15 @@ export default function MentorHub() {
   const { width: screenWidth } = useWindowDimensions();
 
   //Distance filter state (null = no distance filter)
-  const [selectedDistance, setSelectedDistance] = useState<number | null>(null);
-  const [showDistanceOptions, setShowDistanceOptions] = useState(false);
+  //const [selectedDistance, setSelectedDistance] = useState<number | null>(null);
+  //const [showDistanceOptions, setShowDistanceOptions] = useState(false);
 
   //Industry filter state (null = no industry filter)
   const [selectedIndustry, setSelectedIndustry] = useState<string[]>([]);
   const [showIndustryOptions, setShowIndustryOptions] = useState(false);
 
 
-  /**
-   * Placeholder distance getter.
-   * - Right now profiles don't have distance info in DB.
-   * - When storing distances on the profile (e.g. the backend adds "distance_miles"),
-   *   this function should return that numeric value in miles.
-   * - For now this checks a `distance_miles` field on the profile object (if present).
-   * - Return `null` when unknown.
-   */
-  const computeDistanceMiles = (p: Mentor): number | null => {
-    // TODO: replace this with real calculation / DB-provided distance
-    // For now, check a placeholder property that we can add later: distance_miles
-    const asAny = p as any;
-    if (typeof asAny.distance_miles === 'number') return asAny.distance_miles;
-    return null;
-  };
+  
 
   // Tick every 30s so countdown / "Join Call" updates live
   useEffect(() => {
@@ -248,14 +234,14 @@ export default function MentorHub() {
       if (selectedIndustry.length > 0) {
     if (!m.industry || !selectedIndustry.includes(m.industry)) return false;
     }
-
+      /* ------------------MOVING DISTANCE FILTER TO OTHER SCREEN
       // distance filter (only apply when user selected a distance)
       if (selectedDistance != null) {
         const d = computeDistanceMiles(m);
         // currently we exclude mentors with unknown distance (d === null)
         if (d === null) return false;
         return d <= selectedDistance;
-      }
+      }*/
 
       return true;
     });
@@ -268,7 +254,7 @@ export default function MentorHub() {
       if (aName > bName) return 1;
       return 0;
     });
-  }, [mentors, query, selectedDistance, selectedIndustry]);
+  }, [mentors, query, selectedIndustry]);
 
 
   // compute layout: columns, contentWidth, placeholders to fill last row
@@ -333,18 +319,6 @@ export default function MentorHub() {
             <Text style={styles.chev}>{showIndustryOptions ? '▴' : '▾'}</Text>
           </Pressable>
 
-          
-
-          <Pressable 
-            style={[styles.filterButton, { backgroundColor: theme.card }]}
-            onPress={() => setShowDistanceOptions((s) => !s)}
-          >
-            <Text style={[styles.filterText, {color: theme.text}]}>
-              {selectedDistance ? `≤ ${selectedDistance} mi` : 'Distance...'}
-              </Text>
-            <Text style={styles.chev}>{showDistanceOptions ? '▴' : '▾' }</Text>
-
-          </Pressable>
         </View>
 
         {/* Industry options - two rows that scroll together */}
@@ -438,53 +412,7 @@ export default function MentorHub() {
           </Animated.View>
         )}
 
-        {/* Distance options (10-mile intervals). Visible only when showDistanceOptions === true */}
-        {showDistanceOptions && (
-          <Animated.View entering={FadeIn} exiting={FadeOut} layout={Layout.springify()} style={{ marginTop: 8 }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 2 }}>
-
-              <Pressable
-                onPress={() => {
-                  setSelectedDistance(null);
-                  setShowDistanceOptions(false);
-                }}
-                style={[
-                  styles.distanceOption, 
-                  { marginLeft: 6 },
-                  selectedDistance === null ? styles.distanceOptionActive : undefined
-                ]}
-              >
-                <Text style={[
-                  styles.distanceOptionText,
-                  selectedDistance === null ? styles.distanceOptionTextActive : undefined
-                ]}>
-                  Any
-                </Text>
-              </Pressable>
-
-              {[10, 20, 30, 40, 50, 100].map((d) => {
-                const active = selectedDistance === d;
-                return (
-                  <Pressable
-                    key={d}
-                    onPress={() => {
-                      setSelectedDistance(d);
-                      setShowDistanceOptions(false);
-                    }}
-                    style={[
-                    styles.distanceOption,
-                    active ? styles.distanceOptionActive : undefined,
-                  ]}
-                  >
-                    <Text style={[styles.distanceOptionText, active ? styles.distanceOptionTextActive : undefined]}>
-                      {d} mi
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </Animated.View>
-        )}
+        
       </View>
 
       {/* Upcoming sessions */}
