@@ -540,6 +540,8 @@ export default function ProfileViewScreen() {
                   <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '700'), { color: theme.text }]}> 
                     Actions
                   </ThemedText>
+
+                  
                 </View>
 
                 {canShowBooking && (
@@ -558,6 +560,7 @@ export default function ProfileViewScreen() {
                         />
                         <Text style={styles.bookButtonTitle}>{`${profile.mentor_session_rate} tokens/session`}</Text>
                       </View>
+                      
                     ) : (
                       <Text style={styles.bookButtonTitle}>Free session</Text>
                     )}
@@ -576,6 +579,9 @@ export default function ProfileViewScreen() {
                     </ThemedText>
                   </TouchableOpacity>
                 )}
+
+                <Text style={styles.bookButtonSubtitle}>Be polite, respectful and detailed with what you want advice with so the mentor can easily determine if it is something they can assist you with or not</Text>
+
               </View>
             )}
           </View>
