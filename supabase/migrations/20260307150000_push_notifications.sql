@@ -750,16 +750,35 @@ security definer
 set search_path = public
 as $$
 declare
-  supabase_url text := current_setting('app.settings.supabase_url', true);
+  supabase_url text;
+  service_role_key text;
 begin
+  select decrypted_secret into supabase_url
+  from vault.decrypted_secrets
+  where name = 'supabase_url'
+  limit 1;
+
+  select decrypted_secret into service_role_key
+  from vault.decrypted_secrets
+  where name = 'service_role_key'
+  limit 1;
+
   if supabase_url is null or supabase_url = '' then
+    return;
+  end if;
+
+  if service_role_key is null or service_role_key = '' then
     return;
   end if;
 
   if exists (select 1 from pg_namespace where nspname = 'net') then
     perform net.http_post(
       url := supabase_url || '/functions/v1/push-dispatch',
-      headers := jsonb_build_object('Content-Type', 'application/json'),
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', 'Bearer ' || service_role_key,
+        'apikey', service_role_key
+      ),
       body := jsonb_build_object('limit', 100)
     );
   end if;

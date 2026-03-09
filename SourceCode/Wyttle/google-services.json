@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "290997738287",
+    "project_id": "wyttle-payments",
+    "storage_bucket": "wyttle-payments.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:290997738287:android:7f967ff91bffc089d0dfda",
+        "android_client_info": {
+          "package_name": "com.wyttle.wyttleapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA08jXU4-XkaMDZY7mfNfllk24f9I6Kd38"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
