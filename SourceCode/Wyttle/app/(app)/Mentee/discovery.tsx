@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
   Image,
   Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +14,9 @@ import {
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
+  FadeIn,
+  FadeOut,
+  Layout,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -54,6 +58,34 @@ export default function DiscoveryStackScreen() {
   const [myProfile, setMyProfile] = useState<Profile | null>(null);
   const [matchIntro, setMatchIntro] = useState('');
   const [matchModalProfile, setMatchModalProfile] = useState<Profile | null>(null);
+
+  const [selectedDistance, setSelectedDistance] = useState<number | null>(null);
+  const [showDistanceOptions, setShowDistanceOptions] = useState(false);
+
+  const computeDistanceMiles = (p: Profile): number | null => {
+    // Placeholder until backend provides real distance
+    const asAny = p as any;
+    if (typeof asAny.distance_miles === 'number') return asAny.distance_miles;
+    return null;
+  };
+
+  const visibleProfiles = useMemo(() => {
+    if (selectedDistance == null) return profiles;
+
+    return profiles.filter((p) => {
+      // distance filter (only apply when user selected a distance)
+      const d = computeDistanceMiles(p);
+      // currently we exclude profiles with unknown distance (d === null)
+      if (d === null) return false;
+      return d <= selectedDistance;
+    });
+  }, [profiles, selectedDistance]);
+
+  useEffect(() => {
+    if (index >= visibleProfiles.length) {
+      setIndex(0);
+    }
+  }, [index, visibleProfiles.length]);
 
   const loadProfiles = useCallback(async () => {
     setLoading(true);
@@ -99,9 +131,9 @@ export default function DiscoveryStackScreen() {
     };
   }, []);
 
-  const current = profiles[index];
-  const nextProfile = profiles[index + 1];
-  const remaining = profiles.length - index - 1;
+  const current = visibleProfiles[index];
+  const nextProfile = visibleProfiles[index + 1];
+  const remaining = visibleProfiles.length - index - 1;
 
   const handleSwipeStart = () => {
     if (!current || swiping) return;
@@ -150,7 +182,7 @@ export default function DiscoveryStackScreen() {
 
   const handleUndoLastPass = () => {
     if (!lastPass) return;
-    const idx = profiles.findIndex((p) => p.id === lastPass.profile.id);
+    const idx = visibleProfiles.findIndex((p) => p.id === lastPass.profile.id);
     if (idx === -1) {
       setLastPass(null);
       return;
@@ -160,7 +192,7 @@ export default function DiscoveryStackScreen() {
     setLastPass(null);
   };
 
-  const showEmpty = !loading && (!profiles.length || !current);
+  const showEmpty = !loading && (!visibleProfiles.length || !current);
 
   const handleCloseMatchModal = () => {
     setMatchModalProfile(null);
@@ -227,6 +259,70 @@ export default function DiscoveryStackScreen() {
           )}
         </View>
       </View>
+
+      {/* Distance filter row here  */}
+      <Pressable 
+        style={[styles.filterButton, { backgroundColor: theme.card }]}
+        onPress={() => setShowDistanceOptions((s) => !s)}
+      >
+        <Text style={[styles.filterText, {color: theme.text}]}>
+          {selectedDistance ? `≤ ${selectedDistance} mi` : 'Distance...'}
+          </Text>
+        <Text style={styles.chev}>{showDistanceOptions ? '▴' : '▾' }</Text>
+
+      </Pressable>
+
+
+      {/* Distance options (10-mile intervals). Visible only when showDistanceOptions === true */}
+      {showDistanceOptions && (
+        <Animated.View entering={FadeIn} exiting={FadeOut} layout={Layout.springify()} style={{ marginTop: 8 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 2 }}>
+
+            <Pressable
+              onPress={() => {
+                setSelectedDistance(null);
+                setShowDistanceOptions(false);
+              }}
+              style={[
+                styles.distanceOption, 
+                { marginLeft: 6 },
+                selectedDistance === null ? styles.distanceOptionActive : undefined
+              ]}
+            >
+              <Text style={[
+                styles.distanceOptionText,
+                selectedDistance === null ? styles.distanceOptionTextActive : undefined
+              ]}>
+                Any
+              </Text>
+            </Pressable>
+
+            {[10, 20, 30, 40, 50, 100].map((d) => {
+              const active = selectedDistance === d;
+              return (
+                <Pressable
+                  key={d}
+                  onPress={() => {
+                    setSelectedDistance(d);
+                    setShowDistanceOptions(false);
+                  }}
+                  style={[
+                  styles.distanceOption,
+                  active ? styles.distanceOptionActive : undefined,
+                ]}
+                >
+                  <Text style={[styles.distanceOptionText, active ? styles.distanceOptionTextActive : undefined]}>
+                    {d} mi
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </Animated.View>
+      )}
+
+
+
 
       {/* Card area rendered above scrollable content so it can overlap the header */}
       {!loading && !showEmpty && (
@@ -818,6 +914,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+
+  /* ───── Distance Filter ───── */
+  filterButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexDirection: 'row',
+  },
+  filterText: {
+    color: '#3b3b3b',
+    fontSize: 16,
+  },
+  chev: {
+    color: '#3b3b3b',
+    fontSize: 20,
+  },
+  distanceOption: {
+    paddingHorizontal: 12,
+    paddingTop: 6,
+    paddingBottom: 6,
+    borderRadius: 999,
+    backgroundColor: '#efefef',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  distanceOptionActive: {
+    backgroundColor: '#333f5c',
+    borderColor: '#000000',
+  },
+  distanceOptionText: {
+    fontSize: 13,
+    color: '#333',
+  },
+  distanceOptionTextActive: {
+    color: '#fff',
   },
 
   /* ───── Content ───── */
