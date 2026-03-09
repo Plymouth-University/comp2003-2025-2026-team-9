@@ -199,7 +199,6 @@ export default function MenteeSettingsScreen() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [skills, setSkills] = useState<string[]>([]);
   const [newSkill, setNewSkill] = useState('');
-  const [lookingFor, setLookingFor] = useState('');
   //const [tokensBalance, setTokensBalance] = useState<number | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
@@ -271,14 +270,7 @@ export default function MenteeSettingsScreen() {
         setBio(profile?.bio ?? '');
         setWorkExperience(profile?.work_experience ?? '');  
         setSkills(profile?.skills ?? []);
-        const rawLf = (profile as any)?.looking_for;
-        if (Array.isArray(rawLf)) {
-          setLookingFor(rawLf.filter(Boolean).join(', '));
-        } else if (typeof rawLf === 'string') {
-          setLookingFor(rawLf);
-        } else {
-          setLookingFor('');
-        } 
+        // mentors: ignore the "looking_for" field in this settings screen
       } catch (err) {
         console.warn('Error fetching profile for edit', err);
       }
@@ -347,7 +339,6 @@ export default function MenteeSettingsScreen() {
       bio: bio.trim().length > 0 ? bio.trim() : null,
       work_experience: workExperience.trim().length > 0 ? workExperience.trim() : null,
       skills: skills.length > 0 ? skills : null,
-      looking_for: lookingFor.trim().length > 0 ? lookingFor.trim() : null,
     };
 
     try {
@@ -587,17 +578,7 @@ export default function MenteeSettingsScreen() {
   </TouchableOpacity>
 </View>
 
-              <Text style={[styles.fieldLabel, { color: theme.text }]}>I am looking for</Text>
-              {/* Looking For Section */}
-              <TextInput
-                style={[styles.textArea, { color: theme.text }]}
-                placeholder="I am looking for..."
-                placeholderTextColor="#7f8186"
-                value={lookingFor}
-                onChangeText={setLookingFor}
-                multiline
-                maxLength={500}
-              />
+              {/* 'I am looking for' removed for mentors */}
 
               <TouchableOpacity style={styles.saveButton} onPress={handleSaveProfile}>
                 <Text style={styles.saveButtonText}>Save profile</Text>
