@@ -21,6 +21,15 @@ export default function MentorBottomNav() {
   const bottomInset = insets.bottom > 0 ? insets.bottom : 10;
   const bottomFillHeight = bottomInset;
 
+  // Detect Android navigation buttons (vs gesture nav) and adjust layout.
+  const NAV_BUTTONS_THRESHOLD = 20;
+  const androidHasNavButtons = Platform.OS === 'android' && insets.bottom >= NAV_BUTTONS_THRESHOLD;
+  const backgroundBottom = androidHasNavButtons ? -85 + bottomInset : -85;
+
+  // Lift the interactive buttons slightly when nav buttons exist so they
+  // don't visually collide with the system bar.
+  const buttonLift = androidHasNavButtons ? Math.max(6, Math.min(20, Math.round(bottomInset / 2))) : 0;
+
   const width = navWidth;
   const widthScale = (width / VIEWBOX_WIDTH) * NAV_SCALE;
   const designScale = (BASE_NAV_WIDTH / VIEWBOX_WIDTH) * NAV_SCALE;
@@ -94,7 +103,7 @@ export default function MentorBottomNav() {
       />
 
       {/* SVG background shape */}
-      <NavBlankShape style={styles.background} width={navWidth} showCenter={false} />
+      <NavBlankShape style={[styles.background, { bottom: backgroundBottom }]} width={navWidth} showCenter={false} />
 
       {/* Side fills for web to extend to edges */}
       {Platform.OS === 'web' && (
@@ -105,7 +114,7 @@ export default function MentorBottomNav() {
       )}
 
       {/* Centered content wrapper constrained to max SVG-like width */}
-      <View style={styles.contentWrapper}>
+      <View style={[styles.contentWrapper, { transform: [{ translateY: -buttonLift }] }] }>
         {/* main bar content (tabs) */}
         <View style={styles.bar}>
           {/* left group */}
@@ -179,7 +188,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
+    bottom: -85,
     backgroundColor: 'transparent',
   },
   bottomFill: {

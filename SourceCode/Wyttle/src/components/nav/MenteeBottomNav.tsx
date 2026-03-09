@@ -24,6 +24,20 @@ export default function MenteeBottomNav(_: Props) {
   const bottomInset = insets.bottom > 0 ? insets.bottom : 10;
   const bottomFillHeight = bottomInset ;
 
+  // Detect whether Android is using the old bottom navigation buttons
+  // vs gesture navigation. When the bottom buttons are present the
+  // safe-area inset will be non-zero and typically larger than a
+  // small threshold (nav bars are usually ~48dp tall). Use this to
+  // tweak the SVG background vertical offset so the nav looks correct.
+  const NAV_BUTTONS_THRESHOLD = 20;
+  const androidHasNavButtons = Platform.OS === 'android' && insets.bottom >= NAV_BUTTONS_THRESHOLD;
+  const backgroundBottom = androidHasNavButtons ? -85 + bottomInset : -85;
+
+  // When Android has the navigation buttons, lift the interactive
+  // button row upward slightly so it sits above the system bar and
+  // doesn't overlap the visual nav background.
+  const buttonLift = androidHasNavButtons ? Math.max(6, Math.min(20, Math.round(bottomInset / 2))) : 0;
+
   // Compute vertical offset so the active circle aligns with the SVG bump center.
   // Use the same clamped vertical scale as NavBlankShape so the circle stays
   // aligned even on very wide screens.
@@ -100,7 +114,7 @@ export default function MenteeBottomNav(_: Props) {
       />
 
       {/* SVG background shape */}
-      <NavBlankShape style={styles.background} width={navWidth} showCenter={false} />
+      <NavBlankShape style={[styles.background, { bottom: backgroundBottom }]} width={navWidth} showCenter={false} />
 
       {/* Side fills for web to extend to edges */}
       {Platform.OS === 'web' && (
@@ -111,7 +125,7 @@ export default function MenteeBottomNav(_: Props) {
       )}
 
       {/* Centered content wrapper constrained to max SVG-like width */}
-      <View style={styles.contentWrapper}>
+      <View style={[styles.contentWrapper, { transform: [{ translateY: -buttonLift }] }] }>
         {/* main bar content (tabs) */}
         <View style={styles.bar}>
           {/* left group */}
@@ -182,7 +196,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
+    bottom: -85,
     backgroundColor: 'transparent', // for debugging layout
   },
   bottomFill: {
