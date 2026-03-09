@@ -514,7 +514,7 @@ export default function MentorHub() {
       {/* ScrollView centers the inner grid block via contentContainerStyle alignItems:'center' */}
       <Animated.View layout={Layout.springify()} style={{ width: '100%' }}>
         <ScrollView 
-        contentContainerStyle={[
+          contentContainerStyle={[
             styles.scrollContainer,
             { paddingHorizontal: H_PADDING, paddingBottom: 120 },
           ]}
