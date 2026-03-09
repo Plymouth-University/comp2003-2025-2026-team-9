@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -14,14 +14,11 @@ import {
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
-  FadeIn,
-  FadeOut,
-  Layout,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
-  withTiming,
+  withTiming
 } from 'react-native-reanimated';
 
 import { router } from 'expo-router';
@@ -39,7 +36,7 @@ const HandshakeIcon = require('@/assets/icons/handshake.png');
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
-const CARD_HEIGHT = SCREEN_HEIGHT * 0.70;
+const CARD_HEIGHT = SCREEN_HEIGHT * 0.65;
 
 export default function DiscoveryStackScreen() {
   const colorScheme = useColorScheme();
@@ -60,7 +57,6 @@ export default function DiscoveryStackScreen() {
   const [matchModalProfile, setMatchModalProfile] = useState<Profile | null>(null);
 
   const [selectedDistance, setSelectedDistance] = useState<number | null>(null);
-  const [showDistanceOptions, setShowDistanceOptions] = useState(false);
 
   const computeDistanceMiles = (p: Profile): number | null => {
     // Placeholder until backend provides real distance
@@ -260,66 +256,44 @@ export default function DiscoveryStackScreen() {
         </View>
       </View>
 
-      {/* Distance filter row here  */}
-      <Pressable 
-        style={[styles.filterButton, { backgroundColor: theme.card }]}
-        onPress={() => setShowDistanceOptions((s) => !s)}
-      >
-        <Text style={[styles.filterText, {color: theme.text}]}>
-          {selectedDistance ? `≤ ${selectedDistance} mi` : 'Distance...'}
-          </Text>
-        <Text style={styles.chev}>{showDistanceOptions ? '▴' : '▾' }</Text>
+      {/* Distance pills (always visible) */}
+      <View style={{ marginTop: 8 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 6 }}>
+          <Pressable
+            onPress={() => setSelectedDistance(null)}
+            style={[
+              styles.distanceOption,
+              { marginLeft: 6 },
+              selectedDistance === null ? styles.distanceOptionActive : undefined,
+            ]}
+          >
+            <Text style={[
+              styles.distanceOptionText,
+              selectedDistance === null ? styles.distanceOptionTextActive : undefined,
+            ]}>
+              Any
+            </Text>
+          </Pressable>
 
-      </Pressable>
-
-
-      {/* Distance options (10-mile intervals). Visible only when showDistanceOptions === true */}
-      {showDistanceOptions && (
-        <Animated.View entering={FadeIn} exiting={FadeOut} layout={Layout.springify()} style={{ marginTop: 8 }}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 2 }}>
-
-            <Pressable
-              onPress={() => {
-                setSelectedDistance(null);
-                setShowDistanceOptions(false);
-              }}
-              style={[
-                styles.distanceOption, 
-                { marginLeft: 6 },
-                selectedDistance === null ? styles.distanceOptionActive : undefined
-              ]}
-            >
-              <Text style={[
-                styles.distanceOptionText,
-                selectedDistance === null ? styles.distanceOptionTextActive : undefined
-              ]}>
-                Any
-              </Text>
-            </Pressable>
-
-            {[10, 20, 30, 40, 50, 100].map((d) => {
-              const active = selectedDistance === d;
-              return (
-                <Pressable
-                  key={d}
-                  onPress={() => {
-                    setSelectedDistance(d);
-                    setShowDistanceOptions(false);
-                  }}
-                  style={[
+          {[10, 20, 30, 40, 50, 100].map((d) => {
+            const active = selectedDistance === d;
+            return (
+              <Pressable
+                key={d}
+                onPress={() => setSelectedDistance(d)}
+                style={[
                   styles.distanceOption,
                   active ? styles.distanceOptionActive : undefined,
                 ]}
-                >
-                  <Text style={[styles.distanceOptionText, active ? styles.distanceOptionTextActive : undefined]}>
-                    {d} mi
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </Animated.View>
-      )}
+              >
+                <Text style={[styles.distanceOptionText, active ? styles.distanceOptionTextActive : undefined]}>
+                  {d} mi
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
 
 
 
