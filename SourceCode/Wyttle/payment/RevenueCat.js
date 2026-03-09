@@ -1,6 +1,5 @@
 import { Platform } from 'react-native';
 import Purchases, { LOG_LEVEL } from 'react-native-purchases';
-import Constants from 'expo-constants';
 
 export default function initializeRevenueCat() {
   Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
@@ -10,12 +9,12 @@ export default function initializeRevenueCat() {
   //const androidApiKey = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY;
 
   //TEST KEYS
-  const iosApiKey     = "test_nudpCnbOFhpVhzFNCOjbzNLASgE";
-  const androidApiKey = "test_nudpCnbOFhpVhzFNCOjbzNLASgE";
+  //const iosApiKey     = "test_nudpCnbOFhpVhzFNCOjbzNLASgE";
+  //const androidApiKey = "test_nudpCnbOFhpVhzFNCOjbzNLASgE";
 
   //REAL KEYS
-  //const iosApiKey = "appl_yHKdhPpSapIfDmCxttrlDNqMJcE";
-  //const androidApiKey = "goog_djydSEqGgwdevzrJyAlnHTZPPdy";
+  const iosApiKey = "appl_yHKdhPpSapIfDmCxttrlDNqMJcE";
+  const androidApiKey = "goog_djydSEqGgwdevzrJyAlnHTZPPdy";
 
   if (Platform.OS === 'ios') {
     Purchases.configure({ apiKey: iosApiKey });
