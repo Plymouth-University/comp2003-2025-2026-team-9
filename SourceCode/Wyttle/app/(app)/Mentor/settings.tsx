@@ -38,7 +38,7 @@ import {
   unregisterPushToken,
   updateNotificationPreferences,
 } from '../../../src/lib/notifications';
-import { MENTEE_STEPS } from '../../../src/lib/onboarding';
+import { MENTOR_STEPS } from '../../../src/lib/onboarding';
 import { supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 
@@ -775,7 +775,7 @@ export default function MenteeSettingsScreen() {
       </KeyboardAwareScrollView>
       <OnboardingOverlay
         visible={showOnboarding}
-        steps={MENTEE_STEPS}
+        steps={MENTOR_STEPS}
         onComplete={() => setShowOnboarding(false)}
       />
     </View>

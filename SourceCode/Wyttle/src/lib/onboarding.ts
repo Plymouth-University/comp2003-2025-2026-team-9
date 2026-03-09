@@ -70,6 +70,12 @@ export const MENTOR_STEPS: OnboardingStep[] = [
       'Manage your availability here. Block out time slots so mentees know when you\'re free, and view your upcoming sessions.',
   },
   {
+    icon: 'checkmark-done-outline',
+    title: 'Session Enquiries',
+    description:
+      'Accept or decline session enquiries from members — use this to suggest dates and times that work for you. You can also use the calendar to block out time if you know you can\'t do certain dates.',
+  },
+  {
     icon: 'people-outline',
     title: 'Connections',
     description:
