@@ -1,17 +1,21 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
-  Animated,
+  findNodeHandle,
   FlatList,
   Image,
   Keyboard,
-  KeyboardAvoidingView,
   Platform,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  UIManager,
   View,
+  type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  type TextInputContentSizeChangeEventData,
 } from 'react-native';
 
 import { BackButton } from '@/components/ui/BackButton';
@@ -19,9 +23,11 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Profile } from '../../../src/lib/supabase';
 import { getCurrentUser, supabase } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
+
 type Message = {
   id: string;
   from: 'me' | 'them';
@@ -31,15 +37,22 @@ type Message = {
   edited?: boolean;
 };
 
+type AppTheme = typeof Colors[keyof typeof Colors];
+
+const CLOSED_BOTTOM_OFFSET = 70;
+const GAP_ABOVE_KEYBOARD = 6;
+const EXTRA_LIST_GAP = 16;
+const SCROLL_DELAY = 80;
+const NEAR_BOTTOM_THRESHOLD = 140;
+
 export default function MentorChatScreen() {
   const params = useLocalSearchParams<{ threadId?: string; otherId?: string; name?: string }>();
+  const insets = useSafeAreaInsets();
 
   const threadId = params.threadId ? Number(params.threadId) : null;
   const otherId = typeof params.otherId === 'string' ? params.otherId : null;
   const fallbackName =
-    typeof params.name === 'string' && params.name.length > 0
-      ? params.name
-      : 'Member';
+    typeof params.name === 'string' && params.name.length > 0 ? params.name : 'Member';
 
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? Colors.dark : Colors.light;
@@ -48,51 +61,87 @@ export default function MentorChatScreen() {
   const [input, setInput] = useState('');
   const [meId, setMeId] = useState<string | null>(null);
   const [otherProfile, setOtherProfile] = useState<Profile | null>(null);
-  const listRef = useRef<FlatList<Message>>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const composerMargin = useRef(new Animated.Value(110)).current;
-  const [composerHeight, setComposerHeight] = useState(0);
-  const [bottomGap, setBottomGap] = useState(110);
+  const [composerHeight, setComposerHeight] = useState(72);
+
+  const [screenY, setScreenY] = useState(0);
+  const [screenHeight, setScreenHeight] = useState(0);
+  const [keyboardTop, setKeyboardTop] = useState<number | null>(null);
+
+  const rootRef = useRef<View>(null);
+  const listRef = useRef<FlatList<Message>>(null);
+  const isNearBottomRef = useRef(true);
+  const pendingScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const displayName = otherProfile?.full_name ?? fallbackName;
 
-  useEffect(() => {
-    const onShow = () => {
-      setKeyboardVisible(true);
-      setBottomGap(0);
-      Animated.timing(composerMargin, {
-        toValue: 0,
-        duration: 150,
-        useNativeDriver: false,
-      }).start();
-      if (listRef.current) {
-        listRef.current.scrollToEnd({ animated: true });
-      }
-    };
-    const onHide = () => {
-      setKeyboardVisible(false);
-      setBottomGap(110);
-      Animated.timing(composerMargin, {
-        toValue: 110,
-        duration: 150,
-        useNativeDriver: false,
-      }).start();
-    };
-    const willShowSub = Keyboard.addListener('keyboardWillShow', onShow);
-    const didShowSub = Keyboard.addListener('keyboardDidShow', onShow);
-    const willHideSub = Keyboard.addListener('keyboardWillHide', onHide);
-    const didHideSub = Keyboard.addListener('keyboardDidHide', onHide);
-    return () => {
-      willShowSub.remove();
-      didShowSub.remove();
-      willHideSub.remove();
-      didHideSub.remove();
-    };
+  const measureRootInWindow = useCallback(() => {
+    const node = findNodeHandle(rootRef.current);
+    if (!node) return;
+
+    UIManager.measureInWindow(node, (_x, y, _w, h) => {
+      setScreenY(y);
+      setScreenHeight(h);
+    });
   }, []);
+
+  const screenBottom = screenY + screenHeight;
+  const keyboardVisible = keyboardTop !== null;
+
+  const composerBottom = keyboardVisible
+    ? Math.max(0, screenBottom - keyboardTop + GAP_ABOVE_KEYBOARD)
+    : CLOSED_BOTTOM_OFFSET + Math.max(insets.bottom, 8);
+
+  const listBottomSpacer = composerHeight + composerBottom + EXTRA_LIST_GAP;
+
+  const clearPendingScroll = () => {
+    if (pendingScrollTimeoutRef.current) {
+      clearTimeout(pendingScrollTimeoutRef.current);
+      pendingScrollTimeoutRef.current = null;
+    }
+  };
+
+  const scrollToBottom = (animated = true, delay = 0, force = false) => {
+    if (!force && !isNearBottomRef.current) return;
+
+    clearPendingScroll();
+
+    const run = () => {
+      requestAnimationFrame(() => {
+        listRef.current?.scrollToEnd({ animated });
+      });
+    };
+
+    if (delay > 0) {
+      pendingScrollTimeoutRef.current = setTimeout(() => {
+        pendingScrollTimeoutRef.current = null;
+        run();
+      }, delay);
+    } else {
+      run();
+    }
+  };
+
+  const formatMessage = (m: any, currentUserId: string): Message => {
+    const deleted = !!m.deleted_at;
+    const edited = !!m.edited_at;
+
+    return {
+      id: String(m.id),
+      from: m.sender === currentUserId ? 'me' : 'them',
+      text: deleted ? 'Message deleted' : m.body,
+      time: new Date(m.inserted_at).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      deleted,
+      edited,
+    };
+  };
 
   useEffect(() => {
     let isMounted = true;
+    let channel: any = null;
 
     const load = async () => {
       if (!threadId) return;
@@ -107,6 +156,7 @@ export default function MentorChatScreen() {
           .select('id, full_name, title, industry, bio, photo_url, role')
           .eq('id', otherId)
           .single();
+
         if (!profileError && profile && isMounted) {
           setOtherProfile(profile as Profile);
         }
@@ -114,7 +164,7 @@ export default function MentorChatScreen() {
 
       const { data, error } = await supabase
         .from('messages')
-.select('id, sender, body, inserted_at, edited_at, deleted_at')
+        .select('id, sender, body, inserted_at, edited_at, deleted_at')
         .eq('thread_id', threadId)
         .order('inserted_at', { ascending: true });
 
@@ -125,67 +175,131 @@ export default function MentorChatScreen() {
 
       if (!isMounted) return;
 
-      const mapRow = (m: any): Message => {
-        const deleted = !!m.deleted_at;
-        const edited = !!m.edited_at;
-        return {
-          id: String(m.id),
-          from: m.sender === me.id ? 'me' : 'them',
-          text: deleted ? 'Message deleted' : m.body,
-          time: new Date(m.inserted_at).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
-          deleted,
-          edited,
-        };
-      };
-
-      const mapped: Message[] = (data ?? []).map(mapRow);
+      const mapped: Message[] = (data ?? []).map((m) => formatMessage(m, me.id));
       setMessages(mapped);
+      isNearBottomRef.current = true;
+      scrollToBottom(false, SCROLL_DELAY, true);
 
-      const channel = supabase
+      channel = supabase
         .channel(`messages-thread-${threadId}`)
         .on(
           'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'messages', filter: `thread_id=eq.${threadId}` },
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+            filter: `thread_id=eq.${threadId}`,
+          },
           (payload) => {
             const row = payload.new as any;
+
             setMessages((prev) => {
               const idStr = String(row.id);
               if (prev.some((m) => m.id === idStr)) return prev;
-              return [...prev, mapRow(row)];
+              return [...prev, formatMessage(row, me.id)];
             });
-          },
+
+            scrollToBottom(true, SCROLL_DELAY);
+          }
         )
         .on(
           'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'messages', filter: `thread_id=eq.${threadId}` },
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'messages',
+            filter: `thread_id=eq.${threadId}`,
+          },
           (payload) => {
             const row = payload.new as any;
-            setMessages((prev) => prev.map((m) => (m.id === String(row.id) ? mapRow(row) : m)));
-          },
+
+            setMessages((prev) =>
+              prev.map((m) => (m.id === String(row.id) ? formatMessage(row, me.id) : m))
+            );
+
+            scrollToBottom(true, SCROLL_DELAY);
+          }
         )
         .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
     };
 
-    const cleanupPromise = load();
+    load();
 
     return () => {
       isMounted = false;
-      void cleanupPromise;
+      clearPendingScroll();
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [threadId, otherId]);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      scrollToBottom(false, 40, true);
+    }
+  }, [messages.length, listBottomSpacer]);
+
+  useEffect(() => {
+    measureRootInWindow();
+    const t = setTimeout(measureRootInWindow, 120);
+    return () => clearTimeout(t);
+  }, [measureRootInWindow]);
+
+  useEffect(() => {
+    const handleKeyboardShow = (e: any) => {
+      const top = e?.endCoordinates?.screenY;
+      if (typeof top === 'number') {
+        setKeyboardTop(top);
+      }
+      setTimeout(() => {
+        measureRootInWindow();
+        scrollToBottom(false, 40, true);
+      }, 20);
+    };
+
+    const handleKeyboardHide = () => {
+      setKeyboardTop(null);
+      setTimeout(() => {
+        measureRootInWindow();
+        scrollToBottom(false, 40, true);
+      }, 20);
+    };
+
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, handleKeyboardShow);
+    const hideSub = Keyboard.addListener(hideEvent, handleKeyboardHide);
+
+    let frameSub: { remove: () => void } | null = null;
+
+    if (Platform.OS === 'ios') {
+      frameSub = Keyboard.addListener('keyboardWillChangeFrame', (e: any) => {
+        const top = e?.endCoordinates?.screenY;
+        if (typeof top === 'number') {
+          setKeyboardTop(top);
+        }
+        setTimeout(() => {
+          measureRootInWindow();
+          scrollToBottom(false, 40, true);
+        }, 20);
+      });
+    }
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+      frameSub?.remove();
+    };
+  }, [measureRootInWindow]);
 
   const handleSend = async () => {
     if (!threadId || !meId || !input.trim()) return;
 
     const body = input.trim();
     setInput('');
+    isNearBottomRef.current = true;
 
     if (editingMessageId) {
       const { data, error } = await supabase
@@ -201,28 +315,15 @@ export default function MentorChatScreen() {
 
       if (error) {
         console.error('Failed to edit message', error);
+        setInput(body);
         return;
       }
 
       setEditingMessageId(null);
-
       setMessages((prev) =>
-        prev.map((m) =>
-          m.id === String(data.id)
-            ? {
-                id: String(data.id),
-                from: data.sender === meId ? 'me' : 'them',
-                text: data.body,
-                time: new Date(data.inserted_at).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                }),
-                deleted: !!data.deleted_at,
-                edited: !!data.edited_at,
-              }
-            : m,
-        ),
+        prev.map((m) => (m.id === String(data.id) ? formatMessage(data, meId) : m))
       );
+      scrollToBottom(true, SCROLL_DELAY, true);
       return;
     }
 
@@ -238,97 +339,85 @@ export default function MentorChatScreen() {
 
     if (error) {
       console.error('Failed to send message', error);
+      setInput(body);
       return;
     }
 
-    const deleted = !!data.deleted_at;
-    const edited = !!data.edited_at;
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: String(data.id),
-        from: data.sender === meId ? 'me' : 'them',
-        text: deleted ? 'Message deleted' : data.body,
-        time: new Date(data.inserted_at).toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-        deleted,
-        edited,
-      },
-    ]);
+    setMessages((prev) => [...prev, formatMessage(data, meId)]);
+    scrollToBottom(true, SCROLL_DELAY, true);
   };
 
   const handleMessageLongPress = (message: Message) => {
     if (message.from !== 'me' || message.deleted) return;
 
-    Alert.alert(
-      'Message options',
-      undefined,
-      [
-        {
-          text: 'Edit',
-          onPress: () => {
-            setInput(message.text);
-            setEditingMessageId(message.id);
-          },
+    Alert.alert('Message options', undefined, [
+      {
+        text: 'Edit',
+        onPress: () => {
+          setInput(message.text);
+          setEditingMessageId(message.id);
+          isNearBottomRef.current = true;
+          scrollToBottom(false, 40, true);
         },
-        {
-          text: 'Unsend',
-          style: 'destructive',
-          onPress: async () => {
-            if (!threadId || !meId) return;
-            try {
-              const { data, error } = await supabase
-                .from('messages')
-                .update({ body: '', deleted_at: new Date().toISOString() })
-                .eq('id', message.id)
-                .select('id, sender, body, inserted_at, edited_at, deleted_at')
-                .single();
-              if (error) throw error;
+      },
+      {
+        text: 'Unsend',
+        style: 'destructive',
+        onPress: async () => {
+          if (!meId) return;
 
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === String(data.id)
-                    ? {
-                        id: String(data.id),
-                        from: data.sender === meId ? 'me' : 'them',
-                        text: 'Message deleted',
-                        time: new Date(data.inserted_at).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        }),
-                        deleted: true,
-                        edited: false,
-                      }
-                    : m,
-                ),
-              );
-            } catch (err) {
-              console.error('Failed to unsend message', err);
-            }
-          },
+          try {
+            const { data, error } = await supabase
+              .from('messages')
+              .update({
+                body: '',
+                deleted_at: new Date().toISOString(),
+              })
+              .eq('id', message.id)
+              .select('id, sender, body, inserted_at, edited_at, deleted_at')
+              .single();
+
+            if (error) throw error;
+
+            setMessages((prev) =>
+              prev.map((m) => (m.id === String(data.id) ? formatMessage(data, meId) : m))
+            );
+
+            scrollToBottom(true, SCROLL_DELAY, true);
+          } catch (err) {
+            console.error('Failed to unsend message', err);
+          }
         },
-        { text: 'Cancel', style: 'cancel' },
-      ],
-      { cancelable: true },
-    );
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
-  useEffect(() => {
-    if (listRef.current && messages.length > 0) {
-      listRef.current.scrollToEnd({ animated: true });
-    }
-  }, [messages]);
+  const handleRootLayout = (_e: LayoutChangeEvent) => {
+    measureRootInWindow();
+    scrollToBottom(false, 30, true);
+  };
+
+  const handleInputContentSizeChange = (
+    _e: NativeSyntheticEvent<TextInputContentSizeChangeEventData>
+  ) => {
+    scrollToBottom(false, 30, true);
+  };
+
+  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    const distanceFromBottom =
+      contentSize.height - (contentOffset.y + layoutMeasurement.height);
+    isNearBottomRef.current = distanceFromBottom < NEAR_BOTTOM_THRESHOLD;
+  };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={keyboardVisible ? 0 : 80}
+    <View
+      ref={rootRef}
+      onLayout={handleRootLayout}
+      style={[styles.root, { backgroundColor: theme.background }]}
     >
-      <View style={[styles.container, { backgroundColor: theme.background }]}> 
-        {/* Header */}
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={styles.headerRow}>
           <BackButton />
           <TouchableOpacity
@@ -362,40 +451,77 @@ export default function MentorChatScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Messages */}
         <FlatList
           ref={listRef}
           data={messages}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          onLayout={() => {
+            scrollToBottom(false, 50, true);
+          }}
+          onContentSizeChange={() => {
+            scrollToBottom(false, 20, true);
+          }}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          contentContainerStyle={styles.listContent}
+          ListFooterComponent={<View style={{ height: listBottomSpacer }} />}
           renderItem={({ item }) => (
-            <MessageBubble message={item} theme={theme} onLongPress={handleMessageLongPress} />
+            <MessageBubble
+              message={item}
+              theme={theme}
+              onLongPress={handleMessageLongPress}
+            />
           )}
         />
 
-        {/* Composer */}
-        <Animated.View style={[
-          styles.composer,
-          { backgroundColor: theme.card, marginBottom: composerMargin },
-        ]}> 
-          <TextInput
-            style={[styles.input, { color: theme.text }]}
-            placeholder="Message..."
-            placeholderTextColor="#7f8186"
-            value={input}
-            onChangeText={setInput}
-          />
-          <TouchableOpacity style={styles.sendButton} activeOpacity={0.8} onPress={handleSend}>
-            <Text style={styles.sendButtonText}>Send</Text>
-          </TouchableOpacity>
-        </Animated.View>
+        <View
+          onLayout={(e) => setComposerHeight(e.nativeEvent.layout.height)}
+          style={[
+            styles.composerWrap,
+            {
+              bottom: composerBottom,
+            },
+          ]}
+        >
+          <View style={[styles.composer, { backgroundColor: theme.card }]}>
+            <TextInput
+              style={[styles.input, { color: theme.text }]}
+              placeholder={editingMessageId ? 'Edit message...' : 'Message...'}
+              placeholderTextColor="#7f8186"
+              value={input}
+              onChangeText={setInput}
+              multiline
+              maxLength={2000}
+              returnKeyType="default"
+              textAlignVertical="top"
+              onFocus={() => {
+                isNearBottomRef.current = true;
+                measureRootInWindow();
+                scrollToBottom(false, 80, true);
+              }}
+              onContentSizeChange={handleInputContentSizeChange}
+            />
+
+            <TouchableOpacity
+              style={[styles.sendButton, { opacity: input.trim() ? 1 : 0.5 }]}
+              activeOpacity={0.8}
+              onPress={handleSend}
+              disabled={!input.trim()}
+            >
+              <Text style={styles.sendButtonText}>
+                {editingMessageId ? 'Save' : 'Send'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
-type AppTheme = typeof Colors[keyof typeof Colors];
 type MessageBubbleProps = {
   message: Message;
   theme: AppTheme;
@@ -404,6 +530,7 @@ type MessageBubbleProps = {
 
 function MessageBubble({ message, theme, onLongPress }: MessageBubbleProps) {
   const isMe = message.from === 'me';
+  const timeColor = isMe ? 'rgba(255,255,255,0.72)' : '#8a8f98';
 
   return (
     <TouchableOpacity
@@ -419,42 +546,57 @@ function MessageBubble({ message, theme, onLongPress }: MessageBubbleProps) {
       <View
         style={[
           styles.bubble,
-          isMe
-            ? styles.bubbleMe
-            : [styles.bubbleThem, { backgroundColor: theme.card }],
+          isMe ? styles.bubbleMe : [styles.bubbleThem, { backgroundColor: theme.card }],
+          message.deleted && styles.deletedBubble,
         ]}
       >
         <Text
           style={[
             styles.bubbleText,
-            { color: isMe ? '#fff' : theme.text },
+            {
+              color: message.deleted ? '#8a8f98' : isMe ? '#fff' : theme.text,
+              fontStyle: message.deleted ? 'italic' : 'normal',
+            },
           ]}
         >
           {message.text}
         </Text>
-        <Text style={styles.bubbleTime}>{message.time}</Text>
+
+        <View style={styles.metaRow}>
+          {message.edited && !message.deleted ? (
+            <Text style={[styles.editedText, { color: timeColor }]}>Edited</Text>
+          ) : null}
+          <Text style={[styles.bubbleTime, { color: timeColor }]}>{message.time}</Text>
+        </View>
       </View>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+
   container: {
     ...commonStyles.screen,
+    flex: 1,
     paddingHorizontal: 18,
-    
   },
+
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
   },
+
   headerProfileBlock: {
     flexDirection: 'row',
     alignItems: 'center',
     marginLeft: 12,
     flex: 1,
   },
+
   headerAvatar: {
     width: 36,
     height: 36,
@@ -463,73 +605,109 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
+    overflow: 'hidden',
   },
+
   headerAvatarImage: {
     width: '100%',
     height: '100%',
     borderRadius: 18,
   },
+
   headerAvatarInitial: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
   },
+
   headerTextBlock: {
     flex: 1,
   },
-  messagesContent: {
+
+  listContent: {
     flexGrow: 1,
+    justifyContent: 'flex-end',
     paddingTop: 8,
-    paddingBottom: 16,
   },
+
   bubbleRow: {
     flexDirection: 'row',
     marginBottom: 8,
   },
+
   bubble: {
     maxWidth: '80%',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
   },
+
   bubbleMe: {
     backgroundColor: '#333f5c',
     borderBottomRightRadius: 4,
   },
+
   bubbleThem: {
-    backgroundColor: '#e1e3ea',
     borderBottomLeftRadius: 4,
   },
+
+  deletedBubble: {
+    opacity: 0.75,
+  },
+
   bubbleText: {
     fontSize: 14,
+    lineHeight: 19,
   },
-  bubbleTime: {
-    alignSelf: 'flex-end',
-    marginTop: 2,
+
+  metaRow: {
+    marginTop: 4,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+
+  editedText: {
     fontSize: 10,
-    color: '#999',
+    marginRight: 6,
   },
+
+  bubbleTime: {
+    fontSize: 10,
+  },
+
+  composerWrap: {
+    position: 'absolute',
+    left: 18,
+    right: 18,
+    backgroundColor: 'transparent',
+  },
+
   composer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 24,
-    marginTop: 4,
   },
+
   input: {
     flex: 1,
     fontSize: 14,
     paddingVertical: 6,
     paddingHorizontal: 8,
+    maxHeight: 120,
   },
+
   sendButton: {
     marginLeft: 8,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 999,
     backgroundColor: '#968c6c',
+    alignSelf: 'flex-end',
   },
+
   sendButtonText: {
     color: '#fff',
     fontSize: 13,
