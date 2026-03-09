@@ -117,29 +117,15 @@ export default function MentorHub() {
   const { width: screenWidth } = useWindowDimensions();
 
   //Distance filter state (null = no distance filter)
-  const [selectedDistance, setSelectedDistance] = useState<number | null>(null);
-  const [showDistanceOptions, setShowDistanceOptions] = useState(false);
+  //const [selectedDistance, setSelectedDistance] = useState<number | null>(null);
+  //const [showDistanceOptions, setShowDistanceOptions] = useState(false);
 
   //Industry filter state (null = no industry filter)
   const [selectedIndustry, setSelectedIndustry] = useState<string[]>([]);
   const [showIndustryOptions, setShowIndustryOptions] = useState(false);
 
 
-  /**
-   * Placeholder distance getter.
-   * - Right now profiles don't have distance info in DB.
-   * - When storing distances on the profile (e.g. the backend adds "distance_miles"),
-   *   this function should return that numeric value in miles.
-   * - For now this checks a `distance_miles` field on the profile object (if present).
-   * - Return `null` when unknown.
-   */
-  const computeDistanceMiles = (p: Mentor): number | null => {
-    // TODO: replace this with real calculation / DB-provided distance
-    // For now, check a placeholder property that we can add later: distance_miles
-    const asAny = p as any;
-    if (typeof asAny.distance_miles === 'number') return asAny.distance_miles;
-    return null;
-  };
+  
 
   // Tick every 30s so countdown / "Join Call" updates live
   useEffect(() => {
