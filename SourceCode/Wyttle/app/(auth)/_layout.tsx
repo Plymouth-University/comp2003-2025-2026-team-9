@@ -26,6 +26,7 @@ export default function AuthLayout() {
       <Stack.Screen name="sign-up" />
       <Stack.Screen name="sign-up-mentee" />
       <Stack.Screen name="sign-up-mentor" />
+      <Stack.Screen name="pending-approval" />
     </Stack>
   );
 }

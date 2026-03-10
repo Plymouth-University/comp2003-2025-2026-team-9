@@ -41,7 +41,7 @@ export default function Index() {
 
       const { data: profile, error } = await supabase
         .from('profiles')
-        .select('role')
+        .select('role, approval_status')
         .eq('id', session.user.id)
         .maybeSingle();
 
@@ -50,6 +50,13 @@ export default function Index() {
       }
 
       const role = profile?.role ?? 'member';
+      const approvalStatus = profile?.approval_status ?? 'pending';
+
+      // Route unapproved users to the pending screen
+      if (approvalStatus !== 'approved' && role !== 'admin') {
+        router.replace('/(auth)/pending-approval');
+        return;
+      }
 
       try {
         await initializeNotificationsForUser(session.user.id);

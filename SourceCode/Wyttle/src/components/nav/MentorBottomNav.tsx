@@ -78,6 +78,7 @@ export default function MentorBottomNav() {
   const active = activeKey;
 
   const [isAdmin, setIsAdmin] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -86,11 +87,20 @@ export default function MentorBottomNav() {
         if (!user) return;
         const { data, error } = await supabase
           .from('profiles')
-          .select('account_type')
+          .select('account_type, role')
           .eq('id', user.id)
           .maybeSingle();
         if (!error && data) {
-          setIsAdmin(!!data.account_type);
+          const admin = !!data.account_type || data.role === 'admin';
+          setIsAdmin(admin);
+
+          if (admin) {
+            const { count } = await supabase
+              .from('profiles')
+              .select('id', { count: 'exact', head: true })
+              .eq('approval_status', 'pending');
+            setPendingCount(count ?? 0);
+          }
         }
       } catch (err) {
         // ignore errors — default to non-admin
@@ -186,6 +196,11 @@ export default function MentorBottomNav() {
           ]}
         >
           <Logo size={32} />
+          {pendingCount > 0 && (
+            <View style={styles.pendingBadge}>
+              <Text style={styles.pendingBadgeText}>{pendingCount > 9 ? '9+' : pendingCount}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       )}
      
@@ -286,5 +301,22 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 6,
     zIndex: 20,
+  },
+  pendingBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#e74c3c',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  pendingBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

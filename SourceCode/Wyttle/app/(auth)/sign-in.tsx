@@ -66,7 +66,7 @@ export default function SignIn() {
     // 3) Look up their profile to determine role
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, approval_status')
       .eq('id', user.id)
       .maybeSingle();
 
@@ -76,6 +76,13 @@ export default function SignIn() {
     }
 
     const role = profile?.role ?? 'member';
+    const approvalStatus = profile?.approval_status ?? 'pending';
+
+    // Route unapproved users to the pending screen
+    if (approvalStatus !== 'approved' && role !== 'admin') {
+      router.replace('/(auth)/pending-approval');
+      return;
+    }
 
     try {
       await initializeNotificationsForUser(user.id);

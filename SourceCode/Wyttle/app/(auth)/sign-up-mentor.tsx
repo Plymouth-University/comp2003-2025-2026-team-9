@@ -105,12 +105,24 @@ export default function SignUpMentor() {
     full_name: fullName,
     role: 'mentor',
     bio: expertise,
-    // can add extra columns later if we extend the schema
+    approval_status: 'pending',
   });
 
   if (profileError) {
     setMsg(profileError.message);
     return;
+  }
+
+  // Insert an application row so admins have context for the review
+  const { error: appError } = await supabase.from('applications').insert({
+    user_email: email,
+    user_type: 'mentor',
+    name: fullName,
+    reason: expertise,
+    status: 'pending',
+  });
+  if (appError) {
+    console.warn('Failed to insert application row', appError);
   }
 
   // If they picked an avatar, upload it and update photo_url.
@@ -128,8 +140,8 @@ export default function SignUpMentor() {
     console.warn('Failed to initialize push notifications after sign-up', notificationError);
   }
 
-  // Send mentors to their main app area (Mentor connections tab)
-  router.replace('/(app)/Mentor/connections');
+  // Route to pending approval screen instead of the main app
+  router.replace('/(auth)/pending-approval');
 };
 
 

@@ -104,11 +104,24 @@ export default function SignUpMember() {
     full_name: fullName,
     role: 'member',
     bio: goals || null,
+    approval_status: 'pending',
   });
 
   if (profileError) {
     setMsg(profileError.message);
     return;
+  }
+
+  // Insert an application row so admins have context for the review
+  const { error: appError } = await supabase.from('applications').insert({
+    user_email: email,
+    user_type: 'member',
+    name: fullName,
+    goals: goals || null,
+    status: 'pending',
+  });
+  if (appError) {
+    console.warn('Failed to insert application row', appError);
   }
 
   // If they picked an avatar, upload it and update photo_url.
@@ -127,8 +140,8 @@ export default function SignUpMember() {
     console.warn('Failed to initialize push notifications after sign-up', notificationError);
   }
 
-  // Send members to their main app area (Member connections tab)
-  router.replace('/(app)/Mentee/connections');
+  // Route to pending approval screen instead of the main app
+  router.replace('/(auth)/pending-approval');
 };
 
 
