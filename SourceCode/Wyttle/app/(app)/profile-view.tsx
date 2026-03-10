@@ -580,7 +580,11 @@ export default function ProfileViewScreen() {
                   </TouchableOpacity>
                 )}
 
-                <Text style={styles.bookButtonSubtitle}>Be polite, respectful and detailed with what you want advice with so the mentor can easily determine if it is something they can assist you with or not</Text>
+                {canShowBooking && (
+                  <Text style={[styles.actionHintText, { color: colorScheme === 'dark' ? '#d8dbe6' : '#4b5563' }]}>
+                    Be polite, respectful and detailed with what you want advice with so the mentor can easily determine if it is something they can assist you with or not
+                  </Text>
+                )}
 
               </View>
             )}
@@ -1080,6 +1084,11 @@ const styles = StyleSheet.create({
     color: '#e0dfd5',
     fontSize: 12,
     marginTop: 2,
+  },
+  actionHintText: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 12,
   },
   disconnectButton: {
     marginTop: 24,
