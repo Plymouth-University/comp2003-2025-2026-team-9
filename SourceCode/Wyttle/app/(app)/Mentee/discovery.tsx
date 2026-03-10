@@ -257,7 +257,8 @@ export default function DiscoveryStackScreen() {
       </View>
 
       {/* Distance pills (always visible) */}
-      <View style={{ marginTop: 2 }}> {/*Reduced top margin to stop discovery cards from overlapping navbar */}
+      {/* Reduced top margin to stop discovery cards from overlapping navbar */}
+      <View style={{ marginTop: 2 }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 6 }}>
           <Pressable
             onPress={() => setSelectedDistance(null)}

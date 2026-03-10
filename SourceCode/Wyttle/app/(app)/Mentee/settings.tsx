@@ -857,11 +857,15 @@ export default function MenteeSettingsScreen() {
 
       {/* Replay tutorial & Log out buttons - hide while editing profile inside the Profiles dropdown */}
       {!(isEditingProfile && openSection === 'profiles') && (
-        <>
+        <View
+          style={[
+            styles.footerActions,
+            { paddingBottom: 24 + insets.bottom + 56 },
+          ]}
+        >
           <Pressable
             style={({ pressed }) => [
               styles.replayButton,
-              { left: 18, bottom: 24 + insets.bottom + 56 },
               pressed && styles.replayButtonPressed,
             ]}
             onPress={() => setShowOnboarding(true)}
@@ -877,7 +881,6 @@ export default function MenteeSettingsScreen() {
           <Pressable
             style={({ pressed }) => [
               styles.logoutButton,
-              { right: 18, bottom: 24 + insets.bottom + 56 },
               pressed && styles.logoutButtonPressed,
             ]}
             onPress={handleLogout}
@@ -885,7 +888,7 @@ export default function MenteeSettingsScreen() {
           >
             <ThemedText style={styles.logoutButtonText}>Log out</ThemedText>
           </Pressable>
-        </>
+        </View>
       )}
       </KeyboardAwareScrollView>
       <OnboardingOverlay
@@ -910,6 +913,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingBottom: 48,
+  },
+  footerActions: {
+    marginTop: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   button: {
     marginTop: 20,
@@ -1158,15 +1167,12 @@ sliderValue: {
   textAlign: 'right',
 },
   logoutButton: {
-  position: 'absolute',
-  right: 18,
-  bottom: 24,
-  paddingVertical: 12,
-  paddingHorizontal: 12,
-  borderRadius: 10,
-  alignItems: 'center',
-  justifyContent: 'center',
-},
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   logoutButtonPressed: {
     backgroundColor: '#00000006',
     borderRadius: 10,
@@ -1177,8 +1183,6 @@ logoutButtonText: {
   fontSize: 16,
 },
   replayButton: {
-    position: 'absolute',
-    left: 18,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 10,
@@ -1217,5 +1221,4 @@ acknowledgementRow: {
   paddingVertical: 10,
 },
 });
-
 

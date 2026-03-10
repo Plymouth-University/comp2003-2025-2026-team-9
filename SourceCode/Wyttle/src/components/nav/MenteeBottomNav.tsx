@@ -12,10 +12,10 @@ const VIEWBOX_CIRCLE_CENTER_Y = 18.258205; // 15.83455 + 2.423655 from SVG
 const NAV_SCALE = 1.3;
 const BASE_NAV_WIDTH = 390; // keep nav height based on phone-ish width
 type Props = {
-  // Optional – you can also just call usePathname() inside
+  onHeightChange?: (height: number) => void;
 };
 
-export default function MenteeBottomNav(_: Props) {
+export default function MenteeBottomNav({ onHeightChange }: Props) {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
 
@@ -99,10 +99,11 @@ export default function MenteeBottomNav(_: Props) {
         { paddingBottom: bottomFillHeight },
       ]}
       onLayout={(e) => {
-        const w = e.nativeEvent.layout.width;
+        const { width: w, height } = e.nativeEvent.layout;
         if (w > 0 && w !== navWidth) {
           setNavWidth(w);
         }
+        onHeightChange?.(height);
       }}
     >
       {/* solid fill at the very bottom to avoid any white strip */}

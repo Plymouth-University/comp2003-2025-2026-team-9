@@ -11,7 +11,6 @@ import {
   View,
 } from 'react-native';
 import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { cancelSession } from '../../../src/lib/sessions';
 
@@ -20,6 +19,7 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { router, useFocusEffect } from 'expo-router';
+import { useMenteeBottomNavHeight } from '../../../src/lib/mentee-bottom-nav-height';
 import { font } from '../../../src/lib/fonts';
 import { supabase } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
@@ -46,12 +46,12 @@ type UpcomingSession = {
 
 /**
  * Layout tuning:
- * - CARD_WIDTH: fixed card width in px
+ * - COLUMNS: fixed number of columns
  * - GAP: horizontal & vertical gap between cards (px)
  * - H_PADDING: horizontal screen padding (matches container paddingHorizontal)
  *
- * Adjust CARD_WIDTH / GAP to taste. The component will:
- * - compute how many columns fit in the available width,
+ * The component will:
+ * - compute card width from the available width,
  * - build an inner container sized to exactly hold that many columns,
  * - center that inner container horizontally,
  * - append invisible placeholders so the last row aligns with full rows.
@@ -101,7 +101,7 @@ const INDUSTRIES = [
   'Utilities',
 ].sort(); // Already alphabetically sorted but never know
 
-const CARD_WIDTH = 100;
+const COLUMNS = 3;
 const GAP = 15;
 const H_PADDING = 18;
 
@@ -114,9 +114,10 @@ export default function MentorHub() {
   const [loading, setLoading] = useState(false);
   const [upcomingSessions, setUpcomingSessions] = useState<UpcomingSession[]>([]);
   const [now, setNow] = useState(Date.now());
+  const [bottomNavHeight, setBottomNavHeight] = useState(140);
 
   const { width: screenWidth } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
+  const { registerOnHeightChange } = useMenteeBottomNavHeight();
 
   //Distance filter state (null = no distance filter)
   //const [selectedDistance, setSelectedDistance] = useState<number | null>(null);
@@ -127,7 +128,12 @@ export default function MentorHub() {
   const [showIndustryOptions, setShowIndustryOptions] = useState(false);
 
 
-  
+  useFocusEffect(
+    useCallback(() => {
+      registerOnHeightChange(setBottomNavHeight);
+      return () => registerOnHeightChange(undefined);
+    }, [registerOnHeightChange]),
+  );
 
   // Tick every 30s so countdown / "Join Call" updates live
   useEffect(() => {
@@ -259,24 +265,19 @@ export default function MentorHub() {
   }, [mentors, query, selectedIndustry]);
 
 
-  // compute layout: columns, contentWidth, placeholders to fill last row
-  const { columns, contentWidth, placeholderCount } = useMemo(() => {
-    // available width inside the horizontal padding
-    const available = Math.max(0, screenWidth - H_PADDING * 2);
-
-    // how many columns fit (account for GAP between cards)
-    const computedColumns = Math.max(
-      1,
-      Math.floor((available + GAP) / (CARD_WIDTH + GAP))
+  // compute layout: fixed columns, responsive card width, placeholders to fill last row
+  const { cardWidth, contentWidth, placeholderCount } = useMemo(() => {
+    const availableWidth = Math.max(0, screenWidth - H_PADDING * 2);
+    const computedCardWidth = Math.max(
+      0,
+      (availableWidth - GAP * (COLUMNS - 1)) / COLUMNS,
     );
-
-    const contentW = computedColumns * CARD_WIDTH + (computedColumns - 1) * GAP;
-
-    const remainder = filteredMentors.length % computedColumns;
-    const placeholders = remainder === 0 ? 0 : computedColumns - remainder;
+    const contentW = computedCardWidth * COLUMNS + GAP * (COLUMNS - 1);
+    const remainder = filteredMentors.length % COLUMNS;
+    const placeholders = remainder === 0 ? 0 : COLUMNS - remainder;
 
     return {
-      columns: computedColumns,
+      cardWidth: computedCardWidth,
       contentWidth: contentW,
       placeholderCount: placeholders,
     };
@@ -329,7 +330,7 @@ export default function MentorHub() {
             <ScrollView 
               horizontal 
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 2, paddingVertical: 4 }}
+              contentContainerStyle={{ paddingHorizontal: 2, paddingVertical: 4, }}
             >
               <View style={{ flexDirection: 'column', gap: 8 }}>
                 {/* First row - even indices (0, 2, 4, ...) */}
@@ -514,11 +515,12 @@ export default function MentorHub() {
       )}
 
       {/* ScrollView centers the inner grid block via contentContainerStyle alignItems:'center' */}
-      <Animated.View layout={Layout.springify()} style={{ width: '100%' }}>
-        <ScrollView 
+      <Animated.View layout={Layout.springify()} style={styles.contentWrapper}>
+        <ScrollView
+          style={styles.scrollView}
           contentContainerStyle={[
             styles.scrollContainer,
-            { paddingHorizontal: H_PADDING, paddingBottom: 120 + (insets.bottom ?? 0) },
+            { paddingHorizontal: H_PADDING, paddingBottom: bottomNavHeight + 20 },
           ]}
           showsVerticalScrollIndicator={true}
         >
@@ -527,7 +529,7 @@ export default function MentorHub() {
             {renderItems.map((item, index) => {
               const isPlaceholder = '__placeholder' in item;
               const key = isPlaceholder ? (item as { __placeholder: true; key: string }).key : (item as Mentor).id;
-              const isLastColumn = (index % columns) === (columns - 1);
+              const isLastColumn = (index % COLUMNS) === (COLUMNS - 1);
 
               return (
                 <Pressable
@@ -545,7 +547,7 @@ export default function MentorHub() {
                   style={[
                     styles.card,
                     {
-                      width: CARD_WIDTH,
+                      width: cardWidth,
                       marginRight: isLastColumn ? 0 : GAP,
                       marginBottom: GAP,
                       opacity: isPlaceholder ? 0 : 1,
@@ -606,6 +608,7 @@ const AVATAR_SIZE = 56;
 const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
+    flex: 1,
     paddingHorizontal: H_PADDING,
   },
   headerWrap: {
@@ -652,6 +655,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
 
+  contentWrapper: {
+    width: '100%',
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
   // Scroll container centers the innerContainer which has exact contentWidth
   scrollContainer: {
     alignItems: 'center',

@@ -15,7 +15,11 @@ const VIEWBOX_CIRCLE_CENTER_Y = 18.258205;
 const NAV_SCALE = 1.3;
 const BASE_NAV_WIDTH = 390; // keep nav height based on phone-ish width
 
-export default function MentorBottomNav() {
+type Props = {
+  onHeightChange?: (height: number) => void;
+};
+
+export default function MentorBottomNav({ onHeightChange }: Props) {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
 
@@ -38,11 +42,11 @@ export default function MentorBottomNav() {
   const designScale = (BASE_NAV_WIDTH / VIEWBOX_WIDTH) * NAV_SCALE;
   const scale = Math.min(widthScale, designScale);
   const svgHeight = VIEWBOX_HEIGHT * scale / 1.42;
-  const circleCenterOffset = (VIEWBOX_HEIGHT - VIEWBOX_CIRCLE_CENTER_Y) * scale - 40;
   const contentMaxWidth = Platform.OS === 'web' ? 600 : width;
   const contentWidth = Math.min(width, contentMaxWidth);
   const fillerExtra = Platform.OS === 'web' ? 50 : 0;
   const fillerWidth = Platform.OS === 'web' ? Math.max(0, (width - contentWidth) / 2 + fillerExtra) : 0;
+  const adminButtonBottom = bottomFillHeight + svgHeight / 2 - 10 + buttonLift;
 
   const tabs = [
     { key: 'waiting', label: 'Waiting', path: '/(app)/Mentor/waiting-room', Icon: VideoIcon },
@@ -76,6 +80,7 @@ export default function MentorBottomNav() {
   }
 
   const active = activeKey;
+  type NavKey = (typeof tabs)[number]['key'] | 'admin';
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
@@ -108,7 +113,7 @@ export default function MentorBottomNav() {
     })();
   }, []);
 
-  const goTo = (path: string, key: (typeof tabs)[number]['key']) => {
+  const goTo = (path: string, key: NavKey) => {
     // If this tab is already active, do nothing to avoid re-running
     // the navigation animation or resetting the stack.
     if (key === active) return;
@@ -122,10 +127,13 @@ export default function MentorBottomNav() {
         { paddingBottom: bottomFillHeight },
       ]}
       onLayout={(e) => {
-        const w = e.nativeEvent.layout.width;
+        const { width: w, height } = e.nativeEvent.layout;
         if (w > 0 && w !== navWidth) {
           setNavWidth(w);
         }
+        const adminButtonExtent = adminButtonBottom + 56;
+        const totalVisibleHeight = isAdmin ? Math.max(height, adminButtonExtent) : height;
+        onHeightChange?.(totalVisibleHeight);
       }}
     >
       {/* solid fill at the very bottom to avoid any white strip */}
@@ -190,11 +198,11 @@ export default function MentorBottomNav() {
         <TouchableOpacity
           accessibilityLabel="Admin"
           onPress={() => goTo('/(app)/(admin)/admin', 'admin')}
-          style={[
-            styles.adminCircle,
-            { bottom: bottomFillHeight + svgHeight / 2 - 10 },
-          ]}
-        >
+        style={[
+          styles.adminCircle,
+          { bottom: adminButtonBottom },
+        ]}
+      >
           <Logo size={32} />
           {pendingCount > 0 && (
             <View style={styles.pendingBadge}>
