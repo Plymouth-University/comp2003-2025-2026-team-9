@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { cancelSession } from '../../../src/lib/sessions';
 
@@ -115,6 +116,7 @@ export default function MentorHub() {
   const [now, setNow] = useState(Date.now());
 
   const { width: screenWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
 
   //Distance filter state (null = no distance filter)
   //const [selectedDistance, setSelectedDistance] = useState<number | null>(null);
@@ -516,7 +518,7 @@ export default function MentorHub() {
         <ScrollView 
           contentContainerStyle={[
             styles.scrollContainer,
-            { paddingHorizontal: H_PADDING, paddingBottom: 120 },
+            { paddingHorizontal: H_PADDING, paddingBottom: 120 + (insets.bottom ?? 0) },
           ]}
           showsVerticalScrollIndicator={true}
         >

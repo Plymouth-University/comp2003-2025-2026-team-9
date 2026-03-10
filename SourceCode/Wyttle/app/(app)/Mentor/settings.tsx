@@ -1,17 +1,17 @@
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    Animated,
-    Image,
-    Linking,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Switch,
-    Text,
-    TouchableOpacity,
-    UIManager,
-    View
+  Animated,
+  Image,
+  Linking,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  UIManager,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -31,12 +31,12 @@ import OnboardingOverlay from '../../../src/components/OnboardingOverlay';
 import { font } from '../../../src/lib/fonts';
 import { useNavigationHistory } from '../../../src/lib/navigation-history';
 import {
-    DEFAULT_NOTIFICATION_PREFERENCES,
-    type NotificationPreferences,
-    getNotificationPreferences,
-    registerPushToken,
-    unregisterPushToken,
-    updateNotificationPreferences,
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  type NotificationPreferences,
+  getNotificationPreferences,
+  registerPushToken,
+  unregisterPushToken,
+  updateNotificationPreferences,
 } from '../../../src/lib/notifications';
 import { MENTOR_STEPS } from '../../../src/lib/onboarding';
 import { supabase, uploadProfilePhoto } from '../../../src/lib/supabase';

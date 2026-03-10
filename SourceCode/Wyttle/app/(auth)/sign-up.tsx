@@ -6,12 +6,14 @@ import { ThemedText } from '@/components/themed-text';
 import { AuthBackButton } from '@/components/ui/AuthBackButton';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { font } from '../../src/lib/fonts';
 import { commonStyles } from '../../src/styles/common';
 
 export default function SignUpRoleChooser() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
 
   const onSelectRole = (role: 'member' | 'mentor') => {
     const target = role === 'member' ? '/(auth)/sign-up-mentee' : '/(auth)/sign-up-mentor';
@@ -19,7 +21,7 @@ export default function SignUpRoleChooser() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}> 
+    <View style={[styles.container, { backgroundColor: theme.background, paddingBottom: insets.bottom + 10 }]}> 
       <View style={styles.header}>
         <AuthBackButton style={styles.headerBackButton} />
         <Logo size={96} style={styles.logo} />

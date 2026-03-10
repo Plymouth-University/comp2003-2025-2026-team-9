@@ -18,6 +18,7 @@ import { supabase, uploadProfilePhoto } from '../../src/lib/supabase';
 import { commonStyles } from '../../src/styles/common';
 
 import { Logo } from '@/components/Logo';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { AuthBackButton } from '@/components/ui/AuthBackButton';
 import { Toast } from '@/components/ui/Toast';
@@ -27,6 +28,7 @@ import { font } from '../../src/lib/fonts';
 import { initializeNotificationsForUser } from '../../src/lib/notifications';
 
 export default function SignUpMember() {
+  const insets = useSafeAreaInsets();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -136,7 +138,7 @@ export default function SignUpMember() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}
     >
-      <View style={[styles.container, { backgroundColor: theme.background }]}> 
+      <View style={[styles.container, { backgroundColor: theme.background, paddingBottom: insets.bottom }]}> 
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -167,7 +169,8 @@ export default function SignUpMember() {
         <TextInput
           placeholder="Full name"
           autoCapitalize="words"
-          style={styles.input}
+          style={[styles.input, { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text }]}
+          placeholderTextColor={theme.placeholder}
           onChangeText={setFullName}
           value={fullName}
         />
@@ -177,7 +180,8 @@ export default function SignUpMember() {
           placeholder="Email"
           autoCapitalize="none"
           keyboardType="email-address"
-          style={styles.input}
+          style={[styles.input, { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text }]}
+          placeholderTextColor={theme.placeholder}
           onChangeText={setEmail}
           value={email}
         />
@@ -187,7 +191,8 @@ export default function SignUpMember() {
             <TextInput
               placeholder="Password"
               secureTextEntry={!showPassword}
-              style={[styles.input, styles.passwordInput]}
+              style={[styles.input, styles.passwordInput, { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text }]}
+              placeholderTextColor={theme.placeholder}
               onChangeText={setPassword}
               value={password}
             />
@@ -208,7 +213,8 @@ export default function SignUpMember() {
             <TextInput
               placeholder="Confirm password"
               secureTextEntry={!showConfirmPassword}
-              style={[styles.input, styles.passwordInput]}
+              style={[styles.input, styles.passwordInput, { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text }]}
+              placeholderTextColor={theme.placeholder}
               onChangeText={setConfirmPassword}
               value={confirmPassword}
             />
@@ -227,7 +233,8 @@ export default function SignUpMember() {
         </ThemedText>
         <TextInput
           placeholder="What would you like to get out of mentoring?"
-          style={[styles.input, styles.multilineInput]}
+          style={[styles.input, styles.multilineInput, { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text }]}
+          placeholderTextColor={theme.placeholder}
           multiline
           numberOfLines={3}
           onChangeText={setGoals}
@@ -244,9 +251,9 @@ export default function SignUpMember() {
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Want to sign up as a mentor instead?</Text>
+        <Text style={[styles.footerText, { color: theme.text }]}>Want to sign up as a mentor instead?</Text>
         <TouchableOpacity onPress={() => router.replace('/(auth)/sign-up-mentor')}>
-          <Text style={styles.footerLink}>Sign up as a mentor</Text>
+          <Text style={[styles.footerLink, { color: theme.tint }]}>Sign up as a mentor</Text>
         </TouchableOpacity>
       </View>
 
@@ -354,13 +361,11 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: '#8f8e8e',
     textAlign: 'center',
   },
   footerLink: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#968c6c',
     textAlign: 'center',
   },
   avatarPicker: {

@@ -66,7 +66,7 @@ export default function Index() {
   }, []);
 
   return (
-    <View style={{ flex: 1, paddingTop: insets.top, backgroundColor: theme.background }}>
+    <View style={{ flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: theme.background }}>
       <View style={styles.container}>
         {/* Top: logo + app name */}
         <View style={styles.header}>
@@ -97,12 +97,12 @@ export default function Index() {
         </View>
 
         {/* Bottom: sign up link */}
-        <TouchableOpacity
-          style={styles.textButton}
-          onPress={() => router.push('/(auth)/sign-up')}
-        >
-          <Text style={[styles.textButtonLabel, { color: theme.tint }]}>Need an account? Register here</Text>
-        </TouchableOpacity>
+        <View style={styles.footer}>
+          <Text style={[styles.footerText, { color: theme.text }]}>Need an account?</Text>
+          <TouchableOpacity onPress={() => router.push('/(auth)/sign-up')}>
+            <Text style={[styles.footerLink, { color: theme.tint }]}>Register here</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -175,5 +175,18 @@ const styles = StyleSheet.create({
   textButtonLabel: {
     fontSize: 15,
     fontWeight: '500',
+  },
+  footer: {
+    marginTop: 'auto',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  footerText: {
+    fontSize: 14,
+  },
+  footerLink: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

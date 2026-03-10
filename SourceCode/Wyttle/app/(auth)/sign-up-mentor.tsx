@@ -18,6 +18,7 @@ import { supabase, uploadProfilePhoto } from '../../src/lib/supabase';
 import { commonStyles } from '../../src/styles/common';
 
 import { Logo } from '@/components/Logo';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { AuthBackButton } from '@/components/ui/AuthBackButton';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -28,6 +29,7 @@ import { font } from '../../src/lib/fonts';
 import { initializeNotificationsForUser } from '../../src/lib/notifications';
 
 export default function SignUpMentor() {
+  const insets = useSafeAreaInsets();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -137,7 +139,7 @@ export default function SignUpMentor() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}
     >
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={[styles.container, { backgroundColor: theme.background, paddingBottom: insets.bottom }]}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -168,7 +170,8 @@ export default function SignUpMentor() {
           <TextInput
             placeholder="Full name"
             autoCapitalize="words"
-            style={styles.input}
+            style={[styles.input, { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text }]}
+            placeholderTextColor={theme.placeholder}
             onChangeText={setFullName}
             value={fullName}
           />
@@ -178,7 +181,8 @@ export default function SignUpMentor() {
             placeholder="Email"
             autoCapitalize="none"
             keyboardType="email-address"
-            style={styles.input}
+            style={[styles.input, { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text }]}
+            placeholderTextColor={theme.placeholder}
             onChangeText={setEmail}
             value={email}
           />
@@ -188,7 +192,8 @@ export default function SignUpMentor() {
             <TextInput
               placeholder="Password"
               secureTextEntry={!showPassword}
-              style={[styles.input, styles.passwordInput]}
+              style={[styles.input, styles.passwordInput, { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text }]}
+              placeholderTextColor={theme.placeholder}
               onChangeText={setPassword}
               value={password}
             />
@@ -213,7 +218,8 @@ export default function SignUpMentor() {
             <TextInput
               placeholder="Confirm password"
               secureTextEntry={!showConfirmPassword}
-              style={[styles.input, styles.passwordInput]}
+              style={[styles.input, styles.passwordInput, { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text }]}
+              placeholderTextColor={theme.placeholder}
               onChangeText={setConfirmPassword}
               value={confirmPassword}
             />
@@ -236,7 +242,8 @@ export default function SignUpMentor() {
           </ThemedText>
           <TextInput
             placeholder="e.g. Product design, career coaching"
-            style={styles.input}
+            style={[styles.input, { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text }]}
+            placeholderTextColor={theme.placeholder}
             onChangeText={setExpertise}
             value={expertise}
           />
@@ -249,7 +256,8 @@ export default function SignUpMentor() {
           <TextInput
             placeholder="e.g. 5"
             keyboardType="number-pad"
-            style={styles.input}
+            style={[styles.input, { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text }]}
+            placeholderTextColor={theme.placeholder}
             onChangeText={setExperienceYears}
             value={experienceYears}
           />
@@ -264,9 +272,9 @@ export default function SignUpMentor() {
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Want to sign up as a member instead?</Text>
+          <Text style={[styles.footerText, { color: theme.text }]}>Want to sign up as a member instead?</Text>
           <TouchableOpacity onPress={() => router.replace('/(auth)/sign-up-mentee')}>
-            <Text style={styles.footerLink}>Sign up as a member</Text>
+            <Text style={[styles.footerLink, { color: theme.tint }]}>Sign up as a member</Text>
           </TouchableOpacity>
         </View>
 
@@ -371,13 +379,11 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: '#8f8e8e',
     textAlign: 'center',
   },
   footerLink: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333f5c',
     textAlign: 'center',
   },
   avatarPicker: {

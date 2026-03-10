@@ -121,7 +121,11 @@ export default function SignIn() {
             placeholder="Email"
             autoCapitalize="none"
             keyboardType="email-address"
-            style={styles.input}
+            style={[
+              styles.input,
+              { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text },
+            ]}
+            placeholderTextColor={theme.placeholder}
             onChangeText={setEmail}
             value={email}
           />
@@ -131,7 +135,12 @@ export default function SignIn() {
             <TextInput
               placeholder="Password"
               secureTextEntry={!showPassword}
-              style={[styles.input, styles.passwordInput]}
+              style={[
+                styles.input,
+                styles.passwordInput,
+                { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text },
+              ]}
+              placeholderTextColor={theme.placeholder}
               onChangeText={setPassword}
               value={password}
             />
@@ -164,9 +173,9 @@ export default function SignIn() {
 
         {/* ⬇️ New footer: Sign-up entry point */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Don&apos;t have an account?</Text>
+          <Text style={[styles.footerText, { color: theme.text }]}>Don&apos;t have an account?</Text>
           <TouchableOpacity onPress={() => router.push('/(auth)/sign-up')}>
-            <Text style={styles.footerLink}>Sign up</Text>
+            <Text style={[styles.footerLink, { color: theme.tint }]}>Sign up</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
