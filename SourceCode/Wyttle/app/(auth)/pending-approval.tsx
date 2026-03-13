@@ -77,7 +77,7 @@ export default function PendingApproval() {
         </ThemedText>
         <ThemedText style={[styles.body, { color: theme.text }]}>
           Your sign-up request has been submitted and is awaiting admin approval.
-          You'll be able to access the app once your account is approved.
+          You&apos;ll be able to access the app once your account is approved.
         </ThemedText>
 
         <TouchableOpacity

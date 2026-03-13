@@ -24,6 +24,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 import { ThemedText } from '@/components/themed-text';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { setTextSize, setThemeOverride, useTextSize } from '@/hooks/theme-store';
@@ -214,6 +215,7 @@ export default function MenteeSettingsScreen() {
   const [workExperience, setWorkExperience] = useState('');
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
+  const passwordIconColor = colorScheme === 'dark' ? '#cfd3ff' : '#333f5c';
   const { resetHistory } = useNavigationHistory();
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [skills, setSkills] = useState<string[]>([]);
@@ -221,6 +223,15 @@ export default function MenteeSettingsScreen() {
   const [lookingFor, setLookingFor] = useState('');
   const [tokensBalance, setTokensBalance] = useState<number | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [isPasswordSectionOpen, setIsPasswordSectionOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
+  const [isDeleteAccountSectionOpen, setIsDeleteAccountSectionOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -481,15 +492,97 @@ export default function MenteeSettingsScreen() {
 
     setLocation(friendly || '');
   };
-
-
-  {/*Functio to handle the user logging out of their account*/}
+  // Handle the user logging out of their account.
   const handleLogout = async () => {
       await unregisterPushToken();
       await supabase.auth.signOut();
       resetHistory('/');
       router.replace({ pathname: '/', params: { from: 'logout' } });
     };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete account',
+      'Account deletion is not wired up yet. This button currently shows a mock success message until the backend flow is implemented.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Account deletion requested',
+              'Mock success: your account deletion request has been recorded. The real deletion flow will be connected later.',
+            );
+          },
+        },
+      ],
+    );
+  };
+
+  const handleMockTwoFactorSetup = () => {
+    Alert.alert(
+      'Two-factor authentication',
+      'Mock placeholder: 2FA setup will be connected in a later update.',
+    );
+  };
+
+  const handleChangePassword = async () => {
+    const trimmedCurrentPassword = currentPassword.trim();
+    const trimmedPassword = newPassword.trim();
+    const trimmedConfirmPassword = confirmNewPassword.trim();
+
+    if (!trimmedCurrentPassword || !trimmedPassword || !trimmedConfirmPassword) {
+      Alert.alert('Missing password', 'Enter your current password and confirm your new password.');
+      return;
+    }
+
+    if (trimmedPassword.length < 6) {
+      Alert.alert('Password too short', 'Your new password must be at least 6 characters long.');
+      return;
+    }
+
+    if (trimmedPassword !== trimmedConfirmPassword) {
+      Alert.alert('Passwords do not match', 'Make sure both password fields match.');
+      return;
+    }
+
+    try {
+      setIsUpdatingPassword(true);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user?.email) {
+        throw new Error('Unable to verify your current password for this account.');
+      }
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: trimmedCurrentPassword,
+      });
+
+      if (signInError) {
+        throw new Error('Your current password is incorrect.');
+      }
+
+      const { error } = await supabase.auth.updateUser({ password: trimmedPassword });
+
+      if (error) {
+        throw error;
+      }
+
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setIsPasswordSectionOpen(false);
+      Alert.alert('Password updated', 'Your password has been changed successfully.');
+    } catch (error: any) {
+      Alert.alert('Password update failed', error?.message ?? 'Unable to update your password right now.');
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
 
   const notificationOptions: { key: keyof NotificationPreferences; label: string }[] = [
     { key: 'push_enabled', label: 'Push notifications' },
@@ -835,6 +928,214 @@ export default function MenteeSettingsScreen() {
       {/* Replay tutorial moved to bottom-left near logout button */}
 
       <SettingsDropdown
+        id="account-management"
+        title="Account Management"
+        icon="shield-outline"
+        openSection={openSection}
+        toggleSection={toggleSection}
+        theme={theme}
+      >
+        <TouchableOpacity
+          style={styles.itemRow}
+          onPress={() => setIsPasswordSectionOpen((prev) => !prev)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: isPasswordSectionOpen }}
+        >
+          <ThemedText
+            darkColor="#cfd3ff"
+            style={[
+              styles.itemText,
+              font('GlacialIndifference', '400'),
+              { flex: 1 },
+            ]}
+          >
+            Change password
+          </ThemedText>
+          <Ionicons
+            name={isPasswordSectionOpen ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={theme.text}
+            style={{ opacity: 0.4 }}
+          />
+        </TouchableOpacity>
+
+        {isPasswordSectionOpen && (
+          <View style={styles.accountSubsection}>
+            <View style={styles.accountFieldGroup}>
+              <Text style={[styles.themeLabel, styles.accountFieldLabel, { color: theme.text }]}>Current password</Text>
+              <View style={styles.passwordField}>
+                <TextInput
+                  style={[styles.textInput, styles.passwordInput, { color: theme.text }]}
+                  placeholder="Enter current password"
+                  placeholderTextColor="#7f8186"
+                  value={currentPassword}
+                  onChangeText={setCurrentPassword}
+                  secureTextEntry={!showCurrentPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <TouchableOpacity
+                  style={styles.passwordToggle}
+                  onPress={() => setShowCurrentPassword((prev) => !prev)}
+                >
+                  <IconSymbol
+                    name={showCurrentPassword ? 'eye.slash' : 'eye'}
+                    size={20}
+                    color={passwordIconColor}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.accountFieldGroup}>
+              <Text style={[styles.themeLabel, styles.accountFieldLabel, { color: theme.text }]}>New password</Text>
+              <View style={styles.passwordField}>
+                <TextInput
+                  style={[styles.textInput, styles.passwordInput, { color: theme.text }]}
+                  placeholder="Enter new password"
+                  placeholderTextColor="#7f8186"
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  secureTextEntry={!showNewPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <TouchableOpacity
+                  style={styles.passwordToggle}
+                  onPress={() => setShowNewPassword((prev) => !prev)}
+                >
+                  <IconSymbol
+                    name={showNewPassword ? 'eye.slash' : 'eye'}
+                    size={20}
+                    color={passwordIconColor}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.accountFieldGroup}>
+              <Text style={[styles.themeLabel, styles.accountFieldLabel, { color: theme.text }]}>Confirm new password</Text>
+              <View style={styles.passwordField}>
+                <TextInput
+                  style={[styles.textInput, styles.passwordInput, { color: theme.text }]}
+                  placeholder="Confirm new password"
+                  placeholderTextColor="#7f8186"
+                  value={confirmNewPassword}
+                  onChangeText={setConfirmNewPassword}
+                  secureTextEntry={!showConfirmNewPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <TouchableOpacity
+                  style={styles.passwordToggle}
+                  onPress={() => setShowConfirmNewPassword((prev) => !prev)}
+                >
+                  <IconSymbol
+                    name={showConfirmNewPassword ? 'eye.slash' : 'eye'}
+                    size={20}
+                    color={passwordIconColor}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.saveButton,
+                styles.passwordSaveButton,
+                isUpdatingPassword && { opacity: 0.6 },
+              ]}
+              onPress={handleChangePassword}
+              disabled={isUpdatingPassword}
+            >
+              <Text style={styles.saveButtonText}>
+                {isUpdatingPassword ? 'Updating...' : 'Update password'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={styles.itemRow}
+          onPress={handleMockTwoFactorSetup}
+        >
+          <ThemedText
+            darkColor="#cfd3ff"
+            style={[
+              styles.itemText,
+              font('GlacialIndifference', '400'),
+              { flex: 1 },
+            ]}
+          >
+            Two-factor authentication
+          </ThemedText>
+          <Ionicons name="shield-checkmark-outline" size={18} color={theme.text} style={{ opacity: 0.4 }} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.itemRow}
+          onPress={handleLogout}
+        >
+          <ThemedText
+            darkColor="#f3b4b4"
+            style={[
+              styles.itemText,
+              styles.dangerItemText,
+              font('GlacialIndifference', '400'),
+              { flex: 1 },
+            ]}
+          >
+            Log out
+          </ThemedText>
+          <Ionicons name="log-out-outline" size={18} color="#dc2626" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.itemRow, styles.dangerItemRow]}
+          onPress={() => setIsDeleteAccountSectionOpen((prev) => !prev)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: isDeleteAccountSectionOpen }}
+        >
+          <ThemedText
+            darkColor="#f3b4b4"
+            style={[
+              styles.itemText,
+              styles.dangerItemText,
+              font('GlacialIndifference', '400'),
+              { flex: 1 },
+            ]}
+          >
+            Delete account
+          </ThemedText>
+          <Ionicons
+            name={isDeleteAccountSectionOpen ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color="#dc2626"
+          />
+        </TouchableOpacity>
+
+        {isDeleteAccountSectionOpen && (
+          <View style={styles.deleteAccountSubsection}>
+            <ThemedText
+              darkColor="#f3b4b4"
+              style={[styles.deleteAccountHelperText, { color: '#dc2626' }]}
+            >
+              This is still a mock flow and will show a confirmation dialog before anything happens.
+            </ThemedText>
+
+            <TouchableOpacity
+              style={styles.deleteAccountButton}
+              onPress={handleDeleteAccount}
+            >
+              <Ionicons name="trash-outline" size={18} color="#fff" />
+              <Text style={styles.deleteAccountButtonText}>Continue to delete account</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+      </SettingsDropdown>
+
+      <SettingsDropdown
         id="acknowledgements"
         title="Acknowledgements"
         icon="ribbon-outline"
@@ -858,11 +1159,11 @@ export default function MenteeSettingsScreen() {
         </TouchableOpacity>
       </SettingsDropdown>
 
-      {/* Replay tutorial & Log out buttons - hide while editing profile inside the Profiles dropdown */}
+      {/* Replay tutorial button - hide while editing profile inside the Profiles dropdown */}
       {!(isEditingProfile && openSection === 'profiles') && (
         <View
           style={[
-            styles.footerActions,
+            styles.footerReplay,
             { paddingBottom: 24 + insets.bottom + 56 },
           ]}
         >
@@ -878,18 +1179,7 @@ export default function MenteeSettingsScreen() {
             <ThemedText darkColor="#cfd3ff" style={[
               styles.replayButtonText,
               { marginLeft: 8 },
-            ]}>Replay tutorial</ThemedText>
-          </Pressable>
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.logoutButton,
-              pressed && styles.logoutButtonPressed,
-            ]}
-            onPress={handleLogout}
-            android_ripple={{ color: '#00000008' }}
-          >
-            <ThemedText style={styles.logoutButtonText}>Log out</ThemedText>
+            ]}>Replay Introduction</ThemedText>
           </Pressable>
         </View>
       )}
@@ -922,6 +1212,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  footerReplay: {
+    marginTop: 20,
+    alignItems: 'flex-start',
   },
   button: {
     marginTop: 20,
@@ -1164,11 +1458,14 @@ slider: {
   flex: 1,
   height: 40,
 },
-sliderValue: {
+  sliderValue: {
   fontSize: 14,
   minWidth: 45,
   textAlign: 'right',
 },
+  dangerItemText: {
+    color: '#dc2626',
+  },
   logoutButton: {
     paddingVertical: 12,
     paddingHorizontal: 12,
@@ -1199,7 +1496,7 @@ logoutButtonText: {
     borderRadius: 10,
   },
   replayButtonText: {
-    color: '#333f5c',
+    color: '#5b6480',
     fontWeight: '600',
     fontSize: 14,
   },
@@ -1218,10 +1515,67 @@ replayTutorialRow: {
   borderTopWidth: 1,
   borderTopColor: '#00000010',
 },
+accountSubsection: {
+  paddingTop: 8,
+  paddingBottom: 14,
+  paddingHorizontal: 12,
+  gap: 12,
+},
+accountFieldGroup: {
+  gap: 6,
+},
+accountFieldLabel: {
+  marginBottom: 0,
+},
+dangerItemRow: {
+  paddingVertical: 14,
+},
+deleteAccountSubsection: {
+  paddingHorizontal: 12,
+  paddingBottom: 14,
+  gap: 12,
+},
+deleteAccountHelperText: {
+  fontSize: 13,
+  lineHeight: 18,
+},
+deleteAccountButton: {
+  backgroundColor: '#dc2626',
+  borderRadius: 10,
+  paddingVertical: 12,
+  paddingHorizontal: 14,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+},
+deleteAccountButtonText: {
+  color: '#fff',
+  fontWeight: '700',
+},
+passwordField: {
+  position: 'relative',
+  width: '100%',
+},
+passwordInput: {
+  paddingRight: 72,
+},
+passwordToggle: {
+  position: 'absolute',
+  right: 12,
+  top: 0,
+  bottom: 0,
+  justifyContent: 'center',
+  alignItems: 'center',
+  paddingHorizontal: 6,
+  paddingVertical: 4,
+},
+passwordSaveButton: {
+  alignSelf: 'stretch',
+},
 acknowledgementRow: {
   flexDirection: 'row',
   alignItems: 'center',
   paddingVertical: 10,
 },
 });
-
