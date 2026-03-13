@@ -86,6 +86,7 @@ export default function RootLayout() {
               headerShown: false,
               // Global transition animation between screens
               animation: 'fade',
+              contentStyle: { backgroundColor: 'transparent' },
             }}
           >
             <Stack.Screen name="(auth)" />

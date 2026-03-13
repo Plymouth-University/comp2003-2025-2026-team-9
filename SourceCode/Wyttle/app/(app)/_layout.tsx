@@ -10,10 +10,18 @@ export default function AppLayout() {
   const theme = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
-  const shouldOverlayTopSafeArea = pathname.includes('profile-view');
+  const isAdminRoute = pathname.includes('/admin') || pathname.includes('(admin)');
+  const shouldOverlayTopSafeArea =
+    pathname.includes('profile-view') ||
+    isAdminRoute;
+  const appShellBackground = isAdminRoute
+    ? colorScheme === 'dark'
+      ? '#1b2236'
+      : '#f4efe4'
+    : theme.background;
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View style={[styles.container, { backgroundColor: appShellBackground }]}>
       <View
         style={[
           styles.content,
