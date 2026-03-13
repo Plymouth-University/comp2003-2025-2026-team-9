@@ -195,10 +195,13 @@ export default function MenteeSettingsScreen() {
   const textSize = useTextSize();
 
   const TOKEN_CREDIT_BY_PRODUCT_ID: Record<string, number> = {
-    fifty_tokens: 50,
-    onehundred_tokens: 100,
     // add exact RevenueCat/App Store product IDs here
+    fifty_tokens: 50,
+    fifty_tokens_v2: 50,
+    onehundred_tokens: 100,
+    onehundred_tokens_v2: 100,
     twohundred_tokens_monthly: 200,
+    twohundred_tokens_monthly_v2: 200,
     'twohundred_tokens_monthly:twohundred-tokens-monthly-base-plan-id': 200,
   };
 
