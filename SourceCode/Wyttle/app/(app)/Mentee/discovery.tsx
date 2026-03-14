@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
+  Alert,
   ActivityIndicator,
   Dimensions,
   Image,
@@ -29,7 +30,16 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../../src/lib/fonts';
-import { Profile, fetchDiscoveryProfiles, getCurrentUser, likeProfile, supabase, swipeOnProfile } from '../../../src/lib/supabase';
+import {
+  blockUser,
+  fetchDiscoveryProfiles,
+  getCurrentUser,
+  likeProfile,
+  Profile,
+  supabase,
+  swipeOnProfile,
+  undoLastPassSwipe
+} from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const HandshakeIcon = require('@/assets/icons/handshake.png');
@@ -58,37 +68,12 @@ export default function DiscoveryStackScreen() {
 
   const [selectedDistance, setSelectedDistance] = useState<number | null>(null);
 
-  const computeDistanceMiles = (p: Profile): number | null => {
-    // Placeholder until backend provides real distance
-    const asAny = p as any;
-    if (typeof asAny.distance_miles === 'number') return asAny.distance_miles;
-    return null;
-  };
-
-  const visibleProfiles = useMemo(() => {
-    if (selectedDistance == null) return profiles;
-
-    return profiles.filter((p) => {
-      // distance filter (only apply when user selected a distance)
-      const d = computeDistanceMiles(p);
-      // currently we exclude profiles with unknown distance (d === null)
-      if (d === null) return false;
-      return d <= selectedDistance;
-    });
-  }, [profiles, selectedDistance]);
-
-  useEffect(() => {
-    if (index >= visibleProfiles.length) {
-      setIndex(0);
-    }
-  }, [index, visibleProfiles.length]);
-
   const loadProfiles = useCallback(async () => {
     setLoading(true);
     setError(null);
     setLastPass(null);
     try {
-      const data = await fetchDiscoveryProfiles();
+      const data = await fetchDiscoveryProfiles(selectedDistance);
       setProfiles(data);
       setIndex(0);
     } catch (err: any) {
@@ -97,7 +82,7 @@ export default function DiscoveryStackScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedDistance]);
 
   useEffect(() => {
     loadProfiles();
@@ -127,9 +112,9 @@ export default function DiscoveryStackScreen() {
     };
   }, []);
 
-  const current = visibleProfiles[index];
-  const nextProfile = visibleProfiles[index + 1];
-  const remaining = visibleProfiles.length - index - 1;
+  const current = profiles[index];
+  const nextProfile = profiles[index + 1];
+  const remaining = profiles.length - index - 1;
 
   const handleSwipeStart = () => {
     if (!current || swiping) return;
@@ -178,17 +163,26 @@ export default function DiscoveryStackScreen() {
 
   const handleUndoLastPass = () => {
     if (!lastPass) return;
-    const idx = visibleProfiles.findIndex((p) => p.id === lastPass.profile.id);
-    if (idx === -1) {
-      setLastPass(null);
-      return;
-    }
-    setEnterFrom('left');
-    setIndex(idx);
-    setLastPass(null);
+    void undoLastPassSwipe(lastPass.profile.id)
+      .then((ok) => {
+        if (!ok) return;
+        setEnterFrom('left');
+        setProfiles((prev) => {
+          if (prev.some((p) => p.id === lastPass.profile.id)) return prev;
+          const next = [...prev];
+          const insertAt = Math.min(Math.max(lastPass.index, 0), next.length);
+          next.splice(insertAt, 0, lastPass.profile);
+          return next;
+        });
+        setIndex(lastPass.index);
+        setLastPass(null);
+      })
+      .catch((err) => {
+        console.error('Failed to undo pass swipe', err);
+      });
   };
 
-  const showEmpty = !loading && (!visibleProfiles.length || !current);
+  const showEmpty = !loading && (profiles.length === 0 || index >= profiles.length || !current);
 
   const handleCloseMatchModal = () => {
     setMatchModalProfile(null);
@@ -329,6 +323,30 @@ export default function DiscoveryStackScreen() {
               setIndex((prev) => prev + 1);
               setSwiping(false);
               void handleLike(swipedId);
+            }}
+            onBlockPress={() => {
+              if (!current || swiping) return;
+              Alert.alert(
+                'Block member',
+                `Block ${current.full_name ?? 'this member'}? You will no longer see each other.`,
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Block',
+                    style: 'destructive',
+                    onPress: () => {
+                      void blockUser(current.id)
+                        .then(() => {
+                          setLastPass(null);
+                          setIndex((prev) => prev + 1);
+                        })
+                        .catch((err) => {
+                          console.error('Failed to block user', err);
+                        });
+                    },
+                  },
+                ],
+              );
             }}
             onSwipeStart={handleSwipeStart}
             swipeCommand={swipeCommand}
@@ -471,6 +489,7 @@ type ProfileCardProps = {
   swiping: boolean;
   onOpenProfile?: (id: string) => void;
   onSkipPress?: () => void;
+  onBlockPress?: () => void;
   onConnectPress?: () => void;
   enterFrom?: 'left' | 'right' | null;
   onEnterComplete?: () => void;
@@ -488,6 +507,7 @@ function ProfileCard({
   swiping,
   onOpenProfile,
   onSkipPress,
+  onBlockPress,
   onConnectPress,
   enterFrom,
   onEnterComplete,
@@ -686,6 +706,7 @@ function ProfileCard({
             <TouchableOpacity
               style={[styles.cardActionButton, styles.skipButton]}
               onPress={onSkipPress}
+              onLongPress={onBlockPress}
               disabled={swiping}
               activeOpacity={0.7}
             >

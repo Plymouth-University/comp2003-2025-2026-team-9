@@ -43,6 +43,7 @@ export type Profile = {
   skills?: string[] | null;
   interests?: string[] | null;
   looking_for?: string | string[] | null;
+  distance_miles?: number | null;
   tokens_balance?: number | null;
   mentor_session_rate?: number | null;
 };
@@ -101,15 +102,11 @@ export async function getCurrentUser() {
   return data.user;
 }
 
-export async function fetchDiscoveryProfiles(): Promise<Profile[]> {
-  const user = await getCurrentUser();
-
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, full_name, title, industry, bio, photo_url, role, location, skills, interests, looking_for')
-    .neq('id', user.id)   // don’t show myself
-    .eq('role', 'member') // only show member profiles in discovery
-    .order('created_at', { ascending: false });
+export async function fetchDiscoveryProfiles(maxDistanceMiles: number | null = null): Promise<Profile[]> {
+  const { data, error } = await supabase.rpc('discover_profiles', {
+    p_max_distance_miles: maxDistanceMiles == null ? null : Math.round(maxDistanceMiles),
+    p_limit: 100,
+  });
 
   if (error) throw error;
   return (data ?? []) as Profile[];
@@ -131,6 +128,22 @@ export async function swipeOnProfile(
   });
 
   if (error) throw error;
+}
+
+export async function undoLastPassSwipe(swipedId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('undo_last_pass_swipe', {
+    p_swiped_id: swipedId,
+  });
+  if (error) throw error;
+  return Boolean(data);
+}
+
+export async function blockUser(blockedId: string) {
+  const { data, error } = await supabase.rpc('block_user', {
+    p_blocked_id: blockedId,
+  });
+  if (error) throw error;
+  return data;
 }
 
 export async function rpcCreateMatchOnMutualHandshake(otherUserId: string) {
@@ -176,6 +189,12 @@ export async function disconnectPeer(otherUserId: string) {
     );
 
   if (error) throw error;
+}
+
+export async function deleteMyAccount() {
+  const { data, error } = await supabase.rpc('delete_my_account');
+  if (error) throw error;
+  return data;
 }
 
 // Upload a local image file as this user's profile photo.

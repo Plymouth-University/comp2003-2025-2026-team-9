@@ -41,7 +41,7 @@ import {
   updateNotificationPreferences,
 } from '../../../src/lib/notifications';
 import { MENTOR_STEPS } from '../../../src/lib/onboarding';
-import { supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
+import { deleteMyAccount, supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 
 
@@ -408,17 +408,25 @@ export default function MenteeSettingsScreen() {
   const handleDeleteAccount = () => {
     Alert.alert(
       'Delete account',
-      'Account deletion is not wired up yet. This button currently shows a mock success message until the backend flow is implemented.',
+      'This permanently deletes your account and related profile data. This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              'Account deletion requested',
-              'Mock success: your account deletion request has been recorded. The real deletion flow will be connected later.',
-            );
+          onPress: async () => {
+            try {
+              await deleteMyAccount();
+              await unregisterPushToken();
+              await supabase.auth.signOut().catch(() => {});
+              resetHistory('/');
+              router.replace({ pathname: '/', params: { from: 'logout' } });
+            } catch (error: any) {
+              Alert.alert(
+                'Delete account failed',
+                error?.message ?? 'Unable to delete your account right now.',
+              );
+            }
           },
         },
       ],
