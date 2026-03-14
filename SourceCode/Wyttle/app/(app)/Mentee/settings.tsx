@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { SvgXml } from 'react-native-svg';
 
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -44,7 +45,15 @@ import {
   updateNotificationPreferences,
 } from '../../../src/lib/notifications';
 import { MENTEE_STEPS } from '../../../src/lib/onboarding';
-import { disableTotpFactor, enrollTotp, listTotpFactors, type TotpEnrollment, verifyTotpEnrollment } from '../../../src/lib/mfa';
+import {
+  disableTotpFactor,
+  enrollTotp,
+  getTotpQrImageUrl,
+  getTotpQrSvg,
+  listTotpFactors,
+  type TotpEnrollment,
+  verifyTotpEnrollment,
+} from '../../../src/lib/mfa';
 import { deleteMyAccount, supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 
@@ -238,6 +247,8 @@ export default function MenteeSettingsScreen() {
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [activeTotpFactorId, setActiveTotpFactorId] = useState<string | null>(null);
   const [pendingTotpEnrollment, setPendingTotpEnrollment] = useState<TotpEnrollment | null>(null);
+  const totpQrSvg = getTotpQrSvg(pendingTotpEnrollment?.qrCode);
+  const totpQrImageUrl = !totpQrSvg ? getTotpQrImageUrl(pendingTotpEnrollment?.uri) : null;
 
   useEffect(() => {
     (async () => {
@@ -591,6 +602,22 @@ export default function MenteeSettingsScreen() {
     }
   };
 
+  const handleCopyTwoFactorSecret = async () => {
+    const secret = pendingTotpEnrollment?.secret ?? pendingTotpEnrollment?.uri;
+    if (!secret) return;
+
+    try {
+      const Clipboard = await import('expo-clipboard');
+      await Clipboard.setStringAsync(secret);
+      Alert.alert('Copied', 'The 2FA setup key has been copied to your clipboard.');
+    } catch {
+      Alert.alert(
+        'Clipboard unavailable',
+        'Clipboard support is not available in this build yet. Rebuild the app to enable copy, or enter the key manually for now.',
+      );
+    }
+  };
+
   const handleChangePassword = async () => {
     const trimmedCurrentPassword = currentPassword.trim();
     const trimmedPassword = newPassword.trim();
@@ -710,65 +737,6 @@ export default function MenteeSettingsScreen() {
           ]}>View profile</ThemedText>
           <Ionicons name="chevron-forward" size={18} color={theme.text} style={{ opacity: 0.4 }} />
         </TouchableOpacity>
-        {isTwoFactorSectionOpen && (
-          <View style={styles.accountSubsection}>
-            <ThemedText style={[styles.twoFactorStatusText, { color: theme.text }]}>
-              {activeTotpFactorId ? '2FA status: enabled' : '2FA status: not enabled'}
-            </ThemedText>
-            {!activeTotpFactorId && !pendingTotpEnrollment && (
-              <TouchableOpacity
-                style={[styles.saveButton, styles.passwordSaveButton, isTwoFactorBusy && { opacity: 0.6 }]}
-                onPress={handleStartTwoFactorSetup}
-                disabled={isTwoFactorBusy}
-              >
-                <Text style={styles.saveButtonText}>
-                  {isTwoFactorBusy ? 'Starting...' : 'Start 2FA setup'}
-                </Text>
-              </TouchableOpacity>
-            )}
-            {pendingTotpEnrollment && !activeTotpFactorId && (
-              <View style={styles.accountFieldGroup}>
-                <ThemedText style={[styles.twoFactorHelperText, { color: theme.text }]}>
-                  Add this secret to your authenticator app, then enter the 6-digit code.
-                </ThemedText>
-                <Text selectable style={[styles.twoFactorSecretText, { color: theme.text }]}>
-                  {pendingTotpEnrollment.secret ?? pendingTotpEnrollment.uri ?? 'Secret unavailable'}
-                </Text>
-                <TextInput
-                  style={[styles.textInput, styles.twoFactorCodeInput, { color: theme.text }]}
-                  placeholder="123456"
-                  placeholderTextColor="#7f8186"
-                  keyboardType="number-pad"
-                  value={twoFactorCode}
-                  onChangeText={setTwoFactorCode}
-                  maxLength={6}
-                />
-                <TouchableOpacity
-                  style={[styles.saveButton, styles.passwordSaveButton, isTwoFactorBusy && { opacity: 0.6 }]}
-                  onPress={handleVerifyTwoFactor}
-                  disabled={isTwoFactorBusy}
-                >
-                  <Text style={styles.saveButtonText}>
-                    {isTwoFactorBusy ? 'Verifying...' : 'Verify and enable 2FA'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            {activeTotpFactorId && (
-              <TouchableOpacity
-                style={[styles.deleteAccountButton, isTwoFactorBusy && { opacity: 0.6 }]}
-                onPress={handleDisableTwoFactor}
-                disabled={isTwoFactorBusy}
-              >
-                <Ionicons name="shield-outline" size={18} color="#fff" />
-                <Text style={styles.deleteAccountButtonText}>
-                  {isTwoFactorBusy ? 'Disabling...' : 'Disable 2FA'}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
         <TouchableOpacity
           style={styles.itemRow}
           onPress={toggleEditProfile}
@@ -1207,6 +1175,88 @@ export default function MenteeSettingsScreen() {
             style={{ opacity: 0.4 }}
           />
         </TouchableOpacity>
+        {isTwoFactorSectionOpen && (
+          <View style={styles.accountSubsection}>
+            <ThemedText style={styles.twoFactorStatusText}>
+              <Text style={{ color: theme.text }}>2FA status: </Text>
+              <Text style={{ color: activeTotpFactorId ? theme.text : '#dc2626' }}>
+                {activeTotpFactorId ? 'enabled' : 'not enabled'}
+              </Text>
+            </ThemedText>
+            {!activeTotpFactorId && !pendingTotpEnrollment && (
+              <TouchableOpacity
+                style={[styles.saveButton, styles.passwordSaveButton, isTwoFactorBusy && { opacity: 0.6 }]}
+                onPress={handleStartTwoFactorSetup}
+                disabled={isTwoFactorBusy}
+              >
+                <Text style={styles.saveButtonText}>
+                  {isTwoFactorBusy ? 'Starting...' : 'Start 2FA setup'}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {pendingTotpEnrollment && !activeTotpFactorId && (
+              <View style={styles.accountFieldGroup}>
+                <ThemedText style={[styles.twoFactorHelperText, { color: theme.text }]}>
+                  Scan this QR code with your authenticator app, or use the secret manually, then
+                  enter the 6-digit code.
+                </ThemedText>
+                {totpQrSvg && (
+                  <View style={styles.twoFactorQrWrapper}>
+                    <SvgXml xml={totpQrSvg} width={168} height={168} />
+                  </View>
+                )}
+                {!totpQrSvg && totpQrImageUrl && (
+                  <View style={styles.twoFactorQrWrapper}>
+                    <Image source={{ uri: totpQrImageUrl }} style={styles.twoFactorQrImage} />
+                  </View>
+                )}
+                <View style={styles.twoFactorSecretRow}>
+                  <Text selectable style={[styles.twoFactorSecretText, { color: theme.text }]}>
+                    {pendingTotpEnrollment.secret ?? pendingTotpEnrollment.uri ?? 'Secret unavailable'}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.twoFactorCopyButton}
+                    onPress={handleCopyTwoFactorSecret}
+                    accessibilityRole="button"
+                    accessibilityLabel="Copy 2FA setup key"
+                  >
+                    <Ionicons name="copy-outline" size={18} color={theme.text} />
+                  </TouchableOpacity>
+                </View>
+                <TextInput
+                  style={[styles.textInput, styles.twoFactorCodeInput, { color: theme.text }]}
+                  placeholder="123456"
+                  placeholderTextColor="#7f8186"
+                  keyboardType="number-pad"
+                  value={twoFactorCode}
+                  onChangeText={setTwoFactorCode}
+                  maxLength={6}
+                />
+                <TouchableOpacity
+                  style={[styles.saveButton, styles.passwordSaveButton, isTwoFactorBusy && { opacity: 0.6 }]}
+                  onPress={handleVerifyTwoFactor}
+                  disabled={isTwoFactorBusy}
+                >
+                  <Text style={styles.saveButtonText}>
+                    {isTwoFactorBusy ? 'Verifying...' : 'Verify and enable 2FA'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {activeTotpFactorId && (
+              <TouchableOpacity
+                style={[styles.deleteAccountButton, isTwoFactorBusy && { opacity: 0.6 }]}
+                onPress={handleDisableTwoFactor}
+                disabled={isTwoFactorBusy}
+              >
+                <Ionicons name="shield-outline" size={18} color="#fff" />
+                <Text style={styles.deleteAccountButtonText}>
+                  {isTwoFactorBusy ? 'Disabling...' : 'Disable 2FA'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         <TouchableOpacity
           style={styles.itemRow}
@@ -1664,10 +1714,28 @@ twoFactorHelperText: {
   lineHeight: 18,
 },
 twoFactorSecretText: {
+  flex: 1,
   fontSize: 12,
   lineHeight: 18,
   fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
   paddingVertical: 8,
+},
+twoFactorSecretRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 12,
+},
+twoFactorCopyButton: {
+  padding: 6,
+},
+twoFactorQrWrapper: {
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingVertical: 8,
+},
+twoFactorQrImage: {
+  width: 168,
+  height: 168,
 },
 twoFactorCodeInput: {
   letterSpacing: 6,

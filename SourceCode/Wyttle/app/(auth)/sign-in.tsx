@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { useEffect, useState } from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -21,8 +22,27 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Toast } from '@/components/ui/Toast';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { font } from '../../src/lib/fonts';
 import { initializeNotificationsForUser } from '../../src/lib/notifications';
+
+const oauthProviders = [
+  {
+    id: 'google',
+    label: 'Google',
+    icon: require('../../assets/icons/google.png'),
+  },
+  {
+    id: 'apple',
+    label: 'Apple',
+    icon: require('../../assets/icons/apple.png'),
+  },
+  {
+    id: 'linkedin_oidc',
+    label: 'LinkedIn',
+    icon: require('../../assets/icons/linkedin.png'),
+  },
+] as const;
 
 export default function SignIn() {
   const params = useLocalSearchParams<{ role?: string; from?: string; expired?: string }>();
@@ -44,6 +64,7 @@ export default function SignIn() {
 
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
 
   const onSignIn = async () => {
     setMsg(null);
@@ -119,7 +140,9 @@ export default function SignIn() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}
     >
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <View
+        style={[styles.container, { backgroundColor: theme.background, paddingBottom: insets.bottom }]}
+      >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -177,6 +200,12 @@ export default function SignIn() {
               />
             </TouchableOpacity>
           </View>
+          <TouchableOpacity
+            style={styles.forgotPasswordButton}
+            onPress={() => router.push('/(auth)/forgot-password')}
+          >
+            <Text style={[styles.forgotPasswordText, { color: theme.tint }]}>Forgot password?</Text>
+          </TouchableOpacity>
 
           <View style={styles.spacer} />
           <TouchableOpacity
@@ -193,17 +222,19 @@ export default function SignIn() {
           </TouchableOpacity>
 
           <View style={styles.oauthContainer}>
-            <Text style={[styles.oauthLabel, { color: theme.text }]}>or continue with</Text>
             <View style={styles.oauthButtonsRow}>
-              <TouchableOpacity style={styles.oauthButton} onPress={() => handleOAuthSignIn('google')}>
-                <Text style={styles.oauthButtonText}>Google</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.oauthButton} onPress={() => handleOAuthSignIn('apple')}>
-                <Text style={styles.oauthButtonText}>Apple</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.oauthButton} onPress={() => handleOAuthSignIn('linkedin_oidc')}>
-                <Text style={styles.oauthButtonText}>LinkedIn</Text>
-              </TouchableOpacity>
+              {oauthProviders.map((provider) => (
+                <TouchableOpacity
+                  key={provider.id}
+                  style={styles.oauthButton}
+                  onPress={() => handleOAuthSignIn(provider.id)}
+                >
+                  <Image source={provider.icon} style={styles.oauthButtonIcon} resizeMode="contain" />
+                  <View style={styles.oauthButtonTextWrapper}>
+                    <Text style={styles.oauthButtonText}>Continue with {provider.label}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
         </View>
@@ -234,7 +265,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 32,
+    paddingBottom: 48,
   },
   header: {
     alignItems: 'center',
@@ -314,14 +345,25 @@ const styles = StyleSheet.create({
     color: '#333f5c',
     fontWeight: '600',
   },
+  forgotPasswordButton: {
+    alignSelf: 'flex-end',
+    marginTop: 6,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
   error: {
     color: '#c00',
     marginTop: 4,
   },
   footer: {
-    marginTop: 'auto',
+    marginTop: 36,
+    paddingTop: 12,
+    paddingHorizontal: 24,
     flexDirection: 'row',
     justifyContent: 'center',
+    alignItems: 'center',
     gap: 4,
   },
   footerText: {
@@ -335,27 +377,33 @@ const styles = StyleSheet.create({
     height: 46,
   },
   oauthContainer: {
-    marginTop: 12,
-    gap: 10,
-  },
-  oauthLabel: {
-    textAlign: 'center',
-    fontSize: 13,
-    opacity: 0.8,
+    marginTop: 18,
+    gap: 12,
   },
   oauthButtonsRow: {
-    flexDirection: 'row',
-    gap: 8,
+    gap: 10,
   },
   oauthButton: {
-    flex: 1,
+    width: '100%',
+    flexDirection: 'row',
     borderWidth: 1,
     borderColor: '#c6c1ae',
-    borderRadius: 10,
-    paddingVertical: 10,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  oauthButtonIcon: {
+    width: 20,
+    height: 20,
+  },
+  oauthButtonTextWrapper: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
   },
   oauthButtonText: {
     color: '#333f5c',
