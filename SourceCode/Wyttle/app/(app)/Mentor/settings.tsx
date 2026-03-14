@@ -988,12 +988,7 @@ export default function MenteeSettingsScreen() {
 
         {isDeleteAccountSectionOpen && (
           <View style={styles.deleteAccountSubsection}>
-            <ThemedText
-              darkColor="#f3b4b4"
-              style={[styles.deleteAccountHelperText, { color: '#dc2626' }]}
-            >
-              This is still a mock flow and will show a confirmation dialog before anything happens.
-            </ThemedText>
+            
 
             <TouchableOpacity
               style={styles.deleteAccountButton}
