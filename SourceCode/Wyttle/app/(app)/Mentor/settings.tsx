@@ -41,6 +41,7 @@ import {
   updateNotificationPreferences,
 } from '../../../src/lib/notifications';
 import { MENTOR_STEPS } from '../../../src/lib/onboarding';
+import { disableTotpFactor, enrollTotp, listTotpFactors, type TotpEnrollment, verifyTotpEnrollment } from '../../../src/lib/mfa';
 import { deleteMyAccount, supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 
@@ -213,6 +214,11 @@ export default function MenteeSettingsScreen() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
   const [isDeleteAccountSectionOpen, setIsDeleteAccountSectionOpen] = useState(false);
+  const [isTwoFactorSectionOpen, setIsTwoFactorSectionOpen] = useState(false);
+  const [isTwoFactorBusy, setIsTwoFactorBusy] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [activeTotpFactorId, setActiveTotpFactorId] = useState<string | null>(null);
+  const [pendingTotpEnrollment, setPendingTotpEnrollment] = useState<TotpEnrollment | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -433,11 +439,61 @@ export default function MenteeSettingsScreen() {
     );
   };
 
-  const handleMockTwoFactorSetup = () => {
-    Alert.alert(
-      'Two-factor authentication',
-      'Mock placeholder: 2FA setup will be connected in a later update.',
-    );
+  const refreshTwoFactorState = async () => {
+    const factors = await listTotpFactors();
+    const active = factors.find((f) => String(f.status ?? '').toLowerCase() === 'verified') ?? null;
+    setActiveTotpFactorId(active?.id ?? null);
+  };
+
+  const handleStartTwoFactorSetup = async () => {
+    try {
+      setIsTwoFactorBusy(true);
+      const enrollment = await enrollTotp();
+      setPendingTotpEnrollment(enrollment);
+      setTwoFactorCode('');
+    } catch (error: any) {
+      Alert.alert('2FA setup failed', error?.message ?? 'Unable to start 2FA setup right now.');
+    } finally {
+      setIsTwoFactorBusy(false);
+    }
+  };
+
+  const handleVerifyTwoFactor = async () => {
+    if (!pendingTotpEnrollment) return;
+    const code = twoFactorCode.trim();
+    if (!/^\d{6}$/.test(code)) {
+      Alert.alert('Invalid code', 'Enter the 6-digit code from your authenticator app.');
+      return;
+    }
+
+    try {
+      setIsTwoFactorBusy(true);
+      await verifyTotpEnrollment(pendingTotpEnrollment.factorId, code);
+      await refreshTwoFactorState();
+      setPendingTotpEnrollment(null);
+      setTwoFactorCode('');
+      Alert.alert('2FA enabled', 'Two-factor authentication is now active on your account.');
+    } catch (error: any) {
+      Alert.alert('Verification failed', error?.message ?? 'Unable to verify that code.');
+    } finally {
+      setIsTwoFactorBusy(false);
+    }
+  };
+
+  const handleDisableTwoFactor = async () => {
+    if (!activeTotpFactorId) return;
+    try {
+      setIsTwoFactorBusy(true);
+      await disableTotpFactor(activeTotpFactorId);
+      await refreshTwoFactorState();
+      setPendingTotpEnrollment(null);
+      setTwoFactorCode('');
+      Alert.alert('2FA disabled', 'Two-factor authentication has been removed.');
+    } catch (error: any) {
+      Alert.alert('Disable failed', error?.message ?? 'Unable to disable 2FA right now.');
+    } finally {
+      setIsTwoFactorBusy(false);
+    }
   };
 
   const handleChangePassword = async () => {
@@ -508,6 +564,13 @@ export default function MenteeSettingsScreen() {
     { key: 'notify_session_starting_now', label: 'Session starting now' },
   ];
 
+  useEffect(() => {
+    if (!isTwoFactorSectionOpen) return;
+    void refreshTwoFactorState().catch((error) => {
+      console.warn('Failed to load MFA factors', error);
+    });
+  }, [isTwoFactorSectionOpen]);
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <KeyboardAwareScrollView
@@ -552,6 +615,64 @@ export default function MenteeSettingsScreen() {
           ]}>View profile</ThemedText>
           <Ionicons name="chevron-forward" size={18} color={theme.text} style={{ opacity: 0.4 }} />
         </TouchableOpacity>
+        {isTwoFactorSectionOpen && (
+          <View style={styles.accountSubsection}>
+            <ThemedText style={[styles.twoFactorStatusText, { color: theme.text }]}>
+              {activeTotpFactorId ? '2FA status: enabled' : '2FA status: not enabled'}
+            </ThemedText>
+            {!activeTotpFactorId && !pendingTotpEnrollment && (
+              <TouchableOpacity
+                style={[styles.saveButton, styles.passwordSaveButton, isTwoFactorBusy && { opacity: 0.6 }]}
+                onPress={handleStartTwoFactorSetup}
+                disabled={isTwoFactorBusy}
+              >
+                <Text style={styles.saveButtonText}>
+                  {isTwoFactorBusy ? 'Starting...' : 'Start 2FA setup'}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {pendingTotpEnrollment && !activeTotpFactorId && (
+              <View style={styles.accountFieldGroup}>
+                <ThemedText style={[styles.twoFactorHelperText, { color: theme.text }]}>
+                  Add this secret to your authenticator app, then enter the 6-digit code.
+                </ThemedText>
+                <Text selectable style={[styles.twoFactorSecretText, { color: theme.text }]}>
+                  {pendingTotpEnrollment.secret ?? pendingTotpEnrollment.uri ?? 'Secret unavailable'}
+                </Text>
+                <TextInput
+                  style={[styles.textInput, styles.twoFactorCodeInput, { color: theme.text }]}
+                  placeholder="123456"
+                  placeholderTextColor="#7f8186"
+                  keyboardType="number-pad"
+                  value={twoFactorCode}
+                  onChangeText={setTwoFactorCode}
+                  maxLength={6}
+                />
+                <TouchableOpacity
+                  style={[styles.saveButton, styles.passwordSaveButton, isTwoFactorBusy && { opacity: 0.6 }]}
+                  onPress={handleVerifyTwoFactor}
+                  disabled={isTwoFactorBusy}
+                >
+                  <Text style={styles.saveButtonText}>
+                    {isTwoFactorBusy ? 'Verifying...' : 'Verify and enable 2FA'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {activeTotpFactorId && (
+              <TouchableOpacity
+                style={[styles.deleteAccountButton, isTwoFactorBusy && { opacity: 0.6 }]}
+                onPress={handleDisableTwoFactor}
+                disabled={isTwoFactorBusy}
+              >
+                <Ionicons name="shield-outline" size={18} color="#fff" />
+                <Text style={styles.deleteAccountButtonText}>
+                  {isTwoFactorBusy ? 'Disabling...' : 'Disable 2FA'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         <TouchableOpacity
           style={styles.itemRow}
@@ -929,7 +1050,9 @@ export default function MenteeSettingsScreen() {
 
         <TouchableOpacity
           style={styles.itemRow}
-          onPress={handleMockTwoFactorSetup}
+          onPress={() => setIsTwoFactorSectionOpen((prev) => !prev)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: isTwoFactorSectionOpen }}
         >
           <ThemedText
             darkColor="#cfd3ff"
@@ -941,7 +1064,12 @@ export default function MenteeSettingsScreen() {
           >
             Two-factor authentication
           </ThemedText>
-          <Ionicons name="shield-checkmark-outline" size={18} color={theme.text} style={{ opacity: 0.4 }} />
+          <Ionicons
+            name={isTwoFactorSectionOpen ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={theme.text}
+            style={{ opacity: 0.4 }}
+          />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -1389,6 +1517,24 @@ accountSubsection: {
 },
 accountFieldGroup: {
   gap: 6,
+},
+twoFactorStatusText: {
+  fontSize: 13,
+  lineHeight: 18,
+},
+twoFactorHelperText: {
+  fontSize: 13,
+  lineHeight: 18,
+},
+twoFactorSecretText: {
+  fontSize: 12,
+  lineHeight: 18,
+  fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
+  paddingVertical: 8,
+},
+twoFactorCodeInput: {
+  letterSpacing: 6,
+  textAlign: 'center',
 },
 accountFieldLabel: {
   marginBottom: 0,

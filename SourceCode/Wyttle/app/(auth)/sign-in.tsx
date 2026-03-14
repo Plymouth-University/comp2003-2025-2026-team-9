@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -98,6 +99,20 @@ export default function SignIn() {
     }
   };
 
+  const handleOAuthSignIn = async (provider: 'google' | 'apple' | 'linkedin_oidc') => {
+    try {
+      setMsg(null);
+      const redirectTo = Linking.createURL('/(auth)/sign-in');
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: provider as any,
+        options: { redirectTo },
+      });
+      if (error) throw error;
+    } catch (error: any) {
+      setMsg(error?.message ?? 'Unable to start social login right now.');
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -176,6 +191,21 @@ export default function SignIn() {
                   : 'Sign in'}
             </Text>
           </TouchableOpacity>
+
+          <View style={styles.oauthContainer}>
+            <Text style={[styles.oauthLabel, { color: theme.text }]}>or continue with</Text>
+            <View style={styles.oauthButtonsRow}>
+              <TouchableOpacity style={styles.oauthButton} onPress={() => handleOAuthSignIn('google')}>
+                <Text style={styles.oauthButtonText}>Google</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.oauthButton} onPress={() => handleOAuthSignIn('apple')}>
+                <Text style={styles.oauthButtonText}>Apple</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.oauthButton} onPress={() => handleOAuthSignIn('linkedin_oidc')}>
+                <Text style={styles.oauthButtonText}>LinkedIn</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
         {/* ⬇️ New footer: Sign-up entry point */}
@@ -303,6 +333,34 @@ const styles = StyleSheet.create({
   },
   spacer: {
     height: 46,
+  },
+  oauthContainer: {
+    marginTop: 12,
+    gap: 10,
+  },
+  oauthLabel: {
+    textAlign: 'center',
+    fontSize: 13,
+    opacity: 0.8,
+  },
+  oauthButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  oauthButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#c6c1ae',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  oauthButtonText: {
+    color: '#333f5c',
+    fontWeight: '600',
+    fontSize: 13,
   },
   // When there is no BackButton (e.g. after logout), we reserve the
   // same vertical space so the logo/title don't jump upwards and
