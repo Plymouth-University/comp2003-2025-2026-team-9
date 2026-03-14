@@ -6,6 +6,7 @@ import {
   Animated,
   Image,
   Linking,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -233,6 +234,7 @@ export default function MenteeSettingsScreen() {
   const [lookingFor, setLookingFor] = useState('');
   const [tokensBalance, setTokensBalance] = useState<number | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showAcknowledgementsModal, setShowAcknowledgementsModal] = useState(false);
   const [isPasswordSectionOpen, setIsPasswordSectionOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -1316,30 +1318,6 @@ export default function MenteeSettingsScreen() {
 
       </SettingsDropdown>
 
-      <SettingsDropdown
-        id="acknowledgements"
-        title="Acknowledgements"
-        icon="ribbon-outline"
-        openSection={openSection}
-        toggleSection={toggleSection}
-        theme={theme}
-      >
-        <TouchableOpacity
-          style={styles.acknowledgementRow}
-          onPress={() => Linking.openURL('https://iconscout.com/')}
-        >
-          <Ionicons name="logo-ionic" size={18} color={theme.tint} />
-          <ThemedText darkColor="#cfd3ff" style={[
-            styles.itemText,
-            font('GlacialIndifference', '400'),
-            { marginLeft: 8, flex: 1 },
-          ]}>
-            Unicons by IconScout
-          </ThemedText>
-          <Ionicons name="open-outline" size={16} color={theme.text} style={{ opacity: 0.4 }} />
-        </TouchableOpacity>
-      </SettingsDropdown>
-
       {/* Replay tutorial button - hide while editing profile inside the Profiles dropdown */}
       {!(isEditingProfile && openSection === 'profiles') && (
         <View
@@ -1362,9 +1340,61 @@ export default function MenteeSettingsScreen() {
               { marginLeft: 8 },
             ]}>Replay Introduction</ThemedText>
           </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.replayButton,
+              pressed && styles.replayButtonPressed,
+            ]}
+            onPress={() => setShowAcknowledgementsModal(true)}
+            android_ripple={{ color: '#00000008' }}
+          >
+            <Ionicons name="ribbon-outline" size={18} color={theme.text} />
+            <ThemedText darkColor="#cfd3ff" style={[
+              styles.replayButtonText,
+              { marginLeft: 8 },
+            ]}>Acknowledgements</ThemedText>
+          </Pressable>
         </View>
       )}
       </KeyboardAwareScrollView>
+      <Modal
+        visible={showAcknowledgementsModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAcknowledgementsModal(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowAcknowledgementsModal(false)}>
+          <Pressable
+            style={[styles.modalCard, { backgroundColor: theme.background }]}
+            onPress={(event) => event.stopPropagation()}
+          >
+            <ThemedText
+              style={[styles.modalTitle, { color: theme.text }, font('GlacialIndifference', '400')]}
+            >
+              Acknowledgements
+            </ThemedText>
+            <TouchableOpacity
+              style={styles.acknowledgementRow}
+              onPress={() => Linking.openURL('https://iconscout.com/')}
+            >
+              <Ionicons name="logo-ionic" size={18} color={theme.tint} />
+              <ThemedText
+                darkColor="#cfd3ff"
+                style={[styles.itemText, font('GlacialIndifference', '400'), { marginLeft: 8, flex: 1 }]}
+              >
+                Unicons by IconScout
+              </ThemedText>
+              <Ionicons name="open-outline" size={16} color={theme.text} style={{ opacity: 0.4 }} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalCloseButton, { backgroundColor: '#333f5c' }]}
+              onPress={() => setShowAcknowledgementsModal(false)}
+            >
+              <Text style={styles.modalCloseButtonText}>Close</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
       <OnboardingOverlay
         visible={showOnboarding}
         steps={MENTEE_STEPS}
@@ -1397,6 +1427,7 @@ const styles = StyleSheet.create({
   footerReplay: {
     marginTop: 20,
     alignItems: 'flex-start',
+    gap: 12,
   },
   button: {
     marginTop: 20,
@@ -1681,6 +1712,32 @@ logoutButtonText: {
     fontWeight: '600',
     fontSize: 14,
   },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    borderRadius: 20,
+    padding: 20,
+    gap: 16,
+  },
+  modalTitle: {
+    fontSize: 22,
+    textAlign: 'center',
+  },
+  modalCloseButton: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCloseButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 15,
+  },
   tokenIcon: {
     width: 16,
     height: 16,
@@ -1794,5 +1851,6 @@ acknowledgementRow: {
   flexDirection: 'row',
   alignItems: 'center',
   paddingVertical: 10,
+  paddingHorizontal: 4,
 },
 });
