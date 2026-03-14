@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -14,10 +15,9 @@ import {
   UIManager,
   View
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Purchases from 'react-native-purchases';
 import { PAYWALL_RESULT } from 'react-native-purchases-ui';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -1252,12 +1252,7 @@ export default function MenteeSettingsScreen() {
 
         {isDeleteAccountSectionOpen && (
           <View style={styles.deleteAccountSubsection}>
-            <ThemedText
-              darkColor="#f3b4b4"
-              style={[styles.deleteAccountHelperText, { color: '#dc2626' }]}
-            >
-              This is still a mock flow and will show a confirmation dialog before anything happens.
-            </ThemedText>
+      
 
             <TouchableOpacity
               style={styles.deleteAccountButton}
