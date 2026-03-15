@@ -24,6 +24,7 @@ import { BackButton } from '@/components/ui/BackButton';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import * as Clipboard from 'expo-clipboard';
+import { setLastReadAt } from '../../../src/lib/chat-read-state';
 import { font } from '../../../src/lib/fonts';
 import { playMessageSound } from '../../../src/lib/message-sound';
 import type { Profile } from '../../../src/lib/supabase';
@@ -77,6 +78,7 @@ export default function MenteeChatScreen() {
   const [screenY, setScreenY] = useState(0);
   const [screenHeight, setScreenHeight] = useState(0);
   const [keyboardTop, setKeyboardTop] = useState<number | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const rootRef = useRef<View>(null);
   const listRef = useRef<FlatList<Message>>(null);
@@ -100,7 +102,9 @@ export default function MenteeChatScreen() {
 
   const closedBottomOffset = Platform.OS === 'android' ? 92 : 70;
   const composerBottom = keyboardVisible
-    ? Math.max(0, screenBottom - keyboardTop + GAP_ABOVE_KEYBOARD)
+    ? Platform.OS === 'android'
+      ? Math.max(GAP_ABOVE_KEYBOARD, keyboardHeight + GAP_ABOVE_KEYBOARD)
+      : Math.max(0, screenBottom - keyboardTop + GAP_ABOVE_KEYBOARD)
     : closedBottomOffset + Math.max(insets.bottom, 8);
 
   const listBottomSpacer = composerHeight + composerBottom + EXTRA_LIST_GAP;
@@ -294,6 +298,11 @@ export default function MenteeChatScreen() {
   }, [messages.length, listBottomSpacer]);
 
   useEffect(() => {
+    if (!threadId) return;
+    setLastReadAt(threadId).catch(() => {});
+  }, [threadId, messages.length]);
+
+  useEffect(() => {
     measureRootInWindow();
     const t = setTimeout(measureRootInWindow, 120);
     return () => clearTimeout(t);
@@ -302,8 +311,12 @@ export default function MenteeChatScreen() {
   useEffect(() => {
     const handleKeyboardShow = (e: any) => {
       const top = e?.endCoordinates?.screenY;
+      const height = e?.endCoordinates?.height;
       if (typeof top === 'number') {
         setKeyboardTop(top);
+      }
+      if (typeof height === 'number') {
+        setKeyboardHeight(height);
       }
       setTimeout(() => {
         measureRootInWindow();
@@ -313,6 +326,7 @@ export default function MenteeChatScreen() {
 
     const handleKeyboardHide = () => {
       setKeyboardTop(null);
+      setKeyboardHeight(0);
       setTimeout(() => {
         measureRootInWindow();
         scrollToBottom(false, 40, true);
@@ -330,8 +344,12 @@ export default function MenteeChatScreen() {
     if (Platform.OS === 'ios') {
       frameSub = Keyboard.addListener('keyboardWillChangeFrame', (e: any) => {
         const top = e?.endCoordinates?.screenY;
+        const height = e?.endCoordinates?.height;
         if (typeof top === 'number') {
           setKeyboardTop(top);
+        }
+        if (typeof height === 'number') {
+          setKeyboardHeight(height);
         }
         setTimeout(() => {
           measureRootInWindow();

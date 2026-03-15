@@ -7,6 +7,7 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../../src/lib/fonts';
+import { getLastReadAt } from '../../../src/lib/chat-read-state';
 import { supabase } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 
@@ -24,8 +25,10 @@ type ChatItem = {
   otherUserId: string;
   name: string;
   photoUrl: string | null;
+  lastMessageSender: string | null;
   lastMessage: string | null;
   lastMessageAt: string | null;
+  unread: boolean;
 };
 
 export default function MenteeConnectionsScreen() {
@@ -121,34 +124,46 @@ export default function MenteeConnectionsScreen() {
 
           if (msgError) throw msgError;
 
-          const lastByThread: Record<number, { body: string; inserted_at: string }> = {};
+          const lastByThread: Record<number, { sender: string | null; body: string; inserted_at: string }> = {};
           (msgs ?? []).forEach((m: any) => {
             if (!lastByThread[m.thread_id]) {
               lastByThread[m.thread_id] = {
+                sender: m.sender ?? null,
                 body: m.body,
                 inserted_at: m.inserted_at,
               };
             }
           });
 
-          chatsResult = matchesWithProfile
+          const chatsResultUnsorted = await Promise.all(matchesWithProfile
             .filter((m) => m.threadId != null)
-            .map((m) => {
+            .map(async (m) => {
               const last = m.threadId ? lastByThread[m.threadId] : undefined;
+              const lastReadAt = m.threadId ? await getLastReadAt(m.threadId) : null;
+              const unread = !!(
+                m.threadId &&
+                last?.inserted_at &&
+                last?.sender &&
+                last.sender !== user.id &&
+                (!lastReadAt || new Date(last.inserted_at).getTime() > new Date(lastReadAt).getTime())
+              );
               return {
                 threadId: m.threadId!,
                 otherUserId: m.otherUserId,
                 name: m.name,
                 photoUrl: m.photoUrl,
+                lastMessageSender: last?.sender ?? null,
                 lastMessage: last?.body ?? null,
                 lastMessageAt: last?.inserted_at ?? null,
+                unread,
               };
-            })
-            .sort((a, b) => {
-              const ta = a.lastMessageAt ?? '';
-              const tb = b.lastMessageAt ?? '';
-              return ta < tb ? 1 : ta > tb ? -1 : 0;
-            });
+            }));
+
+          chatsResult = chatsResultUnsorted.sort((a, b) => {
+            const ta = a.lastMessageAt ?? '';
+            const tb = b.lastMessageAt ?? '';
+            return ta < tb ? 1 : ta > tb ? -1 : 0;
+          });
         }
 
         if (!isMounted) return;
@@ -323,7 +338,7 @@ export default function MenteeConnectionsScreen() {
             lastMessage={item.lastMessage ?? 'Say hi and start the conversation!'}
             time={item.lastMessageAt ? new Date(item.lastMessageAt).toLocaleTimeString() : ''}
             photoUrl={item.photoUrl}
-            unread={false}
+            unread={item.unread}
             theme={theme}
             onPress={() => openChat(item)}
           />
