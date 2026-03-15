@@ -1526,6 +1526,38 @@ export default function MenteeSettingsScreen() {
               </ThemedText>
               <Ionicons name="open-outline" size={16} color={theme.text} style={{ opacity: 0.4 }} />
             </TouchableOpacity>
+            <View style={styles.acknowledgementRow}>
+              <Ionicons name="musical-notes-outline" size={18} color={theme.tint} />
+              <ThemedText
+                darkColor="#cfd3ff"
+                style={[styles.itemText, font('GlacialIndifference', '400'), { marginLeft: 8, flex: 1 }]}
+              >
+                Sound Effect by{' '}
+                <ThemedText
+                  darkColor="#cfd3ff"
+                  style={[styles.itemText, font('GlacialIndifference', '400'), { color: theme.tint }]}
+                  onPress={() =>
+                    Linking.openURL(
+                      'https://pixabay.com/users/dragon-studio-38165424/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=398649'
+                    )
+                  }
+                >
+                  DRAGON-STUDIO
+                </ThemedText>{' '}
+                from{' '}
+                <ThemedText
+                  darkColor="#cfd3ff"
+                  style={[styles.itemText, font('GlacialIndifference', '400'), { color: theme.tint }]}
+                  onPress={() =>
+                    Linking.openURL(
+                      'https://pixabay.com/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=398649'
+                    )
+                  }
+                >
+                  Pixabay
+                </ThemedText>
+              </ThemedText>
+            </View>
             <TouchableOpacity
               style={[styles.modalCloseButton, { backgroundColor: '#333f5c' }]}
               onPress={() => setShowAcknowledgementsModal(false)}
