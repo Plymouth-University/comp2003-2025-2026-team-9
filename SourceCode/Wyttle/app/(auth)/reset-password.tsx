@@ -1,6 +1,6 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -25,6 +25,52 @@ import { commonStyles } from '../../src/styles/common';
 
 const RECOVERY_LINK_INVALID_MESSAGE =
   'This reset link is invalid or expired. Request a new link and try again.';
+const RECOVERY_LINK_MISSING_REDIRECT_MESSAGE =
+  'This reset link did not return to the app with a recovery session. It may have expired, already been used, or opened only in the browser. Request a new reset link and open it on this device.';
+
+function getRecoveryLinkErrorMessage(url: string, params: URLSearchParams, error?: { message?: string } | null) {
+  const errorCode = params.get('error_code');
+  const errorDescription = params.get('error_description');
+  const rawMessage = (error?.message || errorDescription || '').trim();
+  const normalizedMessage = rawMessage.toLowerCase();
+  const isSupabaseVerifyUrl =
+    url.includes('/auth/v1/verify') || url.includes('.supabase.co/auth/v1/verify');
+  const hasBrowserToken = Boolean(params.get('token'));
+  const hasRecoveryPayload =
+    Boolean(params.get('code')) ||
+    Boolean(params.get('token_hash')) ||
+    Boolean(params.get('access_token')) ||
+    Boolean(params.get('refresh_token'));
+
+  if (errorCode || normalizedMessage.includes('expired')) {
+    return 'This reset link has expired. Request a new reset link and try again.';
+  }
+
+  if (
+    normalizedMessage.includes('already') ||
+    normalizedMessage.includes('used') ||
+    normalizedMessage.includes('invalid') ||
+    normalizedMessage.includes('otp') ||
+    normalizedMessage.includes('code verifier') ||
+    normalizedMessage.includes('pkce')
+  ) {
+    return 'This reset link is no longer valid. It may already have been used, or the browser did not finish handing the session back to the app. Request a new reset link and open it on this device.';
+  }
+
+  if (isSupabaseVerifyUrl && hasBrowserToken && !hasRecoveryPayload) {
+    return RECOVERY_LINK_MISSING_REDIRECT_MESSAGE;
+  }
+
+  if (!hasRecoveryPayload && (params.get('type') === 'recovery' || hasBrowserToken)) {
+    return RECOVERY_LINK_MISSING_REDIRECT_MESSAGE;
+  }
+
+  if (rawMessage) {
+    return rawMessage;
+  }
+
+  return RECOVERY_LINK_INVALID_MESSAGE;
+}
 
 function readParamsFromUrl(url: string): URLSearchParams {
   const params = new URLSearchParams();
@@ -51,10 +97,40 @@ function readParamsFromUrl(url: string): URLSearchParams {
   return params;
 }
 
+function normalizeParam(value?: string | string[]) {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value ?? null;
+}
+
 export default function ResetPassword() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+  const routeParams = useLocalSearchParams<{
+    access_token?: string | string[];
+    code?: string | string[];
+    error_code?: string | string[];
+    error_description?: string | string[];
+    refresh_token?: string | string[];
+    token?: string | string[];
+    token_hash?: string | string[];
+    type?: string | string[];
+  }>();
+  const processedRecoveryKeysRef = useRef(new Set<string>());
+  const normalizedRouteParams = {
+    access_token: normalizeParam(routeParams.access_token),
+    code: normalizeParam(routeParams.code),
+    error_code: normalizeParam(routeParams.error_code),
+    error_description: normalizeParam(routeParams.error_description),
+    refresh_token: normalizeParam(routeParams.refresh_token),
+    token: normalizeParam(routeParams.token),
+    token_hash: normalizeParam(routeParams.token_hash),
+    type: normalizeParam(routeParams.type),
+  };
+  const routePayloadSignature = JSON.stringify(normalizedRouteParams);
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -77,6 +153,20 @@ export default function ResetPassword() {
 
   useEffect(() => {
     let isMounted = true;
+    const parsedRouteParams = JSON.parse(routePayloadSignature) as Record<string, string | null>;
+
+    const buildParamsFromRoute = () => {
+      const params = new URLSearchParams();
+      const entries = Object.entries(parsedRouteParams);
+
+      for (const [key, value] of entries) {
+        if (value) {
+          params.set(key, value);
+        }
+      }
+
+      return params;
+    };
 
     const applyRecoveryUrl = async (url: string) => {
       const params = readParamsFromUrl(url);
@@ -84,9 +174,45 @@ export default function ResetPassword() {
       const accessToken = params.get('access_token');
       const refreshToken = params.get('refresh_token');
       const code = params.get('code');
+      const tokenHash = params.get('token_hash');
+      const recoveryKey = JSON.stringify({
+        accessToken,
+        code,
+        refreshToken,
+        tokenHash,
+        type,
+      });
 
       if (type !== 'recovery' && !code) {
         return false;
+      }
+
+      if (processedRecoveryKeysRef.current.has(recoveryKey)) {
+        setIsCheckingLink(false);
+        return true;
+      }
+
+      processedRecoveryKeysRef.current.add(recoveryKey);
+
+      if (type === 'recovery' && tokenHash) {
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: 'recovery',
+        });
+
+        if (!isMounted) {
+          return true;
+        }
+
+        if (verifyError) {
+          setIsLinkReady(false);
+          setLinkError(getRecoveryLinkErrorMessage(url, params, verifyError));
+        } else {
+          setIsLinkReady(true);
+          setLinkError(null);
+        }
+        setIsCheckingLink(false);
+        return true;
       }
 
       if (code) {
@@ -98,7 +224,7 @@ export default function ResetPassword() {
 
         if (exchangeError) {
           setIsLinkReady(false);
-          setLinkError(exchangeError.message || RECOVERY_LINK_INVALID_MESSAGE);
+          setLinkError(getRecoveryLinkErrorMessage(url, params, exchangeError));
         } else {
           setIsLinkReady(true);
           setLinkError(null);
@@ -110,7 +236,7 @@ export default function ResetPassword() {
       if (!accessToken || !refreshToken) {
         if (isMounted) {
           setIsLinkReady(false);
-          setLinkError(RECOVERY_LINK_INVALID_MESSAGE);
+          setLinkError(getRecoveryLinkErrorMessage(url, params));
           setIsCheckingLink(false);
         }
         return true;
@@ -127,7 +253,7 @@ export default function ResetPassword() {
 
       if (sessionError) {
         setIsLinkReady(false);
-        setLinkError(sessionError.message || RECOVERY_LINK_INVALID_MESSAGE);
+        setLinkError(getRecoveryLinkErrorMessage(url, params, sessionError));
       } else {
         setIsLinkReady(true);
         setLinkError(null);
@@ -140,6 +266,22 @@ export default function ResetPassword() {
       setIsCheckingLink(true);
 
       try {
+        const routeSearchParams = buildParamsFromRoute();
+        const hasRouteRecoveryPayload =
+          routeSearchParams.get('type') === 'recovery' ||
+          Boolean(routeSearchParams.get('code')) ||
+          Boolean(routeSearchParams.get('token_hash')) ||
+          Boolean(routeSearchParams.get('access_token')) ||
+          Boolean(routeSearchParams.get('refresh_token'));
+
+        if (hasRouteRecoveryPayload) {
+          const syntheticUrl = `wyttle://reset-password?${routeSearchParams.toString()}`;
+          const handled = await applyRecoveryUrl(syntheticUrl);
+          if (handled) {
+            return;
+          }
+        }
+
         const initialUrl = await Linking.getInitialURL();
         if (initialUrl) {
           const handled = await applyRecoveryUrl(initialUrl);
@@ -161,7 +303,9 @@ export default function ResetPassword() {
           setLinkError(null);
         } else {
           setIsLinkReady(false);
-          setLinkError('Open this screen from your reset email link to continue.');
+          setLinkError(
+            'No recovery token was found for this password reset. The link may be stale, already used, or it may have stayed in the browser instead of returning to the app. Request a new reset link and open it on this device.',
+          );
         }
       } catch {
         if (!isMounted) {
@@ -191,7 +335,7 @@ export default function ResetPassword() {
       isMounted = false;
       subscription.remove();
     };
-  }, []);
+  }, [routePayloadSignature]);
 
   const handleUpdatePassword = async () => {
     if (password.length < 8) {

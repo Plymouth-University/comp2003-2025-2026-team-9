@@ -1288,6 +1288,7 @@ export default function MenteeSettingsScreen() {
               { marginLeft: 8 },
             ]}>Acknowledgements</ThemedText>
           </Pressable>
+          <Text style={[styles.versionText, { color: theme.placeholder }]}>Version 1.0.5</Text>
         </View>
       )}
       </KeyboardAwareScrollView>
@@ -1464,6 +1465,12 @@ const styles = StyleSheet.create({
     marginTop: 20,
     alignItems: 'flex-start',
     gap: 12,
+  },
+  versionText: {
+    alignSelf: 'center',
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 8,
   },
   button: {
     marginTop: 20,

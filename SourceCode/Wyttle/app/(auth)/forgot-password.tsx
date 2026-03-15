@@ -45,7 +45,7 @@ export default function ForgotPassword() {
     setIsSending(true);
 
     try {
-      const redirectTo = Linking.createURL('/(auth)/reset-password');
+      const redirectTo = Linking.createURL('/reset-password');
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
         redirectTo,
       });
