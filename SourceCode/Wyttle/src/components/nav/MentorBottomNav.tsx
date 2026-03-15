@@ -27,17 +27,21 @@ export default function MentorBottomNav({ onHeightChange }: Props) {
 
   const bottomInset = insets.bottom > 0 ? insets.bottom : 10;
   const bottomFillHeight = bottomInset;
+  const width = navWidth;
 
   // Detect Android navigation buttons (vs gesture nav) and adjust layout.
   const NAV_BUTTONS_THRESHOLD = 20;
   const androidHasNavButtons = Platform.OS === 'android' && insets.bottom >= NAV_BUTTONS_THRESHOLD;
-  const backgroundBottom = androidHasNavButtons ? -85 + bottomInset : -85;
+  const isLargeAndroidScreen = Platform.OS === 'android' && width >= 400;
+  const largeScreenDrop = isLargeAndroidScreen ? 26 : 0;
+  const backgroundBottom = androidHasNavButtons ? -85 + bottomInset - largeScreenDrop : -85 - largeScreenDrop;
+  const largeScreenAdminLift = isLargeAndroidScreen ? 12 : 0;
 
   // Lift the interactive buttons slightly when nav buttons exist so they
   // don't visually collide with the system bar.
-  const buttonLift = androidHasNavButtons ? Math.max(6, Math.min(20, Math.round(bottomInset / 2))) : 0;
+  const buttonLiftBase = androidHasNavButtons ? Math.max(6, Math.min(20, Math.round(bottomInset / 2))) : 0;
 
-  const width = navWidth;
+  const buttonLift = Math.max(0, buttonLiftBase - largeScreenDrop);
   const widthScale = (width / VIEWBOX_WIDTH) * NAV_SCALE;
   const designScale = (BASE_NAV_WIDTH / VIEWBOX_WIDTH) * NAV_SCALE;
   const scale = Math.min(widthScale, designScale);
@@ -46,7 +50,7 @@ export default function MentorBottomNav({ onHeightChange }: Props) {
   const contentWidth = Math.min(width, contentMaxWidth);
   const fillerExtra = Platform.OS === 'web' ? 50 : 0;
   const fillerWidth = Platform.OS === 'web' ? Math.max(0, (width - contentWidth) / 2 + fillerExtra) : 0;
-  const adminButtonBottom = bottomFillHeight + svgHeight / 2 - 10 + buttonLift;
+  const adminButtonBottom = bottomFillHeight + svgHeight / 2 - 10 + buttonLift + largeScreenAdminLift;
 
   const tabs = [
     { key: 'waiting', label: 'Waiting', path: '/(app)/Mentor/waiting-room', Icon: VideoIcon },

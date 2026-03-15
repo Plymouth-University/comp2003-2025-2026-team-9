@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { Logo } from '@/components/Logo';
 import { ThemedText } from '@/components/themed-text';
@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    lineHeight: 32,
+    lineHeight: Platform.OS === 'android' ? 36 : 32,
   },
   titleBold: {
     fontWeight: '700',

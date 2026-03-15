@@ -102,6 +102,55 @@ function iosFace(
   return `${family}-${name}${suffix}`;
 }
 
+function androidFace(
+  family: FontFamily,
+  weight: string,
+  italic = false,
+): string {
+  if (family === 'GlacialIndifference') {
+    const numeric = parseInt(weight, 10);
+    return !isNaN(numeric) && numeric >= 700
+      ? 'GlacialIndifference-Bold'
+      : 'GlacialIndifference-Regular';
+  }
+
+  if (family === 'SpaceGrotesk') {
+    const numeric = parseInt(weight, 10);
+    if (!isNaN(numeric) && numeric >= 700) return 'SpaceGrotesk-Bold';
+    if (!isNaN(numeric) && numeric >= 600) return 'SpaceGrotesk-SemiBold';
+    if (!isNaN(numeric) && numeric >= 500) return 'SpaceGrotesk-Medium';
+    if (!isNaN(numeric) && numeric <= 300) return 'SpaceGrotesk-Light';
+    return 'SpaceGrotesk-Regular';
+  }
+
+  if (family === 'Montserrat') {
+    if (italic) {
+      const numeric = parseInt(weight, 10);
+      if (!isNaN(numeric) && numeric >= 700) return 'Montserrat-BoldItalic';
+      if (!isNaN(numeric) && numeric >= 600) return 'Montserrat-SemiBoldItalic';
+      if (!isNaN(numeric) && numeric >= 500) return 'Montserrat-MediumItalic';
+      if (!isNaN(numeric) && numeric <= 300) return 'Montserrat-LightItalic';
+      return 'Montserrat-Italic';
+    }
+
+    const numeric = parseInt(weight, 10);
+    if (!isNaN(numeric) && numeric >= 700) return 'Montserrat-Bold';
+    if (!isNaN(numeric) && numeric >= 600) return 'Montserrat-SemiBold';
+    if (!isNaN(numeric) && numeric >= 500) return 'Montserrat-Medium';
+    if (!isNaN(numeric) && numeric <= 300) return 'Montserrat-Light';
+    return 'Montserrat-Regular';
+  }
+
+  if (family === 'Verdana') {
+    if (weight === '700' && italic) return 'Verdana-BoldItalic';
+    if (weight === '700') return 'Verdana-Bold';
+    if (italic) return 'Verdana-Italic';
+    return 'Verdana';
+  }
+
+  return iosFace(family, weight, italic);
+}
+
 /**
  * Cross-platform font style helper.
  *
@@ -115,19 +164,10 @@ export function font(
   italic: boolean = false,
 ): { fontFamily: string; fontWeight?: any; fontStyle?: 'normal' | 'italic' } {
   if (Platform.OS === 'android') {
-    if (family === 'GlacialIndifference') {
-      const numeric = parseInt(weight, 10);
-      const isBold = !isNaN(numeric) ? numeric >= 700 : false;
-      return {
-        fontFamily: isBold ? 'GlacialIndifference-Bold' : 'GlacialIndifference-Regular',
-        fontWeight: 'normal',
-      };
-    }
-
     return {
-      fontFamily: family,
-      fontWeight: weight as any,
-      fontStyle: italic ? 'italic' : 'normal',
+      fontFamily: androidFace(family, weight, italic),
+      fontWeight: 'normal',
+      fontStyle: 'normal',
     };
   }
 
