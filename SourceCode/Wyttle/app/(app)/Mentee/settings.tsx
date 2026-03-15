@@ -32,6 +32,7 @@ import { Colors } from '@/constants/theme';
 import { setTextSize, setThemeOverride, useTextSize } from '@/hooks/theme-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import Slider from '@react-native-community/slider';
+import * as Clipboard from 'expo-clipboard';
 import * as Location from 'expo-location';
 import { TextInput } from 'react-native';
 import OnboardingOverlay from '../../../src/components/OnboardingOverlay';
@@ -609,7 +610,6 @@ export default function MenteeSettingsScreen() {
     if (!secret) return;
 
     try {
-      const Clipboard = await import('expo-clipboard');
       await Clipboard.setStringAsync(secret);
       Alert.alert('Copied', 'The 2FA setup key has been copied to your clipboard.');
     } catch {

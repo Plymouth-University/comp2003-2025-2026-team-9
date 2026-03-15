@@ -1,4 +1,4 @@
-import { StyleSheet, Text, type TextProps } from 'react-native';
+import { Platform, StyleSheet, Text, type TextProps } from 'react-native';
 
 import { useTextScale } from '@/hooks/theme-store';
 import { useThemeColor } from '@/hooks/use-theme-color';
@@ -51,7 +51,7 @@ export function ThemedText({
   // default lineHeight based on the scaled font size to avoid clipping (useful for
   // large display initials / headings).
   const computedLineHeight = existingFontSize && !existingLineHeight
-    ? Math.round(scaledFontSize * 1.05)
+    ? Math.round(scaledFontSize * (Platform.OS === 'android' ? 1.2 : 1.1))
     : undefined;
 
   return (

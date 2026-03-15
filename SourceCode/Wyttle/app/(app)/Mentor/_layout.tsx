@@ -5,10 +5,20 @@ import MentorBottomNav from '../../../src/components/nav/MentorBottomNav';
 import OnboardingOverlay from '../../../src/components/OnboardingOverlay';
 import { MENTOR_STEPS, hasSeenOnboarding, markOnboardingSeen } from '../../../src/lib/onboarding';
 import { supabase } from '../../../src/lib/supabase';
+import { MenteeBottomNavHeightProvider, useMenteeBottomNavHeight } from '../../../src/lib/mentee-bottom-nav-height';
 
 export default function MentorLayout() {
+  return (
+    <MenteeBottomNavHeightProvider>
+      <MentorLayoutContent />
+    </MenteeBottomNavHeightProvider>
+  );
+}
+
+function MentorLayoutContent() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const { onHeightChange } = useMenteeBottomNavHeight();
 
   useEffect(() => {
     (async () => {
@@ -35,7 +45,7 @@ export default function MentorLayout() {
         <Stack.Screen name="settings" />
         {/* Other screens (e.g. chat) will also use fade animation */}
       </Stack>
-      <MentorBottomNav />
+      <MentorBottomNav onHeightChange={onHeightChange} />
       <OnboardingOverlay
         visible={showOnboarding}
         steps={MENTOR_STEPS}
