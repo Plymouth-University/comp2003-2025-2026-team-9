@@ -8,7 +8,7 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../../src/lib/fonts';
 import { getLastReadAt } from '../../../src/lib/chat-read-state';
-import { supabase } from '../../../src/lib/supabase';
+import { fetchBlockedUserIds, supabase } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 
 type MatchItem = {
@@ -55,6 +55,8 @@ export default function MenteeConnectionsScreen() {
           return;
         }
 
+        const blockedIds = new Set(await fetchBlockedUserIds());
+
         // 1) Fetch all peer matches where this user is a participant
         const { data: matchRows, error: matchError } = await supabase
           .from('peer_matches')
@@ -72,17 +74,19 @@ export default function MenteeConnectionsScreen() {
         }
 
         // Determine the other user in each match
-        const enrichedMatches: MatchItem[] = matchRows.map((m: any) => {
-          const otherUserId = m.member_a === user.id ? m.member_b : m.member_a;
-          return {
-            matchId: m.id,
-            otherUserId,
-            name: '',
-            photoUrl: null,
-            createdAt: m.created_at,
-            threadId: m.thread_id,
-          };
-        });
+        const enrichedMatches: MatchItem[] = matchRows
+          .map((m: any) => {
+            const otherUserId = m.member_a === user.id ? m.member_b : m.member_a;
+            return {
+              matchId: m.id,
+              otherUserId,
+              name: '',
+              photoUrl: null,
+              createdAt: m.created_at,
+              threadId: m.thread_id,
+            };
+          })
+          .filter((match) => !blockedIds.has(match.otherUserId));
 
         const otherUserIds = Array.from(new Set(enrichedMatches.map((m) => m.otherUserId)));
 

@@ -28,7 +28,7 @@ import { setLastReadAt } from '../../../src/lib/chat-read-state';
 import { font } from '../../../src/lib/fonts';
 import { playMessageSound } from '../../../src/lib/message-sound';
 import type { Profile } from '../../../src/lib/supabase';
-import { getCurrentUser, supabase } from '../../../src/lib/supabase';
+import { getBlockStatus, getCurrentUser, supabase } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 
 type Message = {
@@ -70,6 +70,7 @@ export default function MenteeChatScreen() {
   const [input, setInput] = useState('');
   const [meId, setMeId] = useState<string | null>(null);
   const [otherProfile, setOtherProfile] = useState<Profile | null>(null);
+  const [blockedNotice, setBlockedNotice] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [replyingToMessage, setReplyingToMessage] = useState<Message | null>(null);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
@@ -201,6 +202,21 @@ export default function MenteeChatScreen() {
       const me = await getCurrentUser();
       if (!isMounted) return;
       setMeId(me.id);
+
+      if (otherId) {
+        const status = await getBlockStatus(otherId);
+        if (!isMounted) return;
+
+        if (status.isBlocked) {
+          setBlockedNotice(
+            status.blockedByMe
+              ? 'You blocked this user. Messages are hidden until you unblock them.'
+              : 'This user has blocked you. Messages are unavailable.',
+          );
+          setMessages([]);
+          return;
+        }
+      }
 
       if (otherId) {
         const { data: profile, error: profileError } = await supabase
@@ -366,7 +382,7 @@ export default function MenteeChatScreen() {
   }, [measureRootInWindow]);
 
   const handleSend = async () => {
-    if (!threadId || !meId || !input.trim()) return;
+    if (!threadId || !meId || !input.trim() || blockedNotice) return;
 
     const trimmedInput = input.trim();
     const body = trimmedInput;
@@ -585,6 +601,13 @@ export default function MenteeChatScreen() {
           scrollEventThrottle={16}
           contentContainerStyle={styles.listContent}
           ListFooterComponent={<View style={{ height: listBottomSpacer }} />}
+          ListEmptyComponent={
+            blockedNotice ? (
+              <View style={styles.blockedState}>
+                <Text style={[styles.blockedText, { color: theme.text }]}>{blockedNotice}</Text>
+              </View>
+            ) : null
+          }
           renderItem={({ item }) => (
             <MessageBubble
               message={item}
@@ -604,6 +627,11 @@ export default function MenteeChatScreen() {
           ]}
         >
           <View style={[styles.composer, { backgroundColor: theme.card }]}>
+            {blockedNotice ? (
+              <Text style={[styles.blockedComposerText, { color: theme.text }]}>{blockedNotice}</Text>
+            ) : null}
+            {!blockedNotice ? (
+              <>
             {replyingToMessage ? (
               <View style={styles.replyPreview}>
                 <View style={styles.replyAccent} />
@@ -658,6 +686,8 @@ export default function MenteeChatScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
+              </>
+            ) : null}
           </View>
         </View>
       </View>
@@ -842,6 +872,18 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     paddingTop: 8,
   },
+  blockedState: {
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  blockedText: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    opacity: 0.8,
+  },
 
   bubbleRow: {
     flexDirection: 'row',
@@ -921,6 +963,12 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
+  },
+  blockedComposerText: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    opacity: 0.85,
   },
 
   replyPreview: {

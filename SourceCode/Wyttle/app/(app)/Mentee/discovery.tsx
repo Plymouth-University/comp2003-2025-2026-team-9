@@ -22,7 +22,7 @@ import Animated, {
   withTiming
 } from 'react-native-reanimated';
 
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
 import BlockSvg from '@/assets/icons/block.svg';
 import { ThemedText } from '@/components/themed-text';
@@ -30,6 +30,7 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../../src/lib/fonts';
+import { subscribeToDiscoveryRefresh } from '../../../src/lib/discovery-refresh';
 import {
   blockUser,
   fetchDiscoveryProfiles,
@@ -84,8 +85,18 @@ export default function DiscoveryStackScreen() {
     }
   }, [selectedDistance]);
 
+  useFocusEffect(
+    useCallback(() => {
+      loadProfiles();
+    }, [loadProfiles]),
+  );
+
   useEffect(() => {
-    loadProfiles();
+    const unsubscribe = subscribeToDiscoveryRefresh(() => {
+      void loadProfiles();
+    });
+
+    return unsubscribe;
   }, [loadProfiles]);
 
   // Load my own profile for match modal avatars

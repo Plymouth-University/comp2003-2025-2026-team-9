@@ -8,6 +8,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -53,7 +54,14 @@ import {
   type TotpEnrollment,
   verifyTotpEnrollment,
 } from '../../../src/lib/mfa';
-import { deleteMyAccount, supabase, uploadProfilePhoto } from '../../../src/lib/supabase';
+import {
+  deleteMyAccount,
+  fetchMyBlockedUsers,
+  type BlockedUserProfile,
+  supabase,
+  unblockUser,
+  uploadProfilePhoto,
+} from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 
 
@@ -217,6 +225,7 @@ export default function MenteeSettingsScreen() {
   //const [tokensBalance, setTokensBalance] = useState<number | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showAcknowledgementsModal, setShowAcknowledgementsModal] = useState(false);
+  const [showBlockedUsersModal, setShowBlockedUsersModal] = useState(false);
   const [isPasswordSectionOpen, setIsPasswordSectionOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -226,6 +235,9 @@ export default function MenteeSettingsScreen() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
   const [isDeleteAccountSectionOpen, setIsDeleteAccountSectionOpen] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUserProfile[]>([]);
+  const [blockedUsersLoading, setBlockedUsersLoading] = useState(false);
+  const [unblockingUserId, setUnblockingUserId] = useState<string | null>(null);
   const [isTwoFactorSectionOpen, setIsTwoFactorSectionOpen] = useState(false);
   const [isTwoFactorBusy, setIsTwoFactorBusy] = useState(false);
   const [twoFactorCode, setTwoFactorCode] = useState('');
@@ -251,6 +263,47 @@ export default function MenteeSettingsScreen() {
       setNotificationPrefs(prefs);
     })();
   }, []);
+
+  const loadBlockedUsers = async () => {
+    try {
+      setBlockedUsersLoading(true);
+      const users = await fetchMyBlockedUsers();
+      setBlockedUsers(users);
+    } catch (error) {
+      console.error('Failed to load blocked users', error);
+    } finally {
+      setBlockedUsersLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadBlockedUsers();
+  }, []);
+
+  const handleUnblockUser = async (user: BlockedUserProfile) => {
+    Alert.alert(
+      'Unblock user',
+      `Unblock ${user.full_name ?? 'this user'}? They may appear again across discovery, chats, and booking flows.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unblock',
+          onPress: async () => {
+            try {
+              setUnblockingUserId(user.id);
+              await unblockUser(user.id);
+              await loadBlockedUsers();
+            } catch (error) {
+              console.error('Failed to unblock user', error);
+              Alert.alert('Error', 'Could not unblock this user right now.');
+            } finally {
+              setUnblockingUserId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const handleChangePhoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -1126,6 +1179,23 @@ export default function MenteeSettingsScreen() {
 
         <TouchableOpacity
           style={styles.itemRow}
+          onPress={() => setShowBlockedUsersModal(true)}
+        >
+          <ThemedText
+            darkColor="#cfd3ff"
+            style={[
+              styles.itemText,
+              font('GlacialIndifference', '400'),
+              { flex: 1 },
+            ]}
+          >
+            Blocked users
+          </ThemedText>
+          <Ionicons name="chevron-forward" size={18} color={theme.text} style={{ opacity: 0.4 }} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.itemRow}
           onPress={handleLogout}
         >
           <ThemedText
@@ -1221,6 +1291,76 @@ export default function MenteeSettingsScreen() {
         </View>
       )}
       </KeyboardAwareScrollView>
+      <Modal
+        visible={showBlockedUsersModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBlockedUsersModal(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowBlockedUsersModal(false)}>
+          <Pressable
+            style={[styles.modalCard, styles.blockedUsersModalCard, { backgroundColor: theme.background }]}
+            onPress={(event) => event.stopPropagation()}
+          >
+            <ThemedText
+              style={[styles.modalTitle, { color: theme.text }, font('GlacialIndifference', '400')]}
+            >
+              Blocked users
+            </ThemedText>
+
+            <ScrollView
+              style={styles.blockedUsersModalList}
+              contentContainerStyle={styles.blockedUsersModalContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {blockedUsersLoading ? (
+                <Text style={[styles.blockedUsersHint, { color: theme.text }]}>Loading blocked users...</Text>
+              ) : blockedUsers.length === 0 ? (
+                <Text style={[styles.blockedUsersHint, { color: theme.text }]}>You have not blocked anyone.</Text>
+              ) : (
+                blockedUsers.map((user) => (
+                  <View key={user.id} style={styles.blockedUserRow}>
+                    <View style={styles.blockedUserInfo}>
+                      <View style={styles.blockedAvatar}>
+                        {user.photo_url ? (
+                          <Image source={{ uri: user.photo_url }} style={styles.blockedAvatarImage} />
+                        ) : (
+                          <Text style={styles.blockedAvatarText}>
+                            {(user.full_name ?? 'U').charAt(0).toUpperCase()}
+                          </Text>
+                        )}
+                      </View>
+                      <Text style={[styles.blockedUserName, { color: theme.text }]}>
+                        {user.full_name ?? 'Unknown user'}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.unblockButton,
+                        unblockingUserId === user.id ? { opacity: 0.6 } : null,
+                      ]}
+                      onPress={() => handleUnblockUser(user)}
+                      disabled={unblockingUserId === user.id}
+                    >
+                      <Text style={styles.unblockButtonText}>
+                        {unblockingUserId === user.id ? 'Unblocking...' : 'Unblock'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.modalCloseButton, { backgroundColor: '#333f5c' }]}
+              onPress={() => setShowBlockedUsersModal(false)}
+            >
+              <Text style={styles.modalCloseButtonText}>Close</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
       <Modal
         visible={showAcknowledgementsModal}
         transparent
@@ -1658,6 +1798,64 @@ twoFactorCodeInput: {
 },
 accountFieldLabel: {
   marginBottom: 0,
+},
+blockedUsersHint: {
+  fontSize: 13,
+  lineHeight: 18,
+  opacity: 0.8,
+},
+blockedUserRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+},
+blockedUserInfo: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 12,
+  flex: 1,
+},
+blockedAvatar: {
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  backgroundColor: '#333f5c',
+  alignItems: 'center',
+  justifyContent: 'center',
+  overflow: 'hidden',
+},
+blockedAvatarImage: {
+  width: '100%',
+  height: '100%',
+},
+blockedAvatarText: {
+  color: '#fff',
+  fontWeight: '700',
+},
+blockedUserName: {
+  fontSize: 15,
+  flexShrink: 1,
+},
+unblockButton: {
+  paddingVertical: 8,
+  paddingHorizontal: 12,
+  borderRadius: 999,
+  backgroundColor: '#333f5c',
+},
+unblockButtonText: {
+  color: '#fff',
+  fontWeight: '700',
+  fontSize: 13,
+},
+blockedUsersModalCard: {
+  maxHeight: '70%',
+},
+blockedUsersModalList: {
+  maxHeight: 360,
+},
+blockedUsersModalContent: {
+  gap: 12,
 },
 dangerItemRow: {
   paddingVertical: 14,

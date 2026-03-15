@@ -9,7 +9,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../../src/lib/fonts';
 import { getLastReadAt } from '../../../src/lib/chat-read-state';
 import { acceptSession, declineSession } from '../../../src/lib/sessions';
-import { supabase } from '../../../src/lib/supabase';
+import { fetchBlockedUserIds, supabase } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 
 type PendingRequest = {
@@ -57,6 +57,8 @@ export default function MentorConnectionsScreen() {
           return;
         }
 
+        const blockedIds = new Set(await fetchBlockedUserIds());
+
         // 0) Fetch pending requests (status = 'requested')
         const { data: pending, error: pendErr } = await supabase
           .from('mentor_requests')
@@ -65,8 +67,10 @@ export default function MentorConnectionsScreen() {
           .eq('status', 'requested')
           .order('scheduled_start', { ascending: true });
 
-        if (!pendErr && pending && pending.length > 0) {
-          const pendMenteeIds = Array.from(new Set(pending.map((r: any) => r.mentee)));
+        const visiblePending = (pending ?? []).filter((r: any) => !blockedIds.has(r.mentee));
+
+        if (!pendErr && visiblePending.length > 0) {
+          const pendMenteeIds = Array.from(new Set(visiblePending.map((r: any) => r.mentee)));
           const { data: pendProfiles } = await supabase
             .from('profiles')
             .select('id, full_name, photo_url')
@@ -78,7 +82,7 @@ export default function MentorConnectionsScreen() {
           });
 
           if (isMounted) {
-            setPendingRequests(pending.map((r: any) => ({
+            setPendingRequests(visiblePending.map((r: any) => ({
               requestId: r.id,
               menteeName: pendMap[r.mentee]?.name ?? 'Mentee',
               menteePhoto: pendMap[r.mentee]?.photo ?? null,
@@ -100,13 +104,15 @@ export default function MentorConnectionsScreen() {
 
         if (reqError) throw reqError;
 
-        if (!requests || requests.length === 0) {
+        const visibleRequests = (requests ?? []).filter((r: any) => !blockedIds.has(r.mentee));
+
+        if (visibleRequests.length === 0) {
           if (!isMounted) return;
           setChats([]);
           return;
         }
 
-        const menteeIds = Array.from(new Set(requests.map((r: any) => r.mentee)));
+        const menteeIds = Array.from(new Set(visibleRequests.map((r: any) => r.mentee)));
 
         const { data: profiles, error: profileError } = await supabase
           .from('profiles')
@@ -124,7 +130,7 @@ export default function MentorConnectionsScreen() {
         });
 
         const threadIds = Array.from(
-          new Set(requests.map((r: any) => r.thread_id).filter((id: number | null): id is number => id != null)),
+          new Set(visibleRequests.map((r: any) => r.thread_id).filter((id: number | null): id is number => id != null)),
         );
 
         let lastByThread: Record<number, { sender: string | null; body: string; inserted_at: string }> = {};
@@ -148,7 +154,7 @@ export default function MentorConnectionsScreen() {
           });
         }
 
-        const chatItemsUnsorted: MentorChatItem[] = await Promise.all((requests ?? []).map(async (r: any) => {
+        const chatItemsUnsorted: MentorChatItem[] = await Promise.all(visibleRequests.map(async (r: any) => {
           const profile = profileMap[r.mentee] ?? { name: 'Mentee', photoUrl: null };
           const last = r.thread_id ? lastByThread[r.thread_id] : undefined;
           const lastReadAt = r.thread_id ? await getLastReadAt(r.thread_id) : null;

@@ -8,7 +8,7 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { router, useFocusEffect } from 'expo-router';
 import { font } from '../../../src/lib/fonts';
-import { supabase } from '../../../src/lib/supabase';
+import { fetchBlockedUserIds, supabase } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 
 type UpcomingSession = {
@@ -37,6 +37,7 @@ export default function MentorWaitingRoomScreen() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      const blockedIds = new Set(await fetchBlockedUserIds());
 
       const { data, error } = await supabase
         .from('mentor_requests')
@@ -47,9 +48,10 @@ export default function MentorWaitingRoomScreen() {
         .order('scheduled_start', { ascending: true });
 
       if (error) { console.error('Failed to load waiting room sessions', error); return; }
-      if (!data || data.length === 0) { setSessions([]); return; }
+      const visibleSessions = (data ?? []).filter((session: any) => !blockedIds.has(session.mentee));
+      if (visibleSessions.length === 0) { setSessions([]); return; }
 
-      const menteeIds = [...new Set(data.map((s: any) => s.mentee))];
+      const menteeIds = [...new Set(visibleSessions.map((s: any) => s.mentee))];
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, full_name, photo_url')
@@ -61,7 +63,7 @@ export default function MentorWaitingRoomScreen() {
       });
 
       setSessions(
-        data.map((s: any) => ({
+        visibleSessions.map((s: any) => ({
           requestId: s.id,
           menteeName: profileMap[s.mentee]?.name ?? 'Mentee',
           menteePhoto: profileMap[s.mentee]?.photo ?? null,

@@ -22,7 +22,14 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { font } from '../../src/lib/fonts';
 import type { Profile } from '../../src/lib/supabase';
-import { disconnectPeer, getCurrentUser, supabase } from '../../src/lib/supabase';
+import {
+  blockUser,
+  disconnectPeer,
+  getBlockStatus,
+  getCurrentUser,
+  supabase,
+  unblockUser,
+} from '../../src/lib/supabase';
 
 import { ThemedText } from '@/components/themed-text';
 import { BackButton } from '@/components/ui/BackButton';
@@ -47,6 +54,12 @@ export default function ProfileViewScreen() {
   const [error, setError] = useState<string | null>(null);
   const [canDisconnect, setCanDisconnect] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [blockStatus, setBlockStatus] = useState({
+    blockedByMe: false,
+    blockedByThem: false,
+    isBlocked: false,
+  });
+  const [blockLoading, setBlockLoading] = useState(false);
   // measured width of the top image wrapper — used to size the chips container exactly
   const [imageWrapperWidth, setImageWrapperWidth] = useState<number | null>(null);
   const [bookingModalVisible, setBookingModalVisible] = useState(false);
@@ -94,6 +107,10 @@ export default function ProfileViewScreen() {
         // Check if the current user is matched with this user via peer_matches
         try {
           const me = await getCurrentUser();
+          if (!cancelled) {
+            const status = await getBlockStatus(userId);
+            if (!cancelled) setBlockStatus(status);
+          }
           const { data: matches, error: matchError } = await supabase
             .from('peer_matches')
             .select('id')
@@ -216,6 +233,11 @@ export default function ProfileViewScreen() {
   const handleBookSession = async () => {
     if (!profile || !userId) return;
 
+    if (blockStatus.isBlocked) {
+      setBookingError('You cannot book sessions with a blocked user.');
+      return;
+    }
+
     if (!bookingDate || !bookingTime) {
       setBookingError('Please enter a date and time');
       return;
@@ -317,6 +339,43 @@ export default function ProfileViewScreen() {
     profile.role === 'mentor' &&
     !!viewerId &&
     viewerId !== profile.id;
+  const canManageBlock = !!profile && !!viewerId && viewerId !== profile.id;
+  const canBookSession = canShowBooking && !blockStatus.isBlocked;
+
+  const handleBlockToggle = async () => {
+    if (!userId || !profile) return;
+
+    const title = blockStatus.blockedByMe ? 'Unblock user' : 'Block user';
+    const message = blockStatus.blockedByMe
+      ? `Unblock ${profile.full_name ?? 'this user'}? They can appear in the app again.`
+      : `Block ${profile.full_name ?? 'this user'}? You will no longer be able to interact with each other.`;
+
+    Alert.alert(title, message, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: blockStatus.blockedByMe ? 'Unblock' : 'Block',
+        style: blockStatus.blockedByMe ? 'default' : 'destructive',
+        onPress: async () => {
+          try {
+            setBlockLoading(true);
+            if (blockStatus.blockedByMe) {
+              await unblockUser(userId);
+            } else {
+              await blockUser(userId);
+              setCanDisconnect(false);
+              setBookingModalVisible(false);
+            }
+            const nextStatus = await getBlockStatus(userId);
+            setBlockStatus(nextStatus);
+          } catch (err) {
+            console.error('Failed to update block status', err);
+          } finally {
+            setBlockLoading(false);
+          }
+        },
+      },
+    ]);
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }} edges={['left', 'right', 'bottom']}>
@@ -533,7 +592,7 @@ export default function ProfileViewScreen() {
               </View>
             )}
 
-            {(canShowBooking || canDisconnect) && (
+            {(canShowBooking || canDisconnect || canManageBlock) && (
               <View style={[styles.sectionCard, colorScheme === 'dark' ? undefined : styles.sectionCardShadow, { backgroundColor: theme.background }]}> 
                 <View style={styles.sectionHeaderRow}>
                   <Ionicons name="flash-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
@@ -544,7 +603,7 @@ export default function ProfileViewScreen() {
                   
                 </View>
 
-                {canShowBooking && (
+                {canBookSession && (
                   <TouchableOpacity
                     style={styles.bookButton}
                     onPress={() => {
@@ -580,7 +639,27 @@ export default function ProfileViewScreen() {
                   </TouchableOpacity>
                 )}
 
-                {canShowBooking && (
+                {canManageBlock && (
+                  <TouchableOpacity
+                    style={styles.disconnectButton}
+                    onPress={handleBlockToggle}
+                    disabled={blockLoading}
+                  >
+                    <ThemedText style={styles.disconnectButtonText}>
+                      {blockLoading ? 'Saving…' : blockStatus.blockedByMe ? 'Unblock User' : 'Block User'}
+                    </ThemedText>
+                  </TouchableOpacity>
+                )}
+
+                {blockStatus.isBlocked && (
+                  <Text style={[styles.actionHintText, { color: colorScheme === 'dark' ? '#d8dbe6' : '#4b5563' }]}>
+                    {blockStatus.blockedByMe
+                      ? 'This user is blocked. Chat and session booking are disabled until you unblock them.'
+                      : 'This user has blocked you. Chat and session booking are unavailable.'}
+                  </Text>
+                )}
+
+                {canBookSession && (
                   <Text style={[styles.actionHintText, { color: colorScheme === 'dark' ? '#d8dbe6' : '#4b5563' }]}>
                     Be polite, respectful and detailed with what you want advice with so the mentor can easily determine if it is something they can assist you with or not
                   </Text>

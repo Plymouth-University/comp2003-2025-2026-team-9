@@ -21,7 +21,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { router, useFocusEffect } from 'expo-router';
 import { useMenteeBottomNavHeight } from '../../../src/lib/mentee-bottom-nav-height';
 import { font } from '../../../src/lib/fonts';
-import { supabase } from '../../../src/lib/supabase';
+import { fetchBlockedUserIds, supabase } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 
 type Mentor = {
@@ -146,6 +146,7 @@ export default function MentorHub() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      const blockedIds = new Set(await fetchBlockedUserIds());
 
       const { data: sessions, error: sessErr } = await supabase
         .from('mentor_requests')
@@ -156,9 +157,10 @@ export default function MentorHub() {
         .order('scheduled_start', { ascending: true });
 
       if (sessErr) { console.error('Failed to load sessions', sessErr); return; }
-      if (!sessions || sessions.length === 0) { setUpcomingSessions([]); return; }
+      const visibleSessions = (sessions ?? []).filter((session: any) => !blockedIds.has(session.mentor));
+      if (visibleSessions.length === 0) { setUpcomingSessions([]); return; }
 
-      const mentorIds = [...new Set(sessions.map((s: any) => s.mentor))];
+      const mentorIds = [...new Set(visibleSessions.map((s: any) => s.mentor))];
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, full_name, photo_url')
@@ -170,7 +172,7 @@ export default function MentorHub() {
       });
 
       setUpcomingSessions(
-        sessions.map((s: any) => ({
+        visibleSessions.map((s: any) => ({
           requestId: s.id,
           mentorId: s.mentor,
           mentorName: profileMap[s.mentor]?.name ?? 'Mentor',
@@ -207,6 +209,7 @@ export default function MentorHub() {
   useEffect(() => {
     const fetchMentors = async () => {
       setLoading(true);
+      const blockedIds = new Set(await fetchBlockedUserIds());
 
       const { data, error } = await supabase
         .from('profiles')
@@ -216,7 +219,7 @@ export default function MentorHub() {
       if (error) {
         console.error('Error loading mentors', error);
       } else {
-        setMentors(data as Mentor[]);
+        setMentors(((data as Mentor[]) ?? []).filter((mentor) => !blockedIds.has(mentor.id)));
       }
 
       setLoading(false);

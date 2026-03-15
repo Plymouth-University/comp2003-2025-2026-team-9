@@ -4,6 +4,7 @@ import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import 'react-native-url-polyfill/auto';
+import { notifyDiscoveryShouldRefresh } from './discovery-refresh';
 
 // Avoid referencing `window` (and AsyncStorage's web shim) during SSR
 const isServer = typeof window === 'undefined';
@@ -48,6 +49,17 @@ export type Profile = {
   mentor_session_rate?: number | null;
 };
 
+export type BlockStatus = {
+  blockedByMe: boolean;
+  blockedByThem: boolean;
+  isBlocked: boolean;
+};
+
+export type BlockedUserProfile = {
+  id: string;
+  full_name: string | null;
+  photo_url: string | null;
+};
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -109,7 +121,9 @@ export async function fetchDiscoveryProfiles(maxDistanceMiles: number | null = n
   });
 
   if (error) throw error;
-  return (data ?? []) as Profile[];
+  const profiles = (data ?? []) as Profile[];
+  const blockedIds = new Set(await fetchBlockedUserIds());
+  return profiles.filter((profile) => !blockedIds.has(profile.id));
 }
 
 
@@ -139,11 +153,134 @@ export async function undoLastPassSwipe(swipedId: string): Promise<boolean> {
 }
 
 export async function blockUser(blockedId: string) {
-  const { data, error } = await supabase.rpc('block_user', {
-    p_blocked_id: blockedId,
-  });
+  const me = await getCurrentUser();
+  if (me.id === blockedId) throw new Error('You cannot block yourself');
+
+  const { error } = await supabase
+    .from('user_blocks')
+    .upsert(
+      {
+        blocker: me.id,
+        blocked: blockedId,
+      },
+      {
+        onConflict: 'blocker,blocked',
+        ignoreDuplicates: true,
+      },
+    );
   if (error) throw error;
-  return data;
+
+  await supabase
+    .from('peer_swipes')
+    .delete()
+    .or(
+      `and(swiper.eq.${me.id},swiped.eq.${blockedId}),` +
+        `and(swiper.eq.${blockedId},swiped.eq.${me.id})`,
+    );
+
+  await disconnectPeer(blockedId).catch((disconnectError) => {
+    console.warn('Failed to disconnect blocked peer', disconnectError);
+  });
+
+  notifyDiscoveryShouldRefresh();
+  return true;
+}
+
+export async function unblockUser(blockedId: string) {
+  const me = await getCurrentUser();
+
+  const { error } = await supabase
+    .from('user_blocks')
+    .delete()
+    .eq('blocker', me.id)
+    .eq('blocked', blockedId);
+
+  if (error) throw error;
+
+  await supabase
+    .from('peer_swipes')
+    .delete()
+    .or(
+      `and(swiper.eq.${me.id},swiped.eq.${blockedId}),` +
+        `and(swiper.eq.${blockedId},swiped.eq.${me.id})`,
+    );
+
+  notifyDiscoveryShouldRefresh();
+  return true;
+}
+
+export async function fetchBlockedUserIds(): Promise<string[]> {
+  const me = await getCurrentUser();
+
+  const { data, error } = await supabase
+    .from('user_blocks')
+    .select('blocker, blocked')
+    .or(`blocker.eq.${me.id},blocked.eq.${me.id}`);
+
+  if (error) throw error;
+
+  const ids = new Set<string>();
+  (data ?? []).forEach((row: { blocker: string; blocked: string }) => {
+    ids.add(row.blocker === me.id ? row.blocked : row.blocker);
+  });
+
+  return [...ids];
+}
+
+export async function getBlockStatus(otherUserId: string): Promise<BlockStatus> {
+  const me = await getCurrentUser();
+
+  const { data, error } = await supabase
+    .from('user_blocks')
+    .select('blocker, blocked')
+    .or(
+      `and(blocker.eq.${me.id},blocked.eq.${otherUserId}),` +
+        `and(blocker.eq.${otherUserId},blocked.eq.${me.id})`,
+    );
+
+  if (error) throw error;
+
+  const blockedByMe = (data ?? []).some(
+    (row: { blocker: string; blocked: string }) => row.blocker === me.id && row.blocked === otherUserId,
+  );
+  const blockedByThem = (data ?? []).some(
+    (row: { blocker: string; blocked: string }) => row.blocker === otherUserId && row.blocked === me.id,
+  );
+
+  return {
+    blockedByMe,
+    blockedByThem,
+    isBlocked: blockedByMe || blockedByThem,
+  };
+}
+
+export async function fetchMyBlockedUsers(): Promise<BlockedUserProfile[]> {
+  const me = await getCurrentUser();
+
+  const { data, error } = await supabase
+    .from('user_blocks')
+    .select('blocked')
+    .eq('blocker', me.id);
+
+  if (error) throw error;
+
+  const blockedIds = (data ?? []).map((row: { blocked: string }) => row.blocked);
+  if (blockedIds.length === 0) return [];
+
+  const { data: profiles, error: profilesError } = await supabase
+    .from('profiles')
+    .select('id, full_name, photo_url')
+    .in('id', blockedIds);
+
+  if (profilesError) throw profilesError;
+
+  const profileMap = new Map(
+    ((profiles ?? []) as BlockedUserProfile[]).map((profile) => [profile.id, profile]),
+  );
+
+  return blockedIds
+    .map((id) => profileMap.get(id))
+    .filter((profile): profile is BlockedUserProfile => Boolean(profile));
 }
 
 export async function rpcCreateMatchOnMutualHandshake(otherUserId: string) {
