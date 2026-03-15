@@ -1,5 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
 import {
   Image,
@@ -123,12 +124,92 @@ export default function SignIn() {
   const handleOAuthSignIn = async (provider: 'google' | 'apple' | 'linkedin_oidc') => {
     try {
       setMsg(null);
+
+      // Build the deep-link URL that Supabase will redirect back to
       const redirectTo = Linking.createURL('/(auth)/sign-in');
-      const { error } = await supabase.auth.signInWithOAuth({
+
+      // signInWithOAuth with PKCE returns a URL we need to open ourselves
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: provider as any,
-        options: { redirectTo },
+        options: {
+          redirectTo,
+          skipBrowserRedirect: true, // prevents auto-opening; we use WebBrowser instead
+        },
       });
       if (error) throw error;
+      if (!data?.url) throw new Error('No OAuth URL returned');
+
+      // Open the OAuth page in an in-app browser
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+
+      if (result.type !== 'success' || !result.url) {
+        // User cancelled or the flow didn't complete
+        return;
+      }
+
+      // Extract the auth code from the callback URL and exchange it for a session
+      const parsedUrl = Linking.parse(result.url);
+      const code = parsedUrl.queryParams?.code as string | undefined;
+
+      if (!code) {
+        setMsg('Authentication failed — no authorisation code received.');
+        return;
+      }
+
+      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+      if (exchangeError) throw exchangeError;
+
+      // Session is now active — look up the user's profile and route them
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) {
+        setMsg(userError?.message ?? 'Could not load user after sign-in.');
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role, approval_status')
+        .eq('id', userData.user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        setMsg(profileError.message);
+        return;
+      }
+
+      // New OAuth user — no profile yet. Send them to the role chooser
+      // with details pre-filled from their OAuth provider.
+      if (!profile) {
+        const meta = userData.user.user_metadata ?? {};
+        const oauthParams = new URLSearchParams({
+          oauthName: meta.full_name ?? meta.name ?? '',
+          oauthEmail: userData.user.email ?? '',
+          oauthAvatar: meta.avatar_url ?? meta.picture ?? '',
+        }).toString();
+
+        router.replace(`/(auth)/sign-up?${oauthParams}` as any);
+        return;
+      }
+
+      const role = profile.role ?? 'member';
+      const approvalStatus = profile.approval_status ?? 'pending';
+
+      if (approvalStatus !== 'approved' && role !== 'admin') {
+        router.replace('/(auth)/pending-approval');
+        return;
+      }
+
+      try {
+        await initializeNotificationsForUser(userData.user.id);
+      } catch (notificationError) {
+        console.warn('Failed to initialize push notifications after OAuth sign-in', notificationError);
+      }
+
+      if (role === 'mentor') {
+        router.replace('/(app)/Mentor/connections');
+      } else {
+        router.replace('/(app)/Mentee/connections');
+      }
     } catch (error: any) {
       setMsg(error?.message ?? 'Unable to start social login right now.');
     }

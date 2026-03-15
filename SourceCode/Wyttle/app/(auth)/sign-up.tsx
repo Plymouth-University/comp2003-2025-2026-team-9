@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { Logo } from '@/components/Logo';
@@ -15,9 +15,28 @@ export default function SignUpRoleChooser() {
   const theme = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
 
+  // OAuth params forwarded from sign-in when the user has no profile yet
+  const { oauthName, oauthEmail, oauthAvatar } = useLocalSearchParams<{
+    oauthName?: string;
+    oauthEmail?: string;
+    oauthAvatar?: string;
+  }>();
+
+  const isOAuth = !!(oauthName || oauthEmail || oauthAvatar);
+
   const onSelectRole = (role: 'member' | 'mentor') => {
-    const target = role === 'member' ? '/(auth)/sign-up-mentee' : '/(auth)/sign-up-mentor';
-    router.push(target as any);
+    const base = role === 'member' ? '/(auth)/sign-up-mentee' : '/(auth)/sign-up-mentor';
+
+    if (isOAuth) {
+      const qs = new URLSearchParams({
+        oauthName: oauthName ?? '',
+        oauthEmail: oauthEmail ?? '',
+        oauthAvatar: oauthAvatar ?? '',
+      }).toString();
+      router.push(`${base}?${qs}` as any);
+    } else {
+      router.push(base as any);
+    }
   };
 
   return (

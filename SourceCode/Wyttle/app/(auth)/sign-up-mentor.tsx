@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
     Image,
@@ -30,15 +30,24 @@ import { initializeNotificationsForUser } from '../../src/lib/notifications';
 
 export default function SignUpMentor() {
   const insets = useSafeAreaInsets();
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
+
+  // OAuth pre-fill params (empty strings for normal sign-up)
+  const { oauthName, oauthEmail, oauthAvatar } = useLocalSearchParams<{
+    oauthName?: string;
+    oauthEmail?: string;
+    oauthAvatar?: string;
+  }>();
+  const isOAuth = !!(oauthName || oauthEmail || oauthAvatar);
+
+  const [fullName, setFullName] = useState(oauthName ?? '');
+  const [email, setEmail] = useState(oauthEmail ?? '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [expertise, setExpertise] = useState('');
   const [experienceYears, setExperienceYears] = useState('');
-  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [avatarUri, setAvatarUri] = useState<string | null>(oauthAvatar || null);
   const [msg, setMsg] = useState<string | null>(null);
 
   const colorScheme = useColorScheme();
@@ -64,47 +73,67 @@ export default function SignUpMentor() {
   };
 
   const onSignUp = async () => {
-  if (!fullName || !email || !password || !confirmPassword || !expertise) {
+  if (!fullName || !expertise) {
     setMsg('Please fill in all required fields.');
     return;
   }
 
-  if (password !== confirmPassword) {
-    setMsg('Passwords do not match.');
-    return;
+  if (!isOAuth) {
+    if (!email || !password || !confirmPassword) {
+      setMsg('Please fill in all required fields.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setMsg('Passwords do not match.');
+      return;
+    }
   }
 
   setMsg(null);
 
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        role: 'mentor',              // metadata
-        fullName,
-        expertise,
-        experienceYears: experienceYears || null,
+  let userId: string;
+
+  if (isOAuth) {
+    // OAuth user is already signed in — just grab the existing session user
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      setMsg(userError?.message ?? 'OAuth session expired. Please sign in again.');
+      return;
+    }
+    userId = userData.user.id;
+  } else {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          role: 'mentor',
+          fullName,
+          expertise,
+          experienceYears: experienceYears || null,
+        },
       },
-    },
-  });
+    });
 
-  if (error) {
-    setMsg(error.message);
-    return;
-  }
+    if (error) {
+      setMsg(error.message);
+      return;
+    }
 
-  const user = data.user;
-  if (!user) {
-    setMsg('Sign up succeeded, but no user returned. Check email confirmation settings.');
-    return;
+    const user = data.user;
+    if (!user) {
+      setMsg('Sign up succeeded, but no user returned. Check email confirmation settings.');
+      return;
+    }
+    userId = user.id;
   }
 
   const { error: profileError } = await supabase.from('profiles').upsert({
-    id: user.id,
+    id: userId,
     full_name: fullName,
     role: 'mentor',
     bio: expertise,
+    photo_url: (isOAuth && oauthAvatar) ? oauthAvatar : null,
     approval_status: 'pending',
   });
 
@@ -114,8 +143,9 @@ export default function SignUpMentor() {
   }
 
   // Insert an application row so admins have context for the review
+  const effectiveEmail = isOAuth ? (oauthEmail ?? '') : email;
   const { error: appError } = await supabase.from('applications').insert({
-    user_email: email,
+    user_email: effectiveEmail,
     user_type: 'mentor',
     name: fullName,
     reason: expertise,
@@ -125,8 +155,9 @@ export default function SignUpMentor() {
     console.warn('Failed to insert application row', appError);
   }
 
-  // If they picked an avatar, upload it and update photo_url.
-  if (avatarUri) {
+  // If they picked / changed an avatar (local file), upload it.
+  // Skip upload for OAuth URLs (they're already remote).
+  if (avatarUri && !avatarUri.startsWith('http')) {
     try {
       await uploadProfilePhoto(avatarUri);
     } catch (e) {
@@ -135,7 +166,7 @@ export default function SignUpMentor() {
   }
 
   try {
-    await initializeNotificationsForUser(user.id);
+    await initializeNotificationsForUser(userId);
   } catch (notificationError) {
     console.warn('Failed to initialize push notifications after sign-up', notificationError);
   }
@@ -188,64 +219,69 @@ export default function SignUpMentor() {
             value={fullName}
           />
 
-          <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>EMAIL</ThemedText>
-          <TextInput
-            placeholder="Email"
-            autoCapitalize="none"
-            keyboardType="email-address"
-            style={[styles.input, { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text }]}
-            placeholderTextColor={theme.placeholder}
-            onChangeText={setEmail}
-            value={email}
-          />
-
-          <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>PASSWORD</ThemedText>
-          <View style={styles.passwordField}>
-            <TextInput
-              placeholder="Password"
-              secureTextEntry={!showPassword}
-              style={[styles.input, styles.passwordInput, { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text }]}
-              placeholderTextColor={theme.placeholder}
-              onChangeText={setPassword}
-              value={password}
-            />
-            <TouchableOpacity
-              style={styles.passwordToggle}
-              onPress={() => setShowPassword((prev) => !prev)}
-            >
-              <IconSymbol
-                name={showPassword ? 'eye.slash' : 'eye'}
-                size={20}
-                color="#333f5c"
+          {/* Hide email & password fields for OAuth users — they're already authenticated */}
+          {!isOAuth && (
+            <>
+              <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>EMAIL</ThemedText>
+              <TextInput
+                placeholder="Email"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                style={[styles.input, { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text }]}
+                placeholderTextColor={theme.placeholder}
+                onChangeText={setEmail}
+                value={email}
               />
-            </TouchableOpacity>
-          </View>
 
-          <ThemedText
-            style={[styles.labelText, font('GlacialIndifference', '400')]}
-          >
-            CONFIRM PASSWORD
-          </ThemedText>
-          <View style={styles.passwordField}>
-            <TextInput
-              placeholder="Confirm password"
-              secureTextEntry={!showConfirmPassword}
-              style={[styles.input, styles.passwordInput, { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text }]}
-              placeholderTextColor={theme.placeholder}
-              onChangeText={setConfirmPassword}
-              value={confirmPassword}
-            />
-            <TouchableOpacity
-              style={styles.passwordToggle}
-              onPress={() => setShowConfirmPassword((prev) => !prev)}
-            >
-              <IconSymbol
-                name={showConfirmPassword ? 'eye.slash' : 'eye'}
-                size={20}
-                color="#333f5c"
-              />
-            </TouchableOpacity>
-          </View>
+              <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>PASSWORD</ThemedText>
+              <View style={styles.passwordField}>
+                <TextInput
+                  placeholder="Password"
+                  secureTextEntry={!showPassword}
+                  style={[styles.input, styles.passwordInput, { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text }]}
+                  placeholderTextColor={theme.placeholder}
+                  onChangeText={setPassword}
+                  value={password}
+                />
+                <TouchableOpacity
+                  style={styles.passwordToggle}
+                  onPress={() => setShowPassword((prev) => !prev)}
+                >
+                  <IconSymbol
+                    name={showPassword ? 'eye.slash' : 'eye'}
+                    size={20}
+                    color="#333f5c"
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <ThemedText
+                style={[styles.labelText, font('GlacialIndifference', '400')]}
+              >
+                CONFIRM PASSWORD
+              </ThemedText>
+              <View style={styles.passwordField}>
+                <TextInput
+                  placeholder="Confirm password"
+                  secureTextEntry={!showConfirmPassword}
+                  style={[styles.input, styles.passwordInput, { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text }]}
+                  placeholderTextColor={theme.placeholder}
+                  onChangeText={setConfirmPassword}
+                  value={confirmPassword}
+                />
+                <TouchableOpacity
+                  style={styles.passwordToggle}
+                  onPress={() => setShowConfirmPassword((prev) => !prev)}
+                >
+                  <IconSymbol
+                    name={showConfirmPassword ? 'eye.slash' : 'eye'}
+                    size={20}
+                    color="#333f5c"
+                  />
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
 
           <ThemedText
             style={[styles.labelText, font('GlacialIndifference', '400')]}
