@@ -142,8 +142,28 @@ function getFallbackRoute(eventType?: string, recipientRole?: string): string | 
   }
 }
 
+function handleNotificationResponse(response: Notifications.NotificationResponse) {
+  const data = (response.notification.request.content.data ?? {}) as Record<string, unknown>;
+  const routeData = extractRouteData(data);
+  const fallbackRoute = getFallbackRoute(routeData.eventType, routeData.recipientRole);
+  const pathname = routeData.route ?? fallbackRoute;
+  if (!pathname) return;
+
+  try {
+    router.push({
+      pathname: pathname as any,
+      params: routeData.params ?? {},
+    });
+  } catch (error) {
+    console.warn('Failed to handle notification tap routing', error);
+  }
+}
+
 export function configureNotificationDisplayBehavior() {
   if (Platform.OS === 'web') return;
+  void ensureAndroidNotificationChannel().catch((error) => {
+    console.warn('Failed to configure Android notification channel', error);
+  });
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
@@ -160,25 +180,30 @@ export function attachNotificationResponseListener(): () => void {
     return () => {};
   }
   const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-    const data = (response.notification.request.content.data ?? {}) as Record<string, unknown>;
-    const routeData = extractRouteData(data);
-    const fallbackRoute = getFallbackRoute(routeData.eventType, routeData.recipientRole);
-    const pathname = routeData.route ?? fallbackRoute;
-    if (!pathname) return;
-
-    try {
-      router.push({
-        pathname: pathname as any,
-        params: routeData.params ?? {},
-      });
-    } catch (error) {
-      console.warn('Failed to handle notification tap routing', error);
-    }
+    handleNotificationResponse(response);
   });
 
   return () => {
     subscription.remove();
   };
+}
+
+export async function handleLastNotificationResponse() {
+  if (Platform.OS === 'web') return;
+
+  try {
+    const response = await Notifications.getLastNotificationResponseAsync();
+    if (!response) return;
+    handleNotificationResponse(response);
+
+    const clearLastNotificationResponseAsync = (Notifications as any)
+      .clearLastNotificationResponseAsync as (() => Promise<void>) | undefined;
+    if (typeof clearLastNotificationResponseAsync === 'function') {
+      await clearLastNotificationResponseAsync();
+    }
+  } catch (error) {
+    console.warn('Failed to process last notification response', error);
+  }
 }
 
 export async function ensureNotificationPreferences(userId?: string): Promise<NotificationPreferences> {
@@ -247,28 +272,7 @@ export async function updateNotificationPreferences(
   return merged;
 }
 
-export async function registerPushToken(userId?: string): Promise<string | null> {
-  if (!Device.isDevice) return null;
-
-  const resolvedUserId = await resolveUserId(userId);
-  if (!resolvedUserId) return null;
-
-  await ensureAndroidNotificationChannel();
-
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
-  if (existingStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-  if (finalStatus !== 'granted') return null;
-
-  const projectId = getProjectId();
-  const tokenData = projectId
-    ? await Notifications.getExpoPushTokenAsync({ projectId })
-    : await Notifications.getExpoPushTokenAsync();
-  const token = tokenData.data;
-
+async function savePushToken(resolvedUserId: string, token: string) {
   const extendedPayload = {
     user_id: resolvedUserId,
     token,
@@ -294,8 +298,67 @@ export async function registerPushToken(userId?: string): Promise<string | null>
       console.warn('Failed to save push token', extendedError);
     }
   }
+}
+
+export async function registerPushToken(userId?: string): Promise<string | null> {
+  if (!Device.isDevice) return null;
+
+  const resolvedUserId = await resolveUserId(userId);
+  if (!resolvedUserId) return null;
+
+  await ensureAndroidNotificationChannel();
+
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
+  if (existingStatus !== 'granted') {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
+  }
+  if (finalStatus !== 'granted') return null;
+
+  let token: string;
+  try {
+    const projectId = getProjectId();
+    const tokenData = projectId
+      ? await Notifications.getExpoPushTokenAsync({ projectId })
+      : await Notifications.getExpoPushTokenAsync();
+    token = tokenData.data;
+  } catch (error) {
+    console.warn('Failed to fetch Expo push token', error);
+    return null;
+  }
+
+  await savePushToken(resolvedUserId, token);
 
   return token;
+}
+
+export function attachPushTokenListener(userId?: string): () => void {
+  if (Platform.OS === 'web') {
+    return () => {};
+  }
+
+  const addPushTokenListener = (Notifications as any).addPushTokenListener as
+    | ((listener: (token: { data: string }) => void) => { remove: () => void })
+    | undefined;
+
+  if (typeof addPushTokenListener !== 'function') {
+    return () => {};
+  }
+
+  const subscription = addPushTokenListener((token) => {
+    void (async () => {
+      const resolvedUserId = await resolveUserId(userId);
+      if (!resolvedUserId) return;
+      await savePushToken(resolvedUserId, token.data);
+    })().catch((error) => {
+      console.warn('Failed to sync refreshed push token', error);
+    });
+  });
+
+  return () => {
+    subscription.remove();
+  };
 }
 
 export async function unregisterPushToken(userId?: string): Promise<void> {

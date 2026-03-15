@@ -16,20 +16,20 @@ begin
     raise exception 'Not authenticated';
   end if;
 
-  -- Remove rows from tables that reference auth.users without CASCADE
-  delete from public.blocked_users   where blocker_id = v_me or blocked_id = v_me;
-  delete from public.peer_swipes     where swiper = v_me or swiped = v_me;
-  delete from public.peer_matches    where member_a = v_me or member_b = v_me;
-  delete from public.mentor_requests where mentee = v_me or mentor = v_me;
-  delete from public.tokens          where user_id = v_me;
-  delete from public.notification_events where recipient_user_id = v_me or actor_user_id = v_me;
-
-  -- messages & threads are ON DELETE CASCADE from auth.users via profiles,
-  -- but clean up messages sent by this user to be safe
-  delete from public.messages where sender = v_me;
-
-  -- profiles has ON DELETE CASCADE, but delete explicitly so triggers fire
-  delete from public.profiles where id = v_me;
+  -- Explicitly remove every row referencing this user so no FK can block
+  -- the final auth.users delete (some tables lack ON DELETE CASCADE).
+  delete from public.notification_deliveries where recipient_user_id = v_me;
+  delete from public.notification_events     where recipient_user_id = v_me or actor_user_id = v_me;
+  delete from public.notification_preferences where user_id = v_me;
+  delete from public.expo_push_tokens        where user_id = v_me;
+  delete from public.calendar                where mentor_id = v_me or mentee_id = v_me;
+  delete from public.blocked_users           where blocker_id = v_me or blocked_id = v_me;
+  delete from public.messages                where sender = v_me;
+  delete from public.peer_matches            where member_a = v_me or member_b = v_me;
+  delete from public.peer_swipes             where swiper = v_me or swiped = v_me;
+  delete from public.mentor_requests         where mentee = v_me or mentor = v_me;
+  delete from public.tokens                  where user_id = v_me;
+  delete from public.profiles                where id = v_me;
 
   -- Now the auth user can be removed without FK violations
   delete from auth.users where id = v_me;
