@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text } from 'react-native';
+import { Animated, Platform, Pressable, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/theme';
@@ -102,6 +102,7 @@ export function Toast({
       : variant === 'info'
         ? 'rgba(0, 80, 140, 0.95)'
         : 'rgba(200, 0, 0, 0.95)';
+  const navClearance = Platform.OS === 'android' ? 124 : 96;
 
   return (
     <Animated.View
@@ -109,7 +110,7 @@ export function Toast({
       style={[
         styles.container,
         {
-          bottom: (insets.bottom || 16) + 16,
+          bottom: Math.max(insets.bottom || 0, navClearance) + 16,
           backgroundColor,
           opacity,
           transform: [{ translateY }],

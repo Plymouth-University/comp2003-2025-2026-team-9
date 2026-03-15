@@ -7,6 +7,7 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { font } from '../../../src/lib/fonts';
+import { getLastReadAt } from '../../../src/lib/chat-read-state';
 import { acceptSession, declineSession } from '../../../src/lib/sessions';
 import { supabase } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
@@ -25,8 +26,10 @@ type MentorChatItem = {
   otherUserId: string;
   name: string;
   photoUrl: string | null;
+  lastMessageSender: string | null;
   lastMessage: string | null;
   lastMessageAt: string | null;
+  unread: boolean;
 };
 
 export default function MentorConnectionsScreen() {
@@ -124,11 +127,11 @@ export default function MentorConnectionsScreen() {
           new Set(requests.map((r: any) => r.thread_id).filter((id: number | null): id is number => id != null)),
         );
 
-        let lastByThread: Record<number, { body: string; inserted_at: string }> = {};
+        let lastByThread: Record<number, { sender: string | null; body: string; inserted_at: string }> = {};
         if (threadIds.length > 0) {
           const { data: msgs, error: msgError } = await supabase
             .from('messages')
-            .select('id, thread_id, body, inserted_at')
+            .select('id, thread_id, sender, body, inserted_at')
             .in('thread_id', threadIds)
             .order('inserted_at', { ascending: false });
 
@@ -137,6 +140,7 @@ export default function MentorConnectionsScreen() {
           (msgs ?? []).forEach((m: any) => {
             if (!lastByThread[m.thread_id]) {
               lastByThread[m.thread_id] = {
+                sender: m.sender ?? null,
                 body: m.body,
                 inserted_at: m.inserted_at,
               };
@@ -144,19 +148,31 @@ export default function MentorConnectionsScreen() {
           });
         }
 
-        const chatItems: MentorChatItem[] = (requests ?? []).map((r: any) => {
+        const chatItemsUnsorted: MentorChatItem[] = await Promise.all((requests ?? []).map(async (r: any) => {
           const profile = profileMap[r.mentee] ?? { name: 'Mentee', photoUrl: null };
           const last = r.thread_id ? lastByThread[r.thread_id] : undefined;
+          const lastReadAt = r.thread_id ? await getLastReadAt(r.thread_id) : null;
+          const unread = !!(
+            r.thread_id &&
+            last?.inserted_at &&
+            last?.sender &&
+            last.sender !== user.id &&
+            (!lastReadAt || new Date(last.inserted_at).getTime() > new Date(lastReadAt).getTime())
+          );
           return {
             requestId: r.id,
             threadId: r.thread_id!,
             otherUserId: r.mentee,
             name: profile.name,
             photoUrl: profile.photoUrl,
+            lastMessageSender: last?.sender ?? null,
             lastMessage: last?.body ?? null,
             lastMessageAt: last?.inserted_at ?? null,
+            unread,
           };
-        }).sort((a, b) => {
+        }));
+
+        const chatItems = chatItemsUnsorted.sort((a, b) => {
           const ta = a.lastMessageAt ?? '';
           const tb = b.lastMessageAt ?? '';
           return ta < tb ? 1 : ta > tb ? -1 : 0;
@@ -334,7 +350,7 @@ export default function MentorConnectionsScreen() {
                 lastMessage={item.lastMessage ?? 'New mentorship request'}
                 time={item.lastMessageAt ? new Date(item.lastMessageAt).toLocaleTimeString() : ''}
                 photoUrl={item.photoUrl}
-                unread={false}
+                unread={item.unread}
                 theme={theme}
                 onPress={() => openChat(item)}
               />

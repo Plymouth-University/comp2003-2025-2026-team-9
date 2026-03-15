@@ -4,13 +4,13 @@ import { router } from 'expo-router';
 import { supabase, Profile } from '../../../src/lib/supabase';
 import { Logo } from '@/components/Logo';
 import { ThemedText } from '@/components/themed-text';
-import { Toast } from '@/components/ui/Toast';
 import { BackButton } from '@/components/ui/BackButton';
 import MentorBottomNav from '../../../src/components/nav/MentorBottomNav';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
+import { showToast } from '../../../src/lib/toast';
 
 const GRID_CARD_WIDTH = 100;
 const GRID_GAP = 15;
@@ -80,7 +80,6 @@ export default function AdminPanel() {
 	const [peerMatches, setPeerMatches] = useState<MatchRow[]>([]);
 	const [sessionRequests, setSessionRequests] = useState<SessionRequestRow[]>([]);
 	const [loading, setLoading] = useState(true);
-	const [msg, setMsg] = useState<string | null>(null);
 	const [tab, setTab] = useState<Tab>('analytics');
 	const [userSearch, setUserSearch] = useState('');
 	const [roleFilter, setRoleFilter] = useState<UserRoleFilter>('all');
@@ -141,7 +140,7 @@ export default function AdminPanel() {
 			setPeerMatches((matchData ?? []) as MatchRow[]);
 			setSessionRequests((sessionData ?? []) as SessionRequestRow[]);
 		} catch (e: any) {
-			setMsg(e?.message ?? 'Failed to load profiles');
+			showToast(e?.message ?? 'Failed to load profiles', 'error');
 		} finally {
 			setLoading(false);
 		}
@@ -358,15 +357,19 @@ export default function AdminPanel() {
 	async function approveUser(userId: string) {
 		try {
 			// Update profile approval status
-			const { error } = await supabase
+			const { data, error } = await supabase
 				.from('profiles')
 				.update({ approval_status: 'approved' })
 				.eq('id', userId)
-				.select();
+				.select('id, approval_status')
+				.maybeSingle();
 
 			if (error) {
 				console.warn('Approve update error:', JSON.stringify(error));
 				throw error;
+			}
+			if (!data || data.approval_status !== 'approved') {
+				throw new Error('Approval did not update this user. Check admin permissions or RLS policies.');
 			}
 
 			// Update matching application row (best-effort)
@@ -391,24 +394,28 @@ export default function AdminPanel() {
 				if (notifError) console.warn('Failed to send approval notification', notifError);
 			});
 
-			setMsg('User approved');
+			showToast('User approved', 'success');
 			await fetchProfiles();
 		} catch (e: any) {
-			setMsg(e?.message ?? 'Failed to approve user');
+			showToast(e?.message ?? 'Failed to approve user', 'error');
 		}
 	}
 
 	async function rejectUser(userId: string) {
 		try {
-			const { error } = await supabase
+			const { data, error } = await supabase
 				.from('profiles')
 				.update({ approval_status: 'rejected' })
 				.eq('id', userId)
-				.select();
+				.select('id, approval_status')
+				.maybeSingle();
 
 			if (error) {
 				console.warn('Reject update error:', JSON.stringify(error));
 				throw error;
+			}
+			if (!data || data.approval_status !== 'rejected') {
+				throw new Error('Rejection did not update this user. Check admin permissions or RLS policies.');
 			}
 
 			const adminUser = (await supabase.auth.getUser()).data.user;
@@ -421,10 +428,10 @@ export default function AdminPanel() {
 				})
 				.eq('status', 'pending');
 
-			setMsg('User rejected');
+			showToast('User rejected', 'success');
 			await fetchProfiles();
 		} catch (e: any) {
-			setMsg(e?.message ?? 'Failed to reject user');
+			showToast(e?.message ?? 'Failed to reject user', 'error');
 		}
 	}
 
@@ -443,10 +450,10 @@ export default function AdminPanel() {
 		try {
 			const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
 			if (error) throw error;
-			setMsg('Role updated');
+			showToast('Role updated', 'success');
 			await fetchProfiles();
 		} catch (e: any) {
-			setMsg(e?.message ?? 'Failed to update role');
+			showToast(e?.message ?? 'Failed to update role', 'error');
 		}
 	}
 
@@ -454,10 +461,10 @@ export default function AdminPanel() {
 		try {
 			const { error } = await supabase.from('profiles').delete().eq('id', userId);
 			if (error) throw error;
-			setMsg('Profile deleted');
+			showToast('Profile deleted', 'success');
 			await fetchProfiles();
 		} catch (e: any) {
-			setMsg(e?.message ?? 'Failed to delete profile');
+			showToast(e?.message ?? 'Failed to delete profile', 'error');
 		}
 	}
 
@@ -974,7 +981,6 @@ export default function AdminPanel() {
 				)}
 			</View>
 
-			<Toast visible={!!msg} message={msg ?? ''} onDismiss={() => setMsg(null)} />
 			{/* include main app nav so admins can navigate like other users */}
 			<MentorBottomNav />
 		</View>
