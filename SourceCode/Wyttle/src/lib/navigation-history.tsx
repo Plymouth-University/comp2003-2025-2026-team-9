@@ -1,4 +1,4 @@
-import { usePathname, useRouter, type Href } from 'expo-router';
+import { useGlobalSearchParams, usePathname, useRouter, type Href } from 'expo-router';
 import type { PropsWithChildren } from 'react';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
@@ -24,22 +24,55 @@ const NavigationHistoryContext = createContext<NavigationHistoryContextValue | u
   undefined,
 );
 
-function isAuthOrRoot(path: string): boolean {
+function getBasePath(route: string): string {
+  return route.split('?')[0] ?? route;
+}
+
+function isAuthOrRoot(route: string): boolean {
+  const path = getBasePath(route);
   return path === '/' || path.startsWith('/(auth)/');
+}
+
+function buildRouteKey(
+  pathname: string,
+  searchParams: Record<string, string | string[] | undefined>,
+): string {
+  const params = new URLSearchParams();
+
+  Object.entries(searchParams)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .forEach(([key, value]) => {
+      if (typeof value === 'string') {
+        params.append(key, value);
+        return;
+      }
+
+      if (Array.isArray(value)) {
+        value.forEach((entry) => params.append(key, entry));
+      }
+    });
+
+  const query = params.toString();
+  return query ? `${pathname}?${query}` : pathname;
 }
 
 export function NavigationHistoryProvider({ children }: PropsWithChildren) {
   const pathname = usePathname();
+  const searchParams = useGlobalSearchParams();
   const router = useRouter();
-  const [history, setHistory] = useState<string[]>([pathname]);
+  const routeKey = useMemo(
+    () => buildRouteKey(pathname, searchParams),
+    [pathname, searchParams],
+  );
+  const [history, setHistory] = useState<string[]>([routeKey]);
 
-  // Record every distinct pathname transition in order.
+  // Record every distinct route transition, including query params.
   useEffect(() => {
     setHistory((prev) => {
-      if (prev[prev.length - 1] === pathname) return prev;
-      return [...prev, pathname];
+      if (prev[prev.length - 1] === routeKey) return prev;
+      return [...prev, routeKey];
     });
-  }, [pathname]);
+  }, [routeKey]);
 
   const goBackSmart = useCallback((): boolean => {
     if (history.length <= 1) return false;
