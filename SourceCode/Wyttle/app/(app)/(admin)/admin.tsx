@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Pressable, ActivityIndicator, Alert, Image, Dimensions, TextInput, Animated } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Pressable, ActivityIndicator, Alert, Image, Dimensions, TextInput, Animated, Modal } from 'react-native';
 import { router } from 'expo-router';
 import { supabase, Profile } from '../../../src/lib/supabase';
 import { Logo } from '@/components/Logo';
@@ -84,10 +84,12 @@ export default function AdminPanel() {
 	const [userSearch, setUserSearch] = useState('');
 	const [roleFilter, setRoleFilter] = useState<UserRoleFilter>('all');
 	const [approvalFilter, setApprovalFilter] = useState<ApprovalFilter>('all');
+	const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
 	const scrollY = useRef(new Animated.Value(0)).current;
 
 	const colorScheme = useColorScheme();
 	const theme = Colors[colorScheme ?? 'light'];
+	const surfaceColor = theme.card;
 	const insets = useSafeAreaInsets();
 	const headerBackground = colorScheme === 'dark' ? '#1b2236' : '#f4efe4';
 
@@ -484,24 +486,26 @@ export default function AdminPanel() {
 	}
 
 	function showUserActions(item: Profile) {
-		const role = getEffectiveRole(item);
-		const name = item.full_name ?? 'this user';
-		const buttons: { text: string; onPress?: () => void; style?: 'cancel' | 'destructive' | 'default' }[] = [
-			{ text: 'View Profile', onPress: () => viewProfile(item.id) },
-		];
+		setSelectedUser(item);
+	}
 
-		if (role !== 'admin') {
-			if (role === 'mentor') {
-				buttons.push({ text: 'Demote to Member', onPress: () => setRole(item.id, 'member') });
-			} else {
-				buttons.push({ text: 'Make Mentor', onPress: () => setRole(item.id, 'mentor') });
-			}
-			buttons.push({ text: 'Delete', style: 'destructive', onPress: () => confirmDelete(item.id, name) });
-		}
+	function closeUserActions() {
+		setSelectedUser(null);
+	}
 
-		buttons.push({ text: 'Cancel', style: 'cancel' });
+	function handleViewProfileFromModal(userId: string) {
+		closeUserActions();
+		viewProfile(userId);
+	}
 
-		Alert.alert(name, `Role: ${role.charAt(0).toUpperCase() + role.slice(1)}`, buttons);
+	function handleRoleChangeFromModal(userId: string, newRole: Profile['role']) {
+		closeUserActions();
+		setRole(userId, newRole);
+	}
+
+	function handleDeleteFromModal(userId: string, name?: string) {
+		closeUserActions();
+		confirmDelete(userId, name);
 	}
 
 	function roleColor(role: string | null | undefined) {
@@ -514,7 +518,7 @@ export default function AdminPanel() {
 
 	function renderPendingItem({ item }: { item: Profile }) {
 		return (
-			<View style={[styles.card, { backgroundColor: theme.surface }]}>
+			<View style={[styles.card, { backgroundColor: surfaceColor }]}>
 				<TouchableOpacity onPress={() => viewProfile(item.id)} activeOpacity={0.7}>
 					<View style={styles.cardHeader}>
 						{item.photo_url ? <Image source={{ uri: item.photo_url }} style={styles.avatar} /> : <View style={[styles.avatar, styles.avatarPlaceholder]} />}
@@ -580,7 +584,7 @@ export default function AdminPanel() {
 
 	function renderMetricCard(label: string, value: string, accent: string) {
 		return (
-			<View style={[styles.metricCard, { backgroundColor: theme.surface }]}>
+			<View style={[styles.metricCard, { backgroundColor: surfaceColor }]}>
 				<View style={[styles.metricAccent, { backgroundColor: accent }]} />
 				<Text style={[styles.metricValue, { color: theme.text }]}>{value}</Text>
 				<Text style={styles.metricLabel}>{label}</Text>
@@ -591,7 +595,7 @@ export default function AdminPanel() {
 	function renderBarChart(title: string, data: { label: string; value: number; color?: string }[], accentColor: string) {
 		const maxValue = Math.max(...data.map((item) => item.value), 1);
 		return (
-			<View style={[styles.chartCard, { backgroundColor: theme.surface }]}>
+			<View style={[styles.chartCard, { backgroundColor: surfaceColor }]}>
 				<Text style={[styles.chartTitle, { color: theme.text }]}>{title}</Text>
 				<View style={styles.barChart}>
 					{data.map((item) => (
@@ -626,7 +630,7 @@ export default function AdminPanel() {
 		let cumulativePercent = 0;
 
 		return (
-			<View style={[styles.chartCard, { backgroundColor: theme.surface }]}>
+			<View style={[styles.chartCard, { backgroundColor: surfaceColor }]}>
 				<Text style={[styles.chartTitle, { color: theme.text }]}>{title}</Text>
 				<View style={styles.donutRow}>
 					<View style={styles.donutWrap}>
@@ -849,7 +853,7 @@ export default function AdminPanel() {
 						scrollEventThrottle={16}
 						showsVerticalScrollIndicator={true}
 					>
-						<View style={[styles.filtersCard, { backgroundColor: theme.surface }]}>
+						<View style={[styles.filtersCard, { backgroundColor: surfaceColor }]}>
 							<TextInput
 								value={userSearch}
 								onChangeText={setUserSearch}
@@ -983,6 +987,98 @@ export default function AdminPanel() {
 
 			{/* include main app nav so admins can navigate like other users */}
 			<MentorBottomNav />
+
+			<Modal
+				visible={selectedUser != null}
+				transparent
+				animationType="fade"
+				onRequestClose={closeUserActions}
+			>
+				<Pressable style={styles.userModalBackdrop} onPress={closeUserActions}>
+					<Pressable
+						style={[
+							styles.userModalCard,
+							{
+								backgroundColor: surfaceColor,
+								borderColor: colorScheme === 'dark' ? '#ffffff14' : '#e4dacb',
+							},
+						]}
+						onPress={(event) => event.stopPropagation()}
+					>
+						{selectedUser ? (
+							<>
+								<View style={styles.userModalHeader}>
+									{selectedUser.photo_url ? (
+										<Image source={{ uri: selectedUser.photo_url }} style={styles.userModalAvatar} />
+									) : (
+										<View style={[styles.userModalAvatar, styles.userModalAvatarPlaceholder]}>
+											<Text style={styles.userModalAvatarText}>
+												{((selectedUser.full_name ?? 'U').charAt(0) || 'U').toUpperCase()}
+											</Text>
+										</View>
+									)}
+									<View style={styles.userModalCopy}>
+										<Text style={[styles.userModalTitle, { color: theme.text }]}>
+											{selectedUser.full_name ?? 'This user'}
+										</Text>
+										<Text style={styles.userModalSubtitle}>
+											Role: {getEffectiveRole(selectedUser).charAt(0).toUpperCase() + getEffectiveRole(selectedUser).slice(1)}
+										</Text>
+										<Text style={styles.userModalStatus}>
+											Status: {(selectedUser.approval_status ?? 'pending').charAt(0).toUpperCase() + (selectedUser.approval_status ?? 'pending').slice(1)}
+										</Text>
+									</View>
+								</View>
+
+								<View style={styles.userModalActions}>
+									<TouchableOpacity
+										style={[styles.userModalActionButton, styles.userModalPrimaryButton]}
+										onPress={() => handleViewProfileFromModal(selectedUser.id)}
+									>
+										<Text style={styles.userModalPrimaryButtonText}>View profile</Text>
+									</TouchableOpacity>
+
+									{getEffectiveRole(selectedUser) !== 'admin' ? (
+										<>
+											<TouchableOpacity
+												style={[
+													styles.userModalActionButton,
+													styles.userModalSecondaryButton,
+													{
+														backgroundColor: colorScheme === 'dark' ? '#1a2234' : '#f3ede2',
+														borderColor: colorScheme === 'dark' ? '#2a3550' : '#dfd5c3',
+													},
+												]}
+												onPress={() =>
+													handleRoleChangeFromModal(
+														selectedUser.id,
+														getEffectiveRole(selectedUser) === 'mentor' ? 'member' : 'mentor',
+													)
+												}
+											>
+												<Text style={[styles.userModalSecondaryButtonText, { color: theme.text }]}>
+													{getEffectiveRole(selectedUser) === 'mentor' ? 'Demote to member' : 'Make mentor'}
+												</Text>
+											</TouchableOpacity>
+
+											<TouchableOpacity
+												style={[styles.userModalActionButton, styles.userModalDangerButton]}
+												onPress={() => handleDeleteFromModal(selectedUser.id, selectedUser.full_name ?? undefined)}
+											>
+												<Text style={styles.userModalDangerButtonText}>Delete user</Text>
+											</TouchableOpacity>
+										</>
+									) : null}
+								</View>
+
+								<TouchableOpacity style={styles.userModalCloseButton} onPress={closeUserActions}>
+									<Text style={[styles.userModalCloseButtonText, { color: theme.text }]}>Close</Text>
+								</TouchableOpacity>
+							</>
+						) : null}
+					</Pressable>
+				</Pressable>
+			</Modal>
 		</View>
 	);
 }
@@ -1369,5 +1465,107 @@ const styles = StyleSheet.create({
 	},
 	legendLabel: {
 		fontSize: 14,
+	},
+	userModalBackdrop: {
+		flex: 1,
+		backgroundColor: 'rgba(15, 19, 30, 0.45)',
+		paddingHorizontal: 22,
+		alignItems: 'center',
+		justifyContent: 'center',
+	},
+	userModalCard: {
+		width: '100%',
+		maxWidth: 360,
+		borderRadius: 24,
+		padding: 20,
+		borderWidth: 1,
+	},
+	userModalHeader: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		marginBottom: 20,
+		paddingBottom: 14,
+		borderBottomWidth: 1,
+		borderBottomColor: 'rgba(150, 140, 108, 0.18)',
+	},
+	userModalAvatar: {
+		width: 58,
+		height: 58,
+		borderRadius: 29,
+		marginRight: 14,
+		borderWidth: 1,
+		borderColor: '#d5ccba',
+	},
+	userModalAvatarPlaceholder: {
+		backgroundColor: '#d0d0d0',
+		alignItems: 'center',
+		justifyContent: 'center',
+	},
+	userModalAvatarText: {
+		fontSize: 22,
+		fontWeight: '700',
+		color: '#333',
+	},
+	userModalCopy: {
+		flex: 1,
+	},
+	userModalTitle: {
+		fontSize: 20,
+		fontWeight: '700',
+		marginBottom: 4,
+	},
+	userModalSubtitle: {
+		fontSize: 14,
+		color: '#7d7d7d',
+		marginBottom: 2,
+	},
+	userModalStatus: {
+		fontSize: 13,
+		color: '#968c6c',
+		fontWeight: '600',
+	},
+	userModalActions: {
+		gap: 10,
+	},
+	userModalActionButton: {
+		borderRadius: 16,
+		paddingVertical: 14,
+		paddingHorizontal: 16,
+		alignItems: 'center',
+	},
+	userModalPrimaryButton: {
+		backgroundColor: '#333f5c',
+	},
+	userModalPrimaryButtonText: {
+		color: '#ffffff',
+		fontSize: 15,
+		fontWeight: '700',
+	},
+	userModalSecondaryButton: {
+		borderWidth: 1,
+	},
+	userModalSecondaryButtonText: {
+		fontSize: 15,
+		fontWeight: '700',
+	},
+	userModalDangerButton: {
+		backgroundColor: '#fbe6e3',
+		borderWidth: 1,
+		borderColor: '#efb6ae',
+	},
+	userModalDangerButtonText: {
+		color: '#b23b2a',
+		fontSize: 15,
+		fontWeight: '700',
+	},
+	userModalCloseButton: {
+		marginTop: 16,
+		alignSelf: 'center',
+		paddingHorizontal: 12,
+		paddingVertical: 8,
+	},
+	userModalCloseButtonText: {
+		fontSize: 14,
+		fontWeight: '600',
 	},
 });
