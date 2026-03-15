@@ -10,8 +10,10 @@ import 'react-native-reanimated';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
+  attachPushTokenListener,
   attachNotificationResponseListener,
   configureNotificationDisplayBehavior,
+  handleLastNotificationResponse,
   initializeNotificationsForUser,
 } from '../src/lib/notifications';
 import { NavigationHistoryProvider } from '../src/lib/navigation-history';
@@ -29,8 +31,11 @@ export default function RootLayout() {
   useEffect(() => {
     configureNotificationDisplayBehavior();
     const detachResponseListener = attachNotificationResponseListener();
+    const detachPushTokenListener = attachPushTokenListener();
 
-    (async () => {
+    void handleLastNotificationResponse();
+
+    const bootstrapNotifications = async () => {
       try {
         const { data } = await supabase.auth.getSession();
         const session = data.session;
@@ -40,10 +45,23 @@ export default function RootLayout() {
       } catch (error) {
         console.warn('Failed to initialize notifications during app bootstrap', error);
       }
-    })();
+    };
+    void bootstrapNotifications();
+
+    const {
+      data: { subscription: authSubscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const userId = session?.user?.id;
+      if (!userId) return;
+      void initializeNotificationsForUser(userId).catch((error) => {
+        console.warn('Failed to initialize notifications after auth state change', error);
+      });
+    });
 
     return () => {
       detachResponseListener();
+      detachPushTokenListener();
+      authSubscription.unsubscribe();
     };
   }, []);
   const [fontsLoaded] = useFonts({
