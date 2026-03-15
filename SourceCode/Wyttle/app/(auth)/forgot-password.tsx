@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -18,6 +19,7 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { font } from '../../src/lib/fonts';
+import { supabase } from '../../src/lib/supabase';
 import { commonStyles } from '../../src/styles/common';
 
 export default function ForgotPassword() {
@@ -28,21 +30,39 @@ export default function ForgotPassword() {
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
 
   const normalizedEmail = email.trim();
   const canSubmit = normalizedEmail.length > 0;
 
-  const handleSendResetLink = () => {
+  const handleSendResetLink = async () => {
     if (!normalizedEmail) {
       setError('Enter the email address linked to your account.');
       return;
     }
 
     setError(null);
-    setSubmitted(true);
+    setIsSending(true);
 
-    // Ready for wiring:
-    // await supabase.auth.resetPasswordForEmail(normalizedEmail, { redirectTo: '...' });
+    try {
+      const redirectTo = Linking.createURL('/(auth)/reset-password');
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo,
+      });
+
+      if (resetError) {
+        setError(resetError.message);
+        setSubmitted(false);
+        return;
+      }
+
+      setSubmitted(true);
+    } catch (sendError: any) {
+      setError(sendError?.message ?? 'Unable to send reset email right now.');
+      setSubmitted(false);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -88,7 +108,7 @@ export default function ForgotPassword() {
           >
             <Text style={[styles.cardTitle, { color: theme.text }]}>Reset your password</Text>
             <Text style={[styles.cardBody, { color: theme.placeholder }]}>
-              Enter your account email and we&apos;ll send a reset link once the backend action is connected.
+              Enter your account email and we&apos;ll send you a password reset link.
             </Text>
 
             <View style={styles.form}>
@@ -129,9 +149,9 @@ export default function ForgotPassword() {
                     },
                   ]}
                 >
-                  <Text style={[styles.infoTitle, { color: theme.text }]}>Form ready</Text>
+                  <Text style={[styles.infoTitle, { color: theme.text }]}>Email sent</Text>
                   <Text style={[styles.infoText, { color: theme.placeholder }]}>
-                    Hook this button up to your reset-password backend call and this screen is ready to go for {normalizedEmail}.
+                    If an account exists for {normalizedEmail}, a reset email has been sent. Open the link on this device to choose a new password.
                   </Text>
                 </View>
               ) : null}
@@ -146,9 +166,11 @@ export default function ForgotPassword() {
                 },
               ]}
               onPress={handleSendResetLink}
-              disabled={!canSubmit}
+              disabled={!canSubmit || isSending}
             >
-              <Text style={styles.primaryButtonText}>Send reset link</Text>
+              <Text style={styles.primaryButtonText}>
+                {isSending ? 'Sending reset link...' : 'Send reset link'}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
