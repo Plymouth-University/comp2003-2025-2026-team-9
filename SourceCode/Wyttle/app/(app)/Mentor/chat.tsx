@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   findNodeHandle,
   FlatList,
   Image,
   Keyboard,
+  Modal,
   Platform,
   StyleSheet,
   Text,
@@ -22,8 +22,10 @@ import { BackButton } from '@/components/ui/BackButton';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { playMessageSound } from '../../../src/lib/message-sound';
 import type { Profile } from '../../../src/lib/supabase';
 import { getCurrentUser, supabase } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
@@ -33,13 +35,19 @@ type Message = {
   from: 'me' | 'them';
   text: string;
   time: string;
+  replyToMessageId?: string | null;
+  replyTo?: {
+    id: string;
+    from: 'me' | 'them';
+    text: string;
+    deleted?: boolean;
+  } | null;
   deleted?: boolean;
   edited?: boolean;
 };
 
 type AppTheme = typeof Colors[keyof typeof Colors];
 
-const CLOSED_BOTTOM_OFFSET = 70;
 const GAP_ABOVE_KEYBOARD = 6;
 const EXTRA_LIST_GAP = 16;
 const SCROLL_DELAY = 80;
@@ -62,6 +70,8 @@ export default function MentorChatScreen() {
   const [meId, setMeId] = useState<string | null>(null);
   const [otherProfile, setOtherProfile] = useState<Profile | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [replyingToMessage, setReplyingToMessage] = useState<Message | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [composerHeight, setComposerHeight] = useState(72);
 
   const [screenY, setScreenY] = useState(0);
@@ -88,9 +98,10 @@ export default function MentorChatScreen() {
   const screenBottom = screenY + screenHeight;
   const keyboardVisible = keyboardTop !== null;
 
+  const closedBottomOffset = Platform.OS === 'android' ? 92 : 70;
   const composerBottom = keyboardVisible
     ? Math.max(0, screenBottom - keyboardTop + GAP_ABOVE_KEYBOARD)
-    : CLOSED_BOTTOM_OFFSET + Math.max(insets.bottom, 8);
+    : closedBottomOffset + Math.max(insets.bottom, 8);
 
   const listBottomSpacer = composerHeight + composerBottom + EXTRA_LIST_GAP;
 
@@ -122,9 +133,34 @@ export default function MentorChatScreen() {
     }
   };
 
-  const formatMessage = (m: any, currentUserId: string): Message => {
+  const formatReplyPreview = (
+    m: { id: string | number; sender: string; body: string | null; deleted_at?: string | null },
+    currentUserId: string,
+  ) => ({
+    id: String(m.id),
+    from: m.sender === currentUserId ? 'me' : 'them',
+    text: m.deleted_at ? 'Message deleted' : m.body ?? '',
+    deleted: !!m.deleted_at,
+  });
+
+  const fetchReplyPreview = useCallback(
+    async (replyToMessageId: string | number, currentUserId: string) => {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('id, sender, body, deleted_at')
+        .eq('id', replyToMessageId)
+        .maybeSingle();
+
+      if (error || !data) return null;
+      return formatReplyPreview(data, currentUserId);
+    },
+    [],
+  );
+
+  const formatMessage = (m: any, currentUserId: string, replyTo: Message['replyTo'] = null): Message => {
     const deleted = !!m.deleted_at;
     const edited = !!m.edited_at;
+    const replyToMessageId = m.reply_to_message_id ? String(m.reply_to_message_id) : null;
 
     return {
       id: String(m.id),
@@ -134,10 +170,22 @@ export default function MentorChatScreen() {
         hour: '2-digit',
         minute: '2-digit',
       }),
+      replyToMessageId,
+      replyTo,
       deleted,
       edited,
     };
   };
+
+  const hydrateMessage = useCallback(
+    async (m: any, currentUserId: string) => {
+      const replyTo = m.reply_to_message_id
+        ? await fetchReplyPreview(m.reply_to_message_id, currentUserId)
+        : null;
+      return formatMessage(m, currentUserId, replyTo);
+    },
+    [fetchReplyPreview],
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -164,7 +212,7 @@ export default function MentorChatScreen() {
 
       const { data, error } = await supabase
         .from('messages')
-        .select('id, sender, body, inserted_at, edited_at, deleted_at')
+        .select('id, sender, body, inserted_at, edited_at, deleted_at, reply_to_message_id')
         .eq('thread_id', threadId)
         .order('inserted_at', { ascending: true });
 
@@ -175,7 +223,7 @@ export default function MentorChatScreen() {
 
       if (!isMounted) return;
 
-      const mapped: Message[] = (data ?? []).map((m) => formatMessage(m, me.id));
+      const mapped: Message[] = await Promise.all((data ?? []).map((m) => hydrateMessage(m, me.id)));
       setMessages(mapped);
       isNearBottomRef.current = true;
       scrollToBottom(false, SCROLL_DELAY, true);
@@ -190,15 +238,19 @@ export default function MentorChatScreen() {
             table: 'messages',
             filter: `thread_id=eq.${threadId}`,
           },
-          (payload) => {
+          async (payload) => {
             const row = payload.new as any;
+            const hydrated = await hydrateMessage(row, me.id);
 
             setMessages((prev) => {
               const idStr = String(row.id);
               if (prev.some((m) => m.id === idStr)) return prev;
-              return [...prev, formatMessage(row, me.id)];
+              return [...prev, hydrated];
             });
 
+            if (row.sender !== me.id) {
+              playMessageSound();
+            }
             scrollToBottom(true, SCROLL_DELAY);
           }
         )
@@ -210,11 +262,12 @@ export default function MentorChatScreen() {
             table: 'messages',
             filter: `thread_id=eq.${threadId}`,
           },
-          (payload) => {
+          async (payload) => {
             const row = payload.new as any;
+            const hydrated = await hydrateMessage(row, me.id);
 
             setMessages((prev) =>
-              prev.map((m) => (m.id === String(row.id) ? formatMessage(row, me.id) : m))
+              prev.map((m) => (m.id === String(row.id) ? hydrated : m))
             );
 
             scrollToBottom(true, SCROLL_DELAY);
@@ -232,7 +285,7 @@ export default function MentorChatScreen() {
         supabase.removeChannel(channel);
       }
     };
-  }, [threadId, otherId]);
+  }, [threadId, otherId, hydrateMessage]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -297,9 +350,12 @@ export default function MentorChatScreen() {
   const handleSend = async () => {
     if (!threadId || !meId || !input.trim()) return;
 
-    const body = input.trim();
+    const trimmedInput = input.trim();
+    const body = trimmedInput;
     setInput('');
     isNearBottomRef.current = true;
+    const activeReply = replyingToMessage;
+    setReplyingToMessage(null);
 
     if (editingMessageId) {
       const { data, error } = await supabase
@@ -315,7 +371,7 @@ export default function MentorChatScreen() {
 
       if (error) {
         console.error('Failed to edit message', error);
-        setInput(body);
+        setInput(trimmedInput);
         return;
       }
 
@@ -327,70 +383,105 @@ export default function MentorChatScreen() {
       return;
     }
 
-    const { data, error } = await supabase
-      .from('messages')
-      .insert({
-        thread_id: threadId,
-        sender: meId,
-        body,
-      })
-      .select('id, sender, body, inserted_at, edited_at, deleted_at')
-      .single();
+      const { data, error } = await supabase
+        .from('messages')
+        .insert({
+          thread_id: threadId,
+          sender: meId,
+          body,
+          reply_to_message_id: activeReply ? Number(activeReply.id) : null,
+        })
+        .select('id, sender, body, inserted_at, edited_at, deleted_at, reply_to_message_id')
+        .single();
 
     if (error) {
       console.error('Failed to send message', error);
-      setInput(body);
+      setInput(trimmedInput);
+      setReplyingToMessage(activeReply);
       return;
     }
 
-    setMessages((prev) => [...prev, formatMessage(data, meId)]);
+    setMessages((prev) => [
+      ...prev,
+      formatMessage(
+        data,
+        meId,
+        activeReply
+          ? {
+              id: activeReply.id,
+              from: activeReply.from,
+              text: activeReply.text,
+              deleted: activeReply.deleted,
+            }
+          : null,
+      ),
+    ]);
     scrollToBottom(true, SCROLL_DELAY, true);
   };
 
+  const closeMessageOptions = () => setSelectedMessage(null);
+
   const handleMessageLongPress = (message: Message) => {
-    if (message.from !== 'me' || message.deleted) return;
+    if (message.deleted) return;
+    setSelectedMessage(message);
+  };
 
-    Alert.alert('Message options', undefined, [
-      {
-        text: 'Edit',
-        onPress: () => {
-          setInput(message.text);
-          setEditingMessageId(message.id);
-          isNearBottomRef.current = true;
-          scrollToBottom(false, 40, true);
-        },
-      },
-      {
-        text: 'Unsend',
-        style: 'destructive',
-        onPress: async () => {
-          if (!meId) return;
+  const handleCopyMessage = async () => {
+    if (!selectedMessage) return;
+    try {
+      await Clipboard.setStringAsync(selectedMessage.text);
+    } catch (err) {
+      console.error('Failed to copy message', err);
+    } finally {
+      closeMessageOptions();
+    }
+  };
 
-          try {
-            const { data, error } = await supabase
-              .from('messages')
-              .update({
-                body: '',
-                deleted_at: new Date().toISOString(),
-              })
-              .eq('id', message.id)
-              .select('id, sender, body, inserted_at, edited_at, deleted_at')
-              .single();
+  const handleEditMessage = () => {
+    if (!selectedMessage) return;
+    setInput(selectedMessage.text);
+    setEditingMessageId(selectedMessage.id);
+    setReplyingToMessage(null);
+    isNearBottomRef.current = true;
+    closeMessageOptions();
+    scrollToBottom(false, 40, true);
+  };
 
-            if (error) throw error;
+  const handleReplyMessage = () => {
+    if (!selectedMessage) return;
+    setReplyingToMessage(selectedMessage);
+    setEditingMessageId(null);
+    isNearBottomRef.current = true;
+    closeMessageOptions();
+    scrollToBottom(false, 40, true);
+  };
 
-            setMessages((prev) =>
-              prev.map((m) => (m.id === String(data.id) ? formatMessage(data, meId) : m))
-            );
+  const handleUnsendMessage = async () => {
+    if (!selectedMessage || !meId) return;
 
-            scrollToBottom(true, SCROLL_DELAY, true);
-          } catch (err) {
-            console.error('Failed to unsend message', err);
-          }
-        },
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .update({
+          body: '',
+          deleted_at: new Date().toISOString(),
+        })
+        .eq('id', selectedMessage.id)
+        .select('id, sender, body, inserted_at, edited_at, deleted_at')
+        .single();
+
+      if (error) throw error;
+
+      setMessages((prev) =>
+        prev.map((m) => (m.id === String(data.id) ? formatMessage(data, meId) : m))
+      );
+
+      closeMessageOptions();
+      scrollToBottom(true, SCROLL_DELAY, true);
+    } catch (err) {
+      console.error('Failed to unsend message', err);
+      closeMessageOptions();
+    }
   };
 
   const handleRootLayout = (_e: LayoutChangeEvent) => {
@@ -487,37 +578,103 @@ export default function MentorChatScreen() {
           ]}
         >
           <View style={[styles.composer, { backgroundColor: theme.card }]}>
-            <TextInput
-              style={[styles.input, { color: theme.text }]}
-              placeholder={editingMessageId ? 'Edit message...' : 'Message...'}
-              placeholderTextColor="#7f8186"
-              value={input}
-              onChangeText={setInput}
-              multiline
-              maxLength={2000}
-              returnKeyType="default"
-              textAlignVertical="top"
-              onFocus={() => {
-                isNearBottomRef.current = true;
-                measureRootInWindow();
-                scrollToBottom(false, 80, true);
-              }}
-              onContentSizeChange={handleInputContentSizeChange}
-            />
+            {replyingToMessage ? (
+              <View style={styles.replyPreview}>
+                <View style={styles.replyAccent} />
+                <View style={styles.replyTextWrap}>
+                  <Text style={[styles.replyLabel, { color: theme.text }]}>Replying to</Text>
+                  <Text numberOfLines={1} style={[styles.replySnippet, { color: theme.text }]}>
+                    {replyingToMessage.text}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setReplyingToMessage(null)}
+                  style={styles.replyDismiss}
+                >
+                  <Text style={styles.replyDismissText}>x</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
 
-            <TouchableOpacity
-              style={[styles.sendButton, { opacity: input.trim() ? 1 : 0.5 }]}
-              activeOpacity={0.8}
-              onPress={handleSend}
-              disabled={!input.trim()}
-            >
-              <Text style={styles.sendButtonText}>
-                {editingMessageId ? 'Save' : 'Send'}
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.composerRow}>
+              <TextInput
+                style={[styles.input, { color: theme.text }]}
+                placeholder={
+                  editingMessageId
+                    ? 'Edit message...'
+                    : replyingToMessage
+                      ? 'Write a reply...'
+                      : 'Message...'
+                }
+                placeholderTextColor="#7f8186"
+                value={input}
+                onChangeText={setInput}
+                multiline
+                maxLength={2000}
+                returnKeyType="default"
+                textAlignVertical="top"
+                onFocus={() => {
+                  isNearBottomRef.current = true;
+                  measureRootInWindow();
+                  scrollToBottom(false, 80, true);
+                }}
+                onContentSizeChange={handleInputContentSizeChange}
+              />
+
+              <TouchableOpacity
+                style={[styles.sendButton, { opacity: input.trim() ? 1 : 0.5 }]}
+                activeOpacity={0.8}
+                onPress={handleSend}
+                disabled={!input.trim()}
+              >
+                <Text style={styles.sendButtonText}>
+                  {editingMessageId ? 'Save' : 'Send'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </View>
+
+      <Modal
+        visible={selectedMessage !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={closeMessageOptions}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.modalOverlay}
+          onPress={closeMessageOptions}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => {}}
+            style={[styles.modalCard, { backgroundColor: theme.card }]}
+          >
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Message options</Text>
+            <TouchableOpacity style={styles.modalAction} onPress={handleCopyMessage}>
+              <Text style={[styles.modalActionText, { color: theme.text }]}>Copy</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalAction} onPress={handleReplyMessage}>
+              <Text style={[styles.modalActionText, { color: theme.text }]}>Reply</Text>
+            </TouchableOpacity>
+            {selectedMessage?.from === 'me' ? (
+              <TouchableOpacity style={styles.modalAction} onPress={handleEditMessage}>
+                <Text style={[styles.modalActionText, { color: theme.text }]}>Edit</Text>
+              </TouchableOpacity>
+            ) : null}
+            {selectedMessage?.from === 'me' ? (
+              <TouchableOpacity style={styles.modalAction} onPress={handleUnsendMessage}>
+                <Text style={[styles.modalActionText, styles.modalActionDanger]}>Unsend</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity style={styles.modalCancel} onPress={closeMessageOptions}>
+              <Text style={[styles.modalCancelText, { color: theme.text }]}>Cancel</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -531,6 +688,8 @@ type MessageBubbleProps = {
 function MessageBubble({ message, theme, onLongPress }: MessageBubbleProps) {
   const isMe = message.from === 'me';
   const timeColor = isMe ? 'rgba(255,255,255,0.72)' : '#8a8f98';
+  const replyPreviewColor = isMe ? 'rgba(255,255,255,0.18)' : '#d9dce3';
+  const replyTextColor = isMe ? 'rgba(255,255,255,0.82)' : '#5c6470';
 
   return (
     <TouchableOpacity
@@ -550,6 +709,24 @@ function MessageBubble({ message, theme, onLongPress }: MessageBubbleProps) {
           message.deleted && styles.deletedBubble,
         ]}
       >
+        {message.replyTo ? (
+          <View
+            style={[
+              styles.replyBubble,
+              { backgroundColor: replyPreviewColor },
+            ]}
+          >
+            <Text style={[styles.replyBubbleLabel, { color: replyTextColor }]}>
+              {message.replyTo.from === 'me' ? 'You' : 'Reply'}
+            </Text>
+            <Text
+              numberOfLines={2}
+              style={[styles.replyBubbleText, { color: replyTextColor }]}
+            >
+              {message.replyTo.text}
+            </Text>
+          </View>
+        ) : null}
         <Text
           style={[
             styles.bubbleText,
@@ -659,6 +836,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 19,
   },
+  replyBubble: {
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  replyBubbleLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  replyBubbleText: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
 
   metaRow: {
     marginTop: 4,
@@ -684,13 +876,53 @@ const styles = StyleSheet.create({
   },
 
   composer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'stretch',
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 24,
   },
 
+  replyPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#00000014',
+  },
+  replyAccent: {
+    width: 3,
+    alignSelf: 'stretch',
+    borderRadius: 999,
+    backgroundColor: '#968c6c',
+    marginRight: 10,
+  },
+  replyTextWrap: {
+    flex: 1,
+  },
+  replyLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  replySnippet: {
+    fontSize: 13,
+    opacity: 0.72,
+  },
+  replyDismiss: {
+    marginLeft: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  replyDismissText: {
+    fontSize: 16,
+    color: '#8a8f98',
+    fontWeight: '600',
+  },
+  composerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+  },
   input: {
     flex: 1,
     fontSize: 14,
@@ -711,6 +943,45 @@ const styles = StyleSheet.create({
   sendButtonText: {
     color: '#fff',
     fontSize: 13,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(10, 14, 24, 0.38)',
+    justifyContent: 'flex-end',
+    padding: 16,
+  },
+  modalCard: {
+    borderRadius: 24,
+    paddingTop: 10,
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+  },
+  modalTitle: {
+    fontSize: 13,
+    opacity: 0.65,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  modalAction: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#00000014',
+  },
+  modalActionText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalActionDanger: {
+    color: '#c43b3b',
+  },
+  modalCancel: {
+    paddingTop: 14,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: 16,
     fontWeight: '600',
   },
 });
