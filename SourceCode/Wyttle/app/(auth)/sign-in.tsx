@@ -21,10 +21,12 @@ import { ThemedText } from '@/components/themed-text';
 import { AuthBackButton } from '@/components/ui/AuthBackButton';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Toast } from '@/components/ui/Toast';
+import type { ToastVariant } from '@/components/ui/Toast';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { font } from '../../src/lib/fonts';
+import { listTotpFactors } from '../../src/lib/mfa';
 import { initializeNotificationsForUser } from '../../src/lib/notifications';
 
 const oauthProviders = [
@@ -53,6 +55,7 @@ export default function SignIn() {
 
   useEffect(() => {
     if (expired) {
+      setMsgVariant('error');
       setMsg('Session expired. Please sign in again.');
     }
   }, [expired]);
@@ -60,25 +63,19 @@ export default function SignIn() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [mfaCode, setMfaCode] = useState('');
+  const [pendingMfaFactorId, setPendingMfaFactorId] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [msgVariant, setMsgVariant] = useState<ToastVariant>('error');
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const [isVerifyingMfa, setIsVerifyingMfa] = useState(false);
 
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
 
-  const onSignIn = async () => {
-    setMsg(null);
-
-    // 1) Sign in with email/password
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (error) {
-      setMsg(error.message);
-      return;
-    }
-
-    // 2) Get the current user
+  const completePostSignInRouting = async () => {
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData.user) {
       setMsg(userError?.message ?? 'Could not load user after sign-in.');
@@ -121,12 +118,113 @@ export default function SignIn() {
     }
   };
 
+  const maybeRequireTwoFactor = async () => {
+    const { data: assuranceData, error: assuranceError } =
+      await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+
+    if (assuranceError) {
+      throw assuranceError;
+    }
+
+    if (assuranceData.nextLevel !== 'aal2' || assuranceData.currentLevel === 'aal2') {
+      return false;
+    }
+
+    const factors = await listTotpFactors();
+    const verifiedFactor = factors.find((factor) => String(factor.status ?? '').toLowerCase() === 'verified');
+
+    if (!verifiedFactor) {
+      throw new Error(
+        'Two-factor authentication is enabled on this account, but no verified authenticator was found. Disable and re-enable 2FA in Settings.',
+      );
+    }
+
+    setPendingMfaFactorId(verifiedFactor.id);
+    setMfaCode('');
+    setMsgVariant('success');
+    setMsg('Enter the 6-digit code from your authenticator app to finish signing in.');
+    return true;
+  };
+
+  const onSignIn = async () => {
+    setMsgVariant('error');
+    setMsg(null);
+    setIsSigningIn(true);
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        setMsg(error.message);
+        return;
+      }
+
+      const needsTwoFactor = await maybeRequireTwoFactor();
+      if (needsTwoFactor) {
+        return;
+      }
+
+      await completePostSignInRouting();
+    } catch (error: any) {
+      setMsg(error?.message ?? 'Unable to sign in right now.');
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
+  const handleVerifyTwoFactor = async () => {
+    const trimmedCode = mfaCode.trim();
+
+    if (!pendingMfaFactorId) {
+      setMsgVariant('error');
+      setMsg('No two-factor challenge is waiting to be verified.');
+      return;
+    }
+
+    if (!/^\d{6}$/.test(trimmedCode)) {
+      setMsgVariant('error');
+      setMsg('Enter the 6-digit code from your authenticator app.');
+      return;
+    }
+
+    setMsgVariant('error');
+    setMsg(null);
+    setIsVerifyingMfa(true);
+
+    try {
+      const { error } = await supabase.auth.mfa.challengeAndVerify({
+        factorId: pendingMfaFactorId,
+        code: trimmedCode,
+      });
+
+      if (error) {
+        setMsg(error.message);
+        return;
+      }
+
+      setPendingMfaFactorId(null);
+      setMfaCode('');
+      await completePostSignInRouting();
+    } catch (error: any) {
+      setMsg(error?.message ?? 'Unable to verify your authenticator code right now.');
+    } finally {
+      setIsVerifyingMfa(false);
+    }
+  };
+
+  const handleCancelTwoFactor = async () => {
+    setPendingMfaFactorId(null);
+    setMfaCode('');
+    setMsg(null);
+    await supabase.auth.signOut().catch(() => {});
+  };
+
   const handleOAuthSignIn = async (provider: 'google' | 'apple' | 'linkedin_oidc') => {
     try {
       setMsg(null);
 
       // Build the deep-link URL that Supabase will redirect back to
-      const redirectTo = Linking.createURL('/(auth)/sign-in');
+      const redirectTo = Linking.createURL('/sign-in');
 
       // signInWithOAuth with PKCE returns a URL we need to open ourselves
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -158,6 +256,11 @@ export default function SignIn() {
 
       const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
       if (exchangeError) throw exchangeError;
+
+      const needsTwoFactor = await maybeRequireTwoFactor();
+      if (needsTwoFactor) {
+        return;
+      }
 
       // Session is now active — look up the user's profile and route them
       const { data: userData, error: userError } = await supabase.auth.getUser();
@@ -285,39 +388,86 @@ export default function SignIn() {
             style={styles.forgotPasswordButton}
             onPress={() => router.push('/(auth)/forgot-password')}
           >
-            <Text style={[styles.forgotPasswordText, { color: theme.tint }]}>Forgot password?</Text>
+          <Text style={[styles.forgotPasswordText, { color: theme.tint }]}>Forgot password?</Text>
           </TouchableOpacity>
 
-          <View style={styles.spacer} />
-          <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: '#968c6c' }]}
-            onPress={onSignIn}
-          >
-            <Text style={styles.primaryButtonText}>
-              {isMentor
-                ? 'Sign in as mentor'
-                : roleParam === 'member'
-                  ? 'Sign in as member'
-                  : 'Sign in'}
-            </Text>
-          </TouchableOpacity>
+          {pendingMfaFactorId ? (
+            <>
+              <ThemedText style={[styles.labelText, font('GlacialIndifference', '400')]}>
+                AUTHENTICATOR CODE
+              </ThemedText>
+              <TextInput
+                placeholder="123456"
+                keyboardType="number-pad"
+                autoCapitalize="none"
+                autoCorrect={false}
+                maxLength={6}
+                style={[
+                  styles.input,
+                  { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text },
+                ]}
+                placeholderTextColor={theme.placeholder}
+                onChangeText={setMfaCode}
+                value={mfaCode}
+              />
 
-          <View style={styles.oauthContainer}>
-            <View style={styles.oauthButtonsRow}>
-              {oauthProviders.map((provider) => (
-                <TouchableOpacity
-                  key={provider.id}
-                  style={styles.oauthButton}
-                  onPress={() => handleOAuthSignIn(provider.id)}
-                >
-                  <Image source={provider.icon} style={styles.oauthButtonIcon} resizeMode="contain" />
-                  <View style={styles.oauthButtonTextWrapper}>
-                    <Text style={styles.oauthButtonText}>Continue with {provider.label}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
+              <TouchableOpacity
+                style={[styles.primaryButton, { backgroundColor: '#968c6c' }]}
+                onPress={handleVerifyTwoFactor}
+                disabled={isVerifyingMfa}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {isVerifyingMfa ? 'Verifying code...' : 'Verify 2FA code'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.secondaryActionButton}
+                onPress={() => {
+                  void handleCancelTwoFactor();
+                }}
+                disabled={isVerifyingMfa}
+              >
+                <Text style={[styles.secondaryActionText, { color: theme.tint }]}>Cancel</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <View style={styles.spacer} />
+              <TouchableOpacity
+                style={[styles.primaryButton, { backgroundColor: '#968c6c' }]}
+                onPress={onSignIn}
+                disabled={isSigningIn}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {isSigningIn
+                    ? 'Signing in...'
+                    : isMentor
+                      ? 'Sign in as mentor'
+                      : roleParam === 'member'
+                        ? 'Sign in as member'
+                        : 'Sign in'}
+                </Text>
+              </TouchableOpacity>
+
+              <View style={styles.oauthContainer}>
+                <View style={styles.oauthButtonsRow}>
+                  {oauthProviders.map((provider) => (
+                    <TouchableOpacity
+                      key={provider.id}
+                      style={styles.oauthButton}
+                      onPress={() => handleOAuthSignIn(provider.id)}
+                    >
+                      <Image source={provider.icon} style={styles.oauthButtonIcon} resizeMode="contain" />
+                      <View style={styles.oauthButtonTextWrapper}>
+                        <Text style={styles.oauthButtonText}>Continue with {provider.label}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </>
+          )}
         </View>
 
         {/* ⬇️ New footer: Sign-up entry point */}
@@ -332,8 +482,11 @@ export default function SignIn() {
       <Toast
         visible={!!msg}
         message={msg ?? ''}
-        variant="error"
-        onDismiss={() => setMsg(null)}
+        variant={msgVariant}
+        onDismiss={() => {
+          setMsg(null);
+          setMsgVariant('error');
+        }}
       />
     </View>
   </KeyboardAvoidingView>
@@ -431,6 +584,16 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   forgotPasswordText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  secondaryActionButton: {
+    alignSelf: 'center',
+    marginTop: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  secondaryActionText: {
     fontSize: 14,
     fontWeight: '600',
   },
