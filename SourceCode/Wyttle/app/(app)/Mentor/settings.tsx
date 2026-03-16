@@ -35,16 +35,6 @@ import * as Location from 'expo-location';
 import { TextInput } from 'react-native';
 import OnboardingOverlay from '../../../src/components/OnboardingOverlay';
 import { font } from '../../../src/lib/fonts';
-import { useNavigationHistory } from '../../../src/lib/navigation-history';
-import {
-  DEFAULT_NOTIFICATION_PREFERENCES,
-  type NotificationPreferences,
-  getNotificationPreferences,
-  registerPushToken,
-  unregisterPushToken,
-  updateNotificationPreferences,
-} from '../../../src/lib/notifications';
-import { MENTOR_STEPS } from '../../../src/lib/onboarding';
 import {
   disableTotpFactor,
   enrollTotp,
@@ -54,10 +44,20 @@ import {
   type TotpEnrollment,
   verifyTotpEnrollment,
 } from '../../../src/lib/mfa';
+import { useNavigationHistory } from '../../../src/lib/navigation-history';
 import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  getNotificationPreferences,
+  type NotificationPreferences,
+  registerPushToken,
+  unregisterPushToken,
+  updateNotificationPreferences,
+} from '../../../src/lib/notifications';
+import { MENTOR_STEPS } from '../../../src/lib/onboarding';
+import {
+  type BlockedUserProfile,
   deleteMyAccount,
   fetchMyBlockedUsers,
-  type BlockedUserProfile,
   supabase,
   unblockUser,
   uploadProfilePhoto,
@@ -1288,7 +1288,7 @@ export default function MenteeSettingsScreen() {
               { marginLeft: 8 },
             ]}>Acknowledgements</ThemedText>
           </Pressable>
-          <Text style={[styles.versionText, { color: theme.placeholder }]}>Version 1.0.5</Text>
+          <Text style={[styles.versionText, { color: theme.placeholder }]}>Version 1.0.6</Text>
         </View>
       )}
       </KeyboardAwareScrollView>
