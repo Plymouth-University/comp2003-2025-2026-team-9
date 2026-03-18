@@ -35,11 +35,11 @@ const oauthProviders = [
     label: 'Google',
     icon: require('../../assets/icons/google.png'),
   },
-  {
-    id: 'apple',
-    label: 'Apple',
-    icon: require('../../assets/icons/apple.png'),
-  },
+  // {
+  //   id: 'apple',
+  //   label: 'Apple',
+  //   icon: require('../../assets/icons/apple.png'),
+  // },
   {
     id: 'linkedin_oidc',
     label: 'LinkedIn',
