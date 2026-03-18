@@ -267,6 +267,18 @@
           }
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Wyttle to access your photos so you can choose a profile picture for your account and share it with members and mentors in the app."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Wyttle to access your location while you use the app so you can quickly fill in your profile location and help other members and mentors see where you are based."
+        }
+      ],
       "expo-web-browser",
       [
         "expo-notifications",
