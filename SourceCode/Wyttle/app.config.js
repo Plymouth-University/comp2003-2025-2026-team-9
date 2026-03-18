@@ -1,5 +1,13 @@
 import 'dotenv/config';
 
+const getEnv = (name) => {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+};
+
 export default {
   expo: {
     name: 'Wyttle',
@@ -9,11 +17,11 @@ export default {
     icon: './assets/images/icon.png',
     scheme: 'wyttle',
     extra: {
-      supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
-      supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
-      dailyApiKey: process.env.DAILY_API_KEY,
-      revenueCatIosApiKey: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY,
-      revenueCatAndroidApiKey: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY,
+      supabaseUrl: getEnv('EXPO_PUBLIC_SUPABASE_URL'),
+      supabaseAnonKey: getEnv('EXPO_PUBLIC_SUPABASE_ANON_KEY'),
+      dailyApiKey: getEnv('DAILY_API_KEY'),
+      revenueCatIosApiKey: getEnv('EXPO_PUBLIC_REVENUECAT_IOS_API_KEY'),
+      revenueCatAndroidApiKey: getEnv('EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY'),
       router: {},
       eas: {
         projectId: 'f1d6f35c-7be5-4c01-b141-78978c028ed7',
@@ -42,6 +50,9 @@ export default {
       permissions: [
         'com.android.vending.BILLING',
         'android.permission.POST_NOTIFICATIONS',
+        'android.permission.RECORD_AUDIO',
+        'android.permission.ACCESS_COARSE_LOCATION',
+        'android.permission.ACCESS_FINE_LOCATION',
       ],
     },
     web: {
@@ -65,8 +76,8 @@ export default {
       [
         'expo-image-picker',
         {
-            photosPermission: 'Wyttle uses your photo library so you can choose and upload a profile photo.',
-            cameraPermission: 'Wyttle uses your camera so you can take and upload a profile photo.',
+          photosPermission: 'Wyttle uses your photo library so you can choose and upload a profile photo.',
+          cameraPermission: 'Wyttle uses your camera so you can take and upload a profile photo.',
         },
       ],
       [
@@ -276,6 +287,13 @@ export default {
           },
         },
       ],
+      [
+        'expo-location',
+        {
+          locationWhenInUsePermission:
+            'Allow Wyttle to access your location while you use the app so you can quickly fill in your profile location and help other members and mentors see where you are based.',
+        },
+      ],
       'expo-web-browser',
       [
         'expo-notifications',
@@ -288,6 +306,10 @@ export default {
     experiments: {
       typedRoutes: true,
       reactCompiler: true,
+    },
+    platforms: ['ios', 'android', 'web'],
+    androidStatusBar: {
+      backgroundColor: '#ffffff',
     },
   },
 };

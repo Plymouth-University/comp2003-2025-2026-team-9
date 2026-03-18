@@ -29,6 +29,10 @@ const { supabaseUrl, supabaseAnonKey } = (Constants.expoConfig?.extra ?? {}) as 
   supabaseUrl: string; supabaseAnonKey: string;
 };
 
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Supabase config is missing from Expo config extra.');
+}
+
 export type Profile = {
   id: string;
   full_name: string | null;

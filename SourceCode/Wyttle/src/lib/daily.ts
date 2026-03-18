@@ -4,7 +4,7 @@ const DAILY_API_URL = 'https://api.daily.co/v1';
 
 const getDailyApiKey = (): string => {
   const key = (Constants.expoConfig?.extra as any)?.dailyApiKey;
-  if (!key) throw new Error('Daily.co API key not configured in app.json extra.dailyApiKey');
+  if (!key) throw new Error('Daily.co API key not configured in Expo config extra.dailyApiKey');
   return key;
 };
 
