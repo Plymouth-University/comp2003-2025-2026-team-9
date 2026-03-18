@@ -42,7 +42,6 @@
     "expo-symbols": "~1.0.8",
     "expo-system-ui": "~6.0.9",
     "expo-web-browser": "~15.0.10",
-    "node": "^25.8.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
@@ -67,6 +66,9 @@
     "eslint-config-expo": "~10.0.0",
     "react-native-svg-transformer": "^1.5.2",
     "typescript": "~5.9.2"
+  },
+  "engines": {
+    "node": ">=20 <23"
   },
   "private": true
 }
