@@ -63,6 +63,13 @@ export default {
         },
       ],
       [
+        'expo-image-picker',
+        {
+            photosPermission: 'Wyttle uses your photo library so you can choose and upload a profile photo.',
+            cameraPermission: 'Wyttle uses your camera so you can take and upload a profile photo.',
+        },
+      ],
+      [
         'expo-font',
         {
           fonts: [
