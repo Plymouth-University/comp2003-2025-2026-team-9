@@ -1424,7 +1424,7 @@ export default function MenteeSettingsScreen() {
               { marginLeft: 8 },
             ]}>Acknowledgements</ThemedText>
           </Pressable>
-          <Text style={[styles.versionText, { color: theme.placeholder }]}>Version 1.0.6</Text>
+          <Text style={[styles.versionText, { color: theme.placeholder }]}>Version 1.0.7</Text>
         </View>
       )}
       </KeyboardAwareScrollView>

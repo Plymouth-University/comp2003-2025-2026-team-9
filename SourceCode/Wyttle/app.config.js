@@ -12,7 +12,7 @@ export default {
   expo: {
     name: 'Wyttle',
     slug: 'Wyttle',
-    version: '1.0.6',
+    version: '1.0.7',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     scheme: 'wyttle',
@@ -31,6 +31,7 @@ export default {
     newArchEnabled: true,
     ios: {
       supportsTablet: false,
+      buildNumber: '27',
       bundleIdentifier: 'com.wyttle.wyttleapp',
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
@@ -47,6 +48,7 @@ export default {
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
       package: 'com.wyttle.wyttleapp',
+      versionCode: 27,
       permissions: [
         'com.android.vending.BILLING',
         'android.permission.POST_NOTIFICATIONS',
