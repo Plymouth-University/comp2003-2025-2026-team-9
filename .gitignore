@@ -3,3 +3,5 @@
 
 .env
 .env*.local
+SourceCode/Wyttle/commits.csv
+SourceCode/Wyttle/wyttle_gantt_grouped_from_commits.csv
