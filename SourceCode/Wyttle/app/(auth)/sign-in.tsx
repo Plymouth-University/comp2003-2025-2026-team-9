@@ -1,5 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Crypto from 'expo-crypto';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
@@ -58,6 +59,10 @@ function createNonce(length = 32) {
   globalThis.crypto.getRandomValues(values);
 
   return Array.from(values, (value) => charset[value % charset.length]).join('');
+}
+
+async function hashNonce(rawNonce: string) {
+  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, rawNonce);
 }
 
 function formatAppleName(fullName?: AppleAuthentication.AppleAuthenticationFullName | null) {
@@ -382,13 +387,14 @@ export default function SignIn() {
         throw new Error('Apple sign in is not available on this device.');
       }
 
-      const nonce = createNonce();
+      const rawNonce = createNonce();
+      const hashedNonce = await hashNonce(rawNonce);
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
-        nonce,
+        nonce: hashedNonce,
       });
 
       if (!credential.identityToken) {
@@ -398,7 +404,7 @@ export default function SignIn() {
       const { error } = await supabase.auth.signInWithIdToken({
         provider: 'apple',
         token: credential.identityToken,
-        nonce,
+        nonce: rawNonce,
       });
       if (error) throw error;
 
@@ -559,12 +565,8 @@ export default function SignIn() {
                       appleAuthAvailable ? (
                         <AppleAuthentication.AppleAuthenticationButton
                           key={provider.id}
-                          buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                          buttonStyle={
-                            colorScheme === 'dark'
-                              ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
-                              : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
-                          }
+                          buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                          buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE_OUTLINE}
                           cornerRadius={14}
                           style={styles.appleAuthButton}
                           onPress={handleAppleSignIn}
@@ -577,9 +579,7 @@ export default function SignIn() {
                         onPress={() => handleOAuthSignIn(provider.id)}
                       >
                         <Image source={provider.icon} style={styles.oauthButtonIcon} resizeMode="contain" />
-                        <View style={styles.oauthButtonTextWrapper}>
-                          <Text style={styles.oauthButtonText}>Continue with {provider.label}</Text>
-                        </View>
+                        <Text style={styles.oauthButtonText}>Continue with {provider.label}</Text>
                       </TouchableOpacity>
                     )
                   ))}
@@ -750,32 +750,27 @@ const styles = StyleSheet.create({
     width: '100%',
     flexDirection: 'row',
     borderWidth: 1,
-    borderColor: '#c6c1ae',
+    borderColor: '#1d1d1f',
     borderRadius: 14,
-    paddingVertical: 12,
+    height: 46,
     paddingHorizontal: 16,
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
     backgroundColor: '#fff',
   },
   appleAuthButton: {
     width: '100%',
-    height: 48,
+    height: 46,
   },
   oauthButtonIcon: {
-    width: 20,
-    height: 20,
-  },
-  oauthButtonTextWrapper: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 18,
+    height: 18,
   },
   oauthButtonText: {
-    color: '#333f5c',
+    color: '#1d1d1f',
     fontWeight: '600',
-    fontSize: 13,
+    fontSize: 15,
   },
   // When there is no BackButton (e.g. after logout), we reserve the
   // same vertical space so the logo/title don't jump upwards and
