@@ -12,7 +12,7 @@ export default {
   expo: {
     name: 'Wyttle',
     slug: 'Wyttle',
-    version: '1.0.7',
+    version: '1.0.8',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     scheme: 'wyttle',
@@ -31,9 +31,11 @@ export default {
     newArchEnabled: true,
     ios: {
       supportsTablet: false,
-      buildNumber: '27',
+      buildNumber: '28',
       bundleIdentifier: 'com.wyttle.wyttleapp',
+      usesAppleSignIn: true,
       infoPlist: {
+        CFBundleAllowMixedLocalizations: true,
         ITSAppUsesNonExemptEncryption: false,
       },
     },
@@ -48,7 +50,7 @@ export default {
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
       package: 'com.wyttle.wyttleapp',
-      versionCode: 27,
+      versionCode: 28,
       permissions: [
         'com.android.vending.BILLING',
         'android.permission.POST_NOTIFICATIONS',
@@ -63,6 +65,7 @@ export default {
     },
     plugins: [
       'expo-router',
+      'expo-apple-authentication',
       [
         'expo-splash-screen',
         {
@@ -78,8 +81,8 @@ export default {
       [
         'expo-image-picker',
         {
-          photosPermission: 'Wyttle uses your photo library so you can choose and upload a profile photo.',
-          cameraPermission: 'Wyttle uses your camera so you can take and upload a profile photo.',
+          photosPermission:
+            'Allow Wyttle to access your photos so you can choose a profile picture for your account and share it with members and mentors in the app.',
         },
       ],
       [

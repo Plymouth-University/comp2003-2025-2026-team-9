@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
@@ -29,23 +30,45 @@ import { font } from '../../src/lib/fonts';
 import { listTotpFactors } from '../../src/lib/mfa';
 import { initializeNotificationsForUser } from '../../src/lib/notifications';
 
+WebBrowser.maybeCompleteAuthSession();
+
 const oauthProviders = [
   {
     id: 'google',
     label: 'Google',
     icon: require('../../assets/icons/google.png'),
   },
-  // {
-  //   id: 'apple',
-  //   label: 'Apple',
-  //   icon: require('../../assets/icons/apple.png'),
-  // },
+  {
+    id: 'apple',
+    label: 'Apple',
+    icon: require('../../assets/icons/apple.png'),
+  },
   {
     id: 'linkedin_oidc',
     label: 'LinkedIn',
     icon: require('../../assets/icons/linkedin.png'),
   },
 ] as const;
+
+type OAuthProviderId = (typeof oauthProviders)[number]['id'];
+
+function createNonce(length = 32) {
+  const charset = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  const values = new Uint8Array(length);
+  globalThis.crypto.getRandomValues(values);
+
+  return Array.from(values, (value) => charset[value % charset.length]).join('');
+}
+
+function formatAppleName(fullName?: AppleAuthentication.AppleAuthenticationFullName | null) {
+  if (!fullName) return '';
+
+  return [
+    fullName.givenName,
+    fullName.middleName,
+    fullName.familyName,
+  ].filter(Boolean).join(' ').trim();
+}
 
 export default function SignIn() {
   const params = useLocalSearchParams<{ role?: string; from?: string; expired?: string }>();
@@ -70,10 +93,33 @@ export default function SignIn() {
   const [msgVariant, setMsgVariant] = useState<ToastVariant>('error');
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [isVerifyingMfa, setIsVerifyingMfa] = useState(false);
+  const [appleAuthAvailable, setAppleAuthAvailable] = useState(false);
 
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+
+    let cancelled = false;
+
+    void AppleAuthentication.isAvailableAsync()
+      .then((available) => {
+        if (!cancelled) {
+          setAppleAuthAvailable(available);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAppleAuthAvailable(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const completePostSignInRouting = async () => {
     const { data: userData, error: userError } = await supabase.auth.getUser();
@@ -115,6 +161,57 @@ export default function SignIn() {
       router.replace('/(app)/Mentor/connections'); // mentor area
     } else {
       router.replace('/(app)/Mentee/connections');    // mentee/member area
+    }
+  };
+
+  const completePostOAuthRouting = async (fallback?: { name?: string; email?: string; avatar?: string }) => {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      setMsg(userError?.message ?? 'Could not load user after sign-in.');
+      return;
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role, approval_status')
+      .eq('id', userData.user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      setMsg(profileError.message);
+      return;
+    }
+
+    if (!profile) {
+      const meta = userData.user.user_metadata ?? {};
+      const oauthParams = new URLSearchParams({
+        oauthName: String(meta.full_name ?? meta.name ?? fallback?.name ?? ''),
+        oauthEmail: String(userData.user.email ?? fallback?.email ?? ''),
+        oauthAvatar: String(meta.avatar_url ?? meta.picture ?? fallback?.avatar ?? ''),
+      }).toString();
+
+      router.replace(`/(auth)/sign-up?${oauthParams}` as any);
+      return;
+    }
+
+    const role = profile.role ?? 'member';
+    const approvalStatus = profile.approval_status ?? 'pending';
+
+    if (approvalStatus !== 'approved' && role !== 'admin') {
+      router.replace('/(auth)/pending-approval');
+      return;
+    }
+
+    try {
+      await initializeNotificationsForUser(userData.user.id);
+    } catch (notificationError) {
+      console.warn('Failed to initialize push notifications after OAuth sign-in', notificationError);
+    }
+
+    if (role === 'mentor') {
+      router.replace('/(app)/Mentor/connections');
+    } else {
+      router.replace('/(app)/Mentee/connections');
     }
   };
 
@@ -219,8 +316,9 @@ export default function SignIn() {
     await supabase.auth.signOut().catch(() => {});
   };
 
-  const handleOAuthSignIn = async (provider: 'google' | 'apple' | 'linkedin_oidc') => {
+  const handleOAuthSignIn = async (provider: Exclude<OAuthProviderId, 'apple'>) => {
     try {
+      setMsgVariant('error');
       setMsg(null);
 
       // Build the deep-link URL that Supabase will redirect back to
@@ -262,59 +360,63 @@ export default function SignIn() {
         return;
       }
 
-      // Session is now active — look up the user's profile and route them
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError || !userData.user) {
-        setMsg(userError?.message ?? 'Could not load user after sign-in.');
-        return;
-      }
-
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role, approval_status')
-        .eq('id', userData.user.id)
-        .maybeSingle();
-
-      if (profileError) {
-        setMsg(profileError.message);
-        return;
-      }
-
-      // New OAuth user — no profile yet. Send them to the role chooser
-      // with details pre-filled from their OAuth provider.
-      if (!profile) {
-        const meta = userData.user.user_metadata ?? {};
-        const oauthParams = new URLSearchParams({
-          oauthName: meta.full_name ?? meta.name ?? '',
-          oauthEmail: userData.user.email ?? '',
-          oauthAvatar: meta.avatar_url ?? meta.picture ?? '',
-        }).toString();
-
-        router.replace(`/(auth)/sign-up?${oauthParams}` as any);
-        return;
-      }
-
-      const role = profile.role ?? 'member';
-      const approvalStatus = profile.approval_status ?? 'pending';
-
-      if (approvalStatus !== 'approved' && role !== 'admin') {
-        router.replace('/(auth)/pending-approval');
-        return;
-      }
-
-      try {
-        await initializeNotificationsForUser(userData.user.id);
-      } catch (notificationError) {
-        console.warn('Failed to initialize push notifications after OAuth sign-in', notificationError);
-      }
-
-      if (role === 'mentor') {
-        router.replace('/(app)/Mentor/connections');
-      } else {
-        router.replace('/(app)/Mentee/connections');
-      }
+      await completePostOAuthRouting();
     } catch (error: any) {
       setMsg(error?.message ?? 'Unable to start social login right now.');
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    if (Platform.OS !== 'ios') {
+      setMsgVariant('error');
+      setMsg('Apple sign in is only available on iPhone and iPad.');
+      return;
+    }
+
+    try {
+      setMsgVariant('error');
+      setMsg(null);
+
+      const available = await AppleAuthentication.isAvailableAsync();
+      if (!available) {
+        throw new Error('Apple sign in is not available on this device.');
+      }
+
+      const nonce = createNonce();
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+        nonce,
+      });
+
+      if (!credential.identityToken) {
+        throw new Error('Apple sign in did not return an identity token.');
+      }
+
+      const { error } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: credential.identityToken,
+        nonce,
+      });
+      if (error) throw error;
+
+      const needsTwoFactor = await maybeRequireTwoFactor();
+      if (needsTwoFactor) {
+        return;
+      }
+
+      await completePostOAuthRouting({
+        name: formatAppleName(credential.fullName),
+        email: credential.email ?? '',
+      });
+    } catch (error: any) {
+      if (error?.code === 'ERR_REQUEST_CANCELED') {
+        return;
+      }
+
+      setMsg(error?.message ?? 'Unable to start Apple sign in right now.');
     }
   };
 
@@ -453,16 +555,33 @@ export default function SignIn() {
               <View style={styles.oauthContainer}>
                 <View style={styles.oauthButtonsRow}>
                   {oauthProviders.map((provider) => (
-                    <TouchableOpacity
-                      key={provider.id}
-                      style={styles.oauthButton}
-                      onPress={() => handleOAuthSignIn(provider.id)}
-                    >
-                      <Image source={provider.icon} style={styles.oauthButtonIcon} resizeMode="contain" />
-                      <View style={styles.oauthButtonTextWrapper}>
-                        <Text style={styles.oauthButtonText}>Continue with {provider.label}</Text>
-                      </View>
-                    </TouchableOpacity>
+                    provider.id === 'apple' ? (
+                      appleAuthAvailable ? (
+                        <AppleAuthentication.AppleAuthenticationButton
+                          key={provider.id}
+                          buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                          buttonStyle={
+                            colorScheme === 'dark'
+                              ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                              : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+                          }
+                          cornerRadius={14}
+                          style={styles.appleAuthButton}
+                          onPress={handleAppleSignIn}
+                        />
+                      ) : null
+                    ) : (
+                      <TouchableOpacity
+                        key={provider.id}
+                        style={styles.oauthButton}
+                        onPress={() => handleOAuthSignIn(provider.id)}
+                      >
+                        <Image source={provider.icon} style={styles.oauthButtonIcon} resizeMode="contain" />
+                        <View style={styles.oauthButtonTextWrapper}>
+                          <Text style={styles.oauthButtonText}>Continue with {provider.label}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    )
                   ))}
                 </View>
               </View>
@@ -637,6 +756,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     alignItems: 'center',
     backgroundColor: '#fff',
+  },
+  appleAuthButton: {
+    width: '100%',
+    height: 48,
   },
   oauthButtonIcon: {
     width: 20,
