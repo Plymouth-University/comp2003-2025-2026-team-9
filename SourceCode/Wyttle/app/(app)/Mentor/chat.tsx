@@ -192,6 +192,19 @@ export default function MentorChatScreen() {
     [fetchReplyPreview],
   );
 
+  const upsertMessage = useCallback((nextMessage: Message) => {
+    setMessages((prev) => {
+      const existingIndex = prev.findIndex((message) => message.id === nextMessage.id);
+      if (existingIndex === -1) {
+        return [...prev, nextMessage];
+      }
+
+      const updated = [...prev];
+      updated[existingIndex] = nextMessage;
+      return updated;
+    });
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
     let channel: any = null;
@@ -261,12 +274,7 @@ export default function MentorChatScreen() {
           async (payload) => {
             const row = payload.new as any;
             const hydrated = await hydrateMessage(row, me.id);
-
-            setMessages((prev) => {
-              const idStr = String(row.id);
-              if (prev.some((m) => m.id === idStr)) return prev;
-              return [...prev, hydrated];
-            });
+            upsertMessage(hydrated);
 
             if (row.sender !== me.id) {
               playMessageSound();
@@ -285,10 +293,7 @@ export default function MentorChatScreen() {
           async (payload) => {
             const row = payload.new as any;
             const hydrated = await hydrateMessage(row, me.id);
-
-            setMessages((prev) =>
-              prev.map((m) => (m.id === String(row.id) ? hydrated : m))
-            );
+            upsertMessage(hydrated);
 
             scrollToBottom(true, SCROLL_DELAY);
           }
@@ -305,7 +310,7 @@ export default function MentorChatScreen() {
         supabase.removeChannel(channel);
       }
     };
-  }, [threadId, otherId, hydrateMessage]);
+  }, [threadId, otherId, hydrateMessage, upsertMessage]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -410,9 +415,7 @@ export default function MentorChatScreen() {
       }
 
       setEditingMessageId(null);
-      setMessages((prev) =>
-        prev.map((m) => (m.id === String(data.id) ? formatMessage(data, meId) : m))
-      );
+      upsertMessage(formatMessage(data, meId));
       scrollToBottom(true, SCROLL_DELAY, true);
       return;
     }
@@ -435,8 +438,7 @@ export default function MentorChatScreen() {
       return;
     }
 
-    setMessages((prev) => [
-      ...prev,
+    upsertMessage(
       formatMessage(
         data,
         meId,
@@ -449,7 +451,7 @@ export default function MentorChatScreen() {
             }
           : null,
       ),
-    ]);
+    );
     scrollToBottom(true, SCROLL_DELAY, true);
   };
 
@@ -506,9 +508,7 @@ export default function MentorChatScreen() {
 
       if (error) throw error;
 
-      setMessages((prev) =>
-        prev.map((m) => (m.id === String(data.id) ? formatMessage(data, meId) : m))
-      );
+      upsertMessage(formatMessage(data, meId));
 
       closeMessageOptions();
       scrollToBottom(true, SCROLL_DELAY, true);

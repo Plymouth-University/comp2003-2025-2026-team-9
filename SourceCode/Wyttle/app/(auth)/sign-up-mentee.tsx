@@ -1,15 +1,13 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Image,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 import * as ImagePicker from 'expo-image-picker';
@@ -18,12 +16,13 @@ import { supabase, uploadProfilePhoto } from '../../src/lib/supabase';
 import { commonStyles } from '../../src/styles/common';
 
 import { Logo } from '@/components/Logo';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { AuthBackButton } from '@/components/ui/AuthBackButton';
 import { Toast } from '@/components/ui/Toast';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { font } from '../../src/lib/fonts';
 import { initializeNotificationsForUser } from '../../src/lib/notifications';
 
@@ -177,16 +176,16 @@ export default function SignUpMember() {
 
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={0}
-    >
-      <View style={[styles.container, { backgroundColor: theme.background, paddingBottom: insets.bottom }]}> 
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <KeyboardAwareScrollView
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 32 }]}
+          enableAutomaticScroll
+          enableOnAndroid
+          extraHeight={Platform.OS === 'ios' ? 120 : 160}
+          extraScrollHeight={Platform.OS === 'ios' ? 24 : 80}
           keyboardDismissMode="on-drag"
+          keyboardOpeningTime={0}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
@@ -281,7 +280,7 @@ export default function SignUpMember() {
           GOALS (OPTIONAL)
         </ThemedText>
         <TextInput
-          placeholder="What would you like to get out of mentoring?"
+          placeholder="What do you need help with or want to learn from peers and/or mentors?"
           style={[styles.input, styles.multilineInput, { backgroundColor: theme.card, borderColor: theme.tint, color: theme.text }]}
           placeholderTextColor={theme.placeholder}
           multiline
@@ -312,9 +311,8 @@ export default function SignUpMember() {
           variant="error"
           onDismiss={() => setMsg(null)}
         />
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
-  </KeyboardAvoidingView>
   );
 }
 
