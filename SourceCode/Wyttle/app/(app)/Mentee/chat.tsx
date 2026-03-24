@@ -87,6 +87,8 @@ export default function MenteeChatScreen() {
   const pendingScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const displayName = otherProfile?.full_name ?? fallbackName;
+  const conversationSubtitle =
+    otherProfile?.role === 'mentor' ? 'Mentor conversation' : 'Peer match conversation';
 
   const measureRootInWindow = useCallback(() => {
     const node = findNodeHandle(rootRef.current);
@@ -578,7 +580,7 @@ export default function MenteeChatScreen() {
                 {displayName}
               </Text>
               <Text style={[styles.headerSubtitle, font('GlacialIndifference', '400')]}>
-                Peer match conversation
+                {conversationSubtitle}
               </Text>
             </View>
           </TouchableOpacity>

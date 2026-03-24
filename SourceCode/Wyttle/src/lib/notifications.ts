@@ -131,8 +131,9 @@ function getFallbackRoute(eventType?: string, recipientRole?: string): string | 
     case 'mentor_request_new':
       return '/(app)/Mentor/connections';
     case 'mentor_request_scheduled':
-    case 'mentor_request_declined':
       return '/(app)/Mentee/mentor-hub';
+    case 'mentor_request_declined':
+      return '/(app)/Mentee/connections';
     case 'session_reminder_1h':
     case 'session_reminder_15m':
     case 'session_starting_now':

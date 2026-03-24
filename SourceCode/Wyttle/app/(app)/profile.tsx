@@ -10,7 +10,7 @@ import { commonStyles } from '../../src/styles/common';
 
 
 export default function Profile() {
-  const { resetHistory } = useNavigationHistory();
+  const { history, resetHistory } = useNavigationHistory();
 
   // If viewing "my profile" (this screen), redirect to the profile-view.tsx
   // so the layout and chips logic are shared. Uses router.replace to avoid adding history
@@ -20,8 +20,26 @@ export default function Profile() {
         const res = await supabase.auth.getUser();
         const user = (res as any)?.data?.user ?? null;
         if (user?.id) {
+          const previousAppRoute = [...history]
+            .reverse()
+            .find((route) => route !== '/(app)/profile' && route.startsWith('/(app)/'));
+
+          const routeFromContext = previousAppRoute?.includes('/Mentor/')
+            ? '/(app)/Mentor/profile-view'
+            : previousAppRoute?.includes('/Mentee/')
+              ? '/(app)/Mentee/profile-view'
+              : null;
+
+          if (routeFromContext) {
+            router.replace({
+              pathname: routeFromContext as any,
+              params: { userId: user.id },
+            });
+            return;
+          }
+
           try {
-            const { data: profile, error: profileError } = await supabase
+            const { data: profile } = await supabase
               .from('profiles')
               .select('role')
               .eq('id', user.id)
@@ -37,7 +55,7 @@ export default function Profile() {
               params: {userId: user.id},
             });
 
-          } catch (e) {
+          } catch {
 
             router.replace({
               pathname: '/(app)/Mentee/profile-view',
@@ -55,7 +73,7 @@ export default function Profile() {
 
     // run once
     redirectToMyProfile();
-  }, []);
+  }, [history]);
 
   const onLogout = async () => {
     try {
