@@ -119,7 +119,7 @@ export default function MentorHub() {
   const { width: screenWidth } = useWindowDimensions();
   const { registerOnHeightChange } = useMenteeBottomNavHeight();
 
-  const COLUMNS = screenWidth < 500 ? 2 : 3;
+  const COLUMNS = screenWidth < 500 ? 2 : 3; //ISSUE LINE MAYBE
 
   //Distance filter state (null = no distance filter)
   //const [selectedDistance, setSelectedDistance] = useState<number | null>(null);
