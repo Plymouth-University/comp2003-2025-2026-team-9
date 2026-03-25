@@ -143,7 +143,7 @@ export default function MenteeChatScreen() {
   const formatReplyPreview = (
     m: { id: string | number; sender: string; body: string | null; deleted_at?: string | null },
     currentUserId: string,
-  ) => ({
+  ): Message['replyTo'] => ({ //I got an ambiguous error on this line so I made it explicit. Hopefully this doesn't cause any issues
     id: String(m.id),
     from: m.sender === currentUserId ? 'me' : 'them',
     text: m.deleted_at ? 'Message deleted' : m.body ?? '',

@@ -49,6 +49,7 @@ export default {
       },
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
+      softwareKeyboardLayoutMode: 'resize',
       package: 'com.wyttle.wyttleapp',
       versionCode: 29,
       permissions: [
