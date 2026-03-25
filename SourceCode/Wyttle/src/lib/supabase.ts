@@ -53,6 +53,18 @@ export type Profile = {
   mentor_session_rate?: number | null;
 };
 
+export async function getLastPassSwipeId(): Promise<string | null> {
+  const { data, error } = await supabase.rpc('get_last_pass_swipe');
+  if (error) throw error;
+  return data ?? null;
+}
+
+export async function undoLastPassSwipeStack(): Promise<string | null> {
+  const { data, error } = await supabase.rpc('undo_last_pass_swipe_stack');
+  if (error) throw error;
+  return data ?? null;
+}
+
 export type BlockStatus = {
   blockedByMe: boolean;
   blockedByThem: boolean;
@@ -137,6 +149,15 @@ export async function swipeOnProfile(
   comment?: string
 ) {
   const user = await getCurrentUser();
+
+  if (direction === 'pass') {
+    const { error } = await supabase.rpc('record_discovery_pass', {
+      p_swiped: swipedId,
+      p_comment: comment ?? null,
+    });
+    if (error) throw error;
+    return;
+  }
 
   const { error } = await supabase.from('peer_swipes').insert({
     swiper: user.id,

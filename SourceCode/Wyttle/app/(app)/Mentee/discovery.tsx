@@ -22,6 +22,8 @@ import Animated, {
   withTiming
 } from 'react-native-reanimated';
 
+
+
 import { router, useFocusEffect } from 'expo-router';
 
 import BlockSvg from '@/assets/icons/block.svg';
@@ -35,11 +37,13 @@ import {
   blockUser,
   fetchDiscoveryProfiles,
   getCurrentUser,
+  getLastPassSwipeId,
   likeProfile,
   Profile,
   supabase,
   swipeOnProfile,
-  undoLastPassSwipe
+  undoLastPassSwipe,
+  undoLastPassSwipeStack
 } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -72,7 +76,7 @@ export default function DiscoveryStackScreen() {
   const loadProfiles = useCallback(async () => {
     setLoading(true);
     setError(null);
-    setLastPass(null);
+    //setLastPass(null);
     try {
       const data = await fetchDiscoveryProfiles(selectedDistance);
       setProfiles(data);
@@ -85,10 +89,33 @@ export default function DiscoveryStackScreen() {
     }
   }, [selectedDistance]);
 
+  const refreshLastPass = useCallback(async () => {
+    try {
+      const lastId = await getLastPassSwipeId();
+      if (!lastId) {
+        setLastPass(null);
+        return;
+      }
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, title, industry, bio, photo_url, role')
+        .eq('id', lastId)
+        .maybeSingle();
+
+      if (data) {
+        setLastPass({ profile: data as Profile, index: 0 });
+      }
+    } catch (err) {
+      console.warn('Failed to refresh last pass', err);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       loadProfiles();
-    }, [loadProfiles]),
+      void refreshLastPass();
+    }, [loadProfiles, refreshLastPass]),
   );
 
   useEffect(() => {
@@ -173,25 +200,41 @@ export default function DiscoveryStackScreen() {
   };
 
   const handleUndoLastPass = () => {
-    if (!lastPass) return;
-    void undoLastPassSwipe(lastPass.profile.id)
-      .then((ok) => {
-        if (!ok) return;
+    void undoLastPassSwipeStack()
+      .then(async (swipedId) => {
+        if (!swipedId) {
+          setLastPass(null);
+          return;
+        }
+
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, full_name, title, industry, bio, photo_url, role')
+          .eq('id', swipedId)
+          .maybeSingle();
+
+        if (!data) return;
+
+        const insertAt = Math.max(index - 1, 0);
+
         setEnterFrom('left');
         setProfiles((prev) => {
-          if (prev.some((p) => p.id === lastPass.profile.id)) return prev;
+          if (prev.some((p) => p.id === swipedId)) return prev;
           const next = [...prev];
-          const insertAt = Math.min(Math.max(lastPass.index, 0), next.length);
-          next.splice(insertAt, 0, lastPass.profile);
+          next.splice(insertAt, 0, data as Profile);
           return next;
         });
-        setIndex(lastPass.index);
+        setIndex(insertAt);
+
         setLastPass(null);
+        await refreshLastPass();
       })
       .catch((err) => {
         console.error('Failed to undo pass swipe', err);
       });
   };
+
+  
 
   const showEmpty = !loading && (profiles.length === 0 || index >= profiles.length || !current);
 
