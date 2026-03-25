@@ -541,7 +541,7 @@ export default function MentorHub() {
                     if (!isPlaceholder) {
                       router.push({
                         pathname: '/(app)/Mentee/profile-view' as any,
-                        params: { userId: (item as Mentor).id },
+                        params: { userId: (item as Mentor).id, navOrigin: 'mentor-hub' },
                       });
                     }
                   }}

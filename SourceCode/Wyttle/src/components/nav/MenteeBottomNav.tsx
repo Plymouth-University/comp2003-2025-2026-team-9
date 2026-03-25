@@ -1,4 +1,4 @@
-import { router, usePathname, type Href } from 'expo-router';
+import { router, usePathname, useGlobalSearchParams, type Href } from 'expo-router';
 import React, { JSX } from 'react';
 import { Dimensions, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +18,8 @@ type Props = {
 export default function MenteeBottomNav({ onHeightChange }: Props) {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
+  const searchParams = useGlobalSearchParams();
+  const navOrigin = typeof searchParams?.navOrigin === 'string' ? searchParams.navOrigin : null;
 
   const [navWidth, setNavWidth] = React.useState(() => Dimensions.get('window').width);
 
@@ -81,6 +83,9 @@ export default function MenteeBottomNav({ onHeightChange }: Props) {
       break;
     case 'settings':
       activeKey = 'settings';
+      break;
+    case 'profile-view':
+      activeKey = navOrigin === 'mentor-hub' ? 'mentorHub' : 'connections';
       break;
     default:
       activeKey = 'connections';
