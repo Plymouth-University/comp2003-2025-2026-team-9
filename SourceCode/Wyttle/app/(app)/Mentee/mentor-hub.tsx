@@ -101,7 +101,7 @@ const INDUSTRIES = [
   'Utilities',
 ].sort(); // Already alphabetically sorted but never know
 
-const COLUMNS = 3;
+//const COLUMNS = 3;
 const GAP = 15;
 const H_PADDING = 18;
 
@@ -118,6 +118,8 @@ export default function MentorHub() {
 
   const { width: screenWidth } = useWindowDimensions();
   const { registerOnHeightChange } = useMenteeBottomNavHeight();
+
+  const COLUMNS = screenWidth < 500 ? 2 : 3;
 
   //Distance filter state (null = no distance filter)
   //const [selectedDistance, setSelectedDistance] = useState<number | null>(null);
