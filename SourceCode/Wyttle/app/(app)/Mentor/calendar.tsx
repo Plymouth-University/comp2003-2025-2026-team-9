@@ -1,7 +1,7 @@
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, LayoutAnimation, Modal, Platform, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, UIManager, View, type TouchableOpacityProps } from 'react-native';
+import { Alert, Image, ScrollView, LayoutAnimation, Modal, Platform, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, UIManager, View, type TouchableOpacityProps, useWindowDimensions } from 'react-native';
 import { Calendar as BigCalendar, ICalendarEventBase } from 'react-native-big-calendar';
 
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
@@ -10,7 +10,6 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { supabase } from '@/src/lib/supabase';
 import { commonStyles } from '@/src/styles/common';
 import { router } from 'expo-router';
-import { Image } from 'react-native';
 
 type CalendarRow = {
   id: string;
@@ -50,6 +49,9 @@ export default function MentorCalendarScreen() {
   const calendarBg = isDark ? '#0d1117' : '#f8f9fc';
   const checkerA = isDark ? '#131a26' : '#f0f2f8';
   const checkerB = isDark ? '#0d1117' : '#f8f9fc';
+
+  const { height: windowHeight } = useWindowDimensions();
+  const calendarBlockHeight = Math.max(420, windowHeight - windowHeight * 0.27);
 
   const calendarTheme = {
     palette: {
@@ -338,31 +340,131 @@ export default function MentorCalendarScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScreenHeader title="Mentor" highlight="Calendar" />
 
-      
+      <ScrollView style={ styles.scrollSpacer } contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={true}>
+        <View style={styles.monthHeader}>
+          <Pressable
+            style={[styles.monthNav, { backgroundColor: isDark ? '#1e2636' : '#eef0f4' }]}
+            onPress={() => setVisibleStart(addDays(visibleStart, -stepDays[viewMode]))}
+          >
+            <Text style={[styles.monthNavText, { color: theme.tint }]}>‹</Text>
+          </Pressable>
 
-      <View style={styles.monthHeader}>
-        <Pressable
-          style={[styles.monthNav, { backgroundColor: isDark ? '#1e2636' : '#eef0f4' }]}
-          onPress={() => setVisibleStart(addDays(visibleStart, -stepDays[viewMode]))}
+          <Pressable onPress={() => {
+            setMonthPickerYear(visibleStart.getFullYear());
+            setMonthPickerMonth(visibleStart.getMonth());
+            setMonthPickerOpen(true);
+          }}>
+            <Text style={[styles.monthText, { color: theme.text }]}>{formatMonth(visibleStart)}</Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.monthNav, { backgroundColor: isDark ? '#1e2636' : '#eef0f4' }]}
+            onPress={() => setVisibleStart(addDays(visibleStart, stepDays[viewMode]))}
+          >
+            <Text style={[styles.monthNavText, { color: theme.tint }]}>›</Text>
+          </Pressable>
+        </View>
+
+
+    
+
+        <View
+          style={[styles.calendarWrap, { backgroundColor: calendarBg, borderColor }]}
+          onLayout={(e) => setCalendarHeight(e.nativeEvent.layout.height)}
         >
-          <Text style={[styles.monthNavText, { color: theme.tint }]}>‹</Text>
-        </Pressable>
+          <BigCalendar
+            events={events}
+            height={calendarBlockHeight}
+            mode={viewMode}
+            date={visibleStart}
+            calendarCellStyle={(date?: Date, hourRowIndex?: number) => {
+              const day = date ? date.getDay() : 0;
+              const row = hourRowIndex ?? 0;
+              const useA = (day + row) % 2 === 0;
+              return { backgroundColor: useA ? checkerA : checkerB };
+            }}
+            swipeEnabled={false}
+            showAllDayEventCell={false}
+            calendarContainerStyle={{
+              paddingRight: 18,
+              borderRightWidth: StyleSheet.hairlineWidth,
+              borderRightColor: borderColor,
+              backgroundColor: calendarBg,
+            }}
+            bodyContainerStyle={{ paddingRight: 0, marginRight: 0, backgroundColor: calendarBg }}
+            headerContainerStyle={{ height: 44, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: borderColor }}
+            headerContentStyle={{ paddingTop: 4, paddingBottom: 4 }}
+            dayHeaderStyle={{ marginTop: 0, fontSize: 12, color: isDark ? '#94a3b8' : '#64748b' }}
+            dayHeaderHighlightColor={todayHighlightColor}
+            weekDayHeaderHighlightColor={todayHighlightColor}
+            hourStyle={{ color: isDark ? '#64748b' : '#94a3b8', fontSize: 11 }}
+            theme={calendarTheme}
+            isLoading={loading}
+            eventCellTextColor={isDark ? '#e2e8f0' : '#1e293b'}
+            renderEvent={(event: CalendarEvent, touchableOpacityProps: TouchableOpacityProps) => {
+              const { key, ...restProps } = touchableOpacityProps as any;
+              return (
+                <TouchableOpacity key={key} {...restProps} style={[restProps.style, { overflow: 'hidden' }]}>
+                  <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: 10, fontWeight: '600', color: isDark ? '#e2e8f0' : '#1e293b' }}>
+                    {event.title}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }}
+            onPressEvent={(event: CalendarEvent) => {
+              if (event.type === 'block') openEditBlock(event);
+              if (event.type === 'session') openSessionDetail(event);
+            }}
+            eventCellStyle={(event: CalendarEvent) => {
+              const isBlock = event.type === 'block';
+              return {
+                backgroundColor: isBlock
+                  ? (isDark ? '#2a3346' : '#e8eaf2')
+                  : (isDark ? '#1a3a38' : '#e8f5f4'),
+                borderLeftWidth: 3,
+                borderLeftColor: isBlock ? '#6b7fff' : '#34d399',
+                borderRadius: 8,
+                padding: 4,
+                shadowColor: '#000',
+                shadowOpacity: isDark ? 0.3 : 0.08,
+                shadowRadius: 4,
+                shadowOffset: { width: 0, height: 1 },
+                elevation: 2,
+              };
+            }}
+          />
+        </View>
 
-        <Pressable onPress={() => {
-          setMonthPickerYear(visibleStart.getFullYear());
-          setMonthPickerMonth(visibleStart.getMonth());
-          setMonthPickerOpen(true);
-        }}>
-          <Text style={[styles.monthText, { color: theme.text }]}>{formatMonth(visibleStart)}</Text>
-        </Pressable>
+        
 
-        <Pressable
-          style={[styles.monthNav, { backgroundColor: isDark ? '#1e2636' : '#eef0f4' }]}
-          onPress={() => setVisibleStart(addDays(visibleStart, stepDays[viewMode]))}
-        >
-          <Text style={[styles.monthNavText, { color: theme.tint }]}>›</Text>
-        </Pressable>
-      </View>
+        <View style={styles.toolbarBelow}>
+
+          <Pressable style={[styles.addButton, { backgroundColor: theme.tint }]} onPress={openCreateBlock}>
+            <Text style={styles.addButtonText}>+ Block time</Text>
+          </Pressable>
+          
+          <View style={styles.modeSelector}>
+            {modeLabels.map(({ key, label }) => (
+              <Pressable
+                key={key}
+                style={[
+                  styles.modePill,
+                  { backgroundColor: viewMode === key ? theme.tint : (isDark ? '#1f2937' : '#e5e7eb') },
+                ]}
+                onPress={() => setViewMode(key)}
+              >
+                <Text style={[
+                  styles.modePillText,
+                  { color: viewMode === key ? '#fff' : theme.text },
+                ]}>
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+      </ScrollView>
 
       <Modal visible={monthPickerOpen} transparent animationType="fade">
         <Pressable style={styles.mpOverlay} onPress={() => setMonthPickerOpen(false)}>
@@ -438,104 +540,6 @@ export default function MentorCalendarScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-
-    
-
-      <View
-        style={[styles.calendarWrap, { backgroundColor: calendarBg, borderColor }]}
-        onLayout={(e) => setCalendarHeight(e.nativeEvent.layout.height)}
-      >
-        <BigCalendar
-          events={events}
-          height={calendarHeight || 420}
-          mode={viewMode}
-          date={visibleStart}
-          calendarCellStyle={(date?: Date, hourRowIndex?: number) => {
-            const day = date ? date.getDay() : 0;
-            const row = hourRowIndex ?? 0;
-            const useA = (day + row) % 2 === 0;
-            return { backgroundColor: useA ? checkerA : checkerB };
-          }}
-          swipeEnabled={false}
-          showAllDayEventCell={false}
-          calendarContainerStyle={{
-            paddingRight: 18,
-            borderRightWidth: StyleSheet.hairlineWidth,
-            borderRightColor: borderColor,
-            backgroundColor: calendarBg,
-          }}
-          bodyContainerStyle={{ paddingRight: 0, marginRight: 0, backgroundColor: calendarBg }}
-          headerContainerStyle={{ height: 44, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: borderColor }}
-          headerContentStyle={{ paddingTop: 4, paddingBottom: 4 }}
-          dayHeaderStyle={{ marginTop: 0, fontSize: 12, color: isDark ? '#94a3b8' : '#64748b' }}
-          dayHeaderHighlightColor={todayHighlightColor}
-          weekDayHeaderHighlightColor={todayHighlightColor}
-          hourStyle={{ color: isDark ? '#64748b' : '#94a3b8', fontSize: 11 }}
-          theme={calendarTheme}
-          isLoading={loading}
-          eventCellTextColor={isDark ? '#e2e8f0' : '#1e293b'}
-          renderEvent={(event: CalendarEvent, touchableOpacityProps: TouchableOpacityProps) => {
-            const { key, ...restProps } = touchableOpacityProps as any;
-            return (
-              <TouchableOpacity key={key} {...restProps} style={[restProps.style, { overflow: 'hidden' }]}>
-                <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: 10, fontWeight: '600', color: isDark ? '#e2e8f0' : '#1e293b' }}>
-                  {event.title}
-                </Text>
-              </TouchableOpacity>
-            );
-          }}
-          onPressEvent={(event: CalendarEvent) => {
-            if (event.type === 'block') openEditBlock(event);
-            if (event.type === 'session') openSessionDetail(event);
-          }}
-          eventCellStyle={(event: CalendarEvent) => {
-            const isBlock = event.type === 'block';
-            return {
-              backgroundColor: isBlock
-                ? (isDark ? '#2a3346' : '#e8eaf2')
-                : (isDark ? '#1a3a38' : '#e8f5f4'),
-              borderLeftWidth: 3,
-              borderLeftColor: isBlock ? '#6b7fff' : '#34d399',
-              borderRadius: 8,
-              padding: 4,
-              shadowColor: '#000',
-              shadowOpacity: isDark ? 0.3 : 0.08,
-              shadowRadius: 4,
-              shadowOffset: { width: 0, height: 1 },
-              elevation: 2,
-            };
-          }}
-        />
-      </View>
-
-      
-
-      <View style={styles.toolbarBelow}>
-
-        <Pressable style={[styles.addButton, { backgroundColor: theme.tint }]} onPress={openCreateBlock}>
-          <Text style={styles.addButtonText}>+ Block time</Text>
-        </Pressable>
-        
-        <View style={styles.modeSelector}>
-          {modeLabels.map(({ key, label }) => (
-            <Pressable
-              key={key}
-              style={[
-                styles.modePill,
-                { backgroundColor: viewMode === key ? theme.tint : (isDark ? '#1f2937' : '#e5e7eb') },
-              ]}
-              onPress={() => setViewMode(key)}
-            >
-              <Text style={[
-                styles.modePillText,
-                { color: viewMode === key ? '#fff' : theme.text },
-              ]}>
-                {label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
 
       
 
@@ -758,7 +762,16 @@ const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
     paddingHorizontal: 18,
-    paddingBottom: 130,
+    paddingBottom: 0,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 10,
+  },
+  scrollSpacer: {
+    height: 140,
   },
   calendarWrap: {
     flex: 1,

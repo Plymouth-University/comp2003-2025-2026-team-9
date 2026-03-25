@@ -153,7 +153,7 @@ function EmptyChatsDropdown({
                 photoUrl={item.photoUrl}
                 unread={item.unread}
                 theme={theme}
-                onPress={() => onOpenChat(item)}
+                onPress={onToggle}
               />
             </View>
           ))}
