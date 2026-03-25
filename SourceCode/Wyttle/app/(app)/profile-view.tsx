@@ -382,7 +382,7 @@ export default function ProfileViewScreen() {
      <View style={[styles.container]}>
       {/*
       <View style={styles.headerRow}>
-        <BackButton /> --Removed, just press navbar icon again, is identical.
+        <BackButton /> //Removed as pressing the nav-bar icon is the same. Changed this comment as it was being rendered as text node.
         
         <Text
           style={[
