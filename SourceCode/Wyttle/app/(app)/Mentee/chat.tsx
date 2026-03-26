@@ -24,7 +24,18 @@ import { BackButton } from '@/components/ui/BackButton';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import * as Clipboard from 'expo-clipboard';
-import { setLastReadAt } from '../../../src/lib/chat-read-state';
+import {
+  createMessageClientId,
+  fetchThreadMemberships,
+  getLatestIncomingMessageId,
+  getOtherParticipantMembership,
+  getOutgoingReceiptState,
+  markThreadDelivered,
+  markThreadRead,
+  sendThreadMessage,
+  type MessageReceiptState,
+  type ThreadMembership,
+} from '../../../src/lib/chat-receipts';
 import { font } from '../../../src/lib/fonts';
 import { playMessageSound } from '../../../src/lib/message-sound';
 import type { Profile } from '../../../src/lib/supabase';
@@ -33,6 +44,8 @@ import { commonStyles } from '../../../src/styles/common';
 
 type Message = {
   id: string;
+  clientId?: string | null;
+  insertedAt?: string | null;
   from: 'me' | 'them';
   text: string;
   time: string;
@@ -45,6 +58,7 @@ type Message = {
   } | null;
   deleted?: boolean;
   edited?: boolean;
+  sendState?: MessageReceiptState;
 };
 
 type AppTheme = typeof Colors[keyof typeof Colors];
@@ -70,6 +84,7 @@ export default function MenteeChatScreen() {
   const [input, setInput] = useState('');
   const [meId, setMeId] = useState<string | null>(null);
   const [otherProfile, setOtherProfile] = useState<Profile | null>(null);
+  const [threadMemberships, setThreadMemberships] = useState<ThreadMembership[]>([]);
   const [blockedNotice, setBlockedNotice] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [replyingToMessage, setReplyingToMessage] = useState<Message | null>(null);
@@ -89,6 +104,7 @@ export default function MenteeChatScreen() {
   const displayName = otherProfile?.full_name ?? fallbackName;
   const conversationSubtitle =
     otherProfile?.role === 'mentor' ? 'Mentor conversation' : 'Peer match conversation';
+  const otherMembership = getOtherParticipantMembership(threadMemberships, meId);
 
   const measureRootInWindow = useCallback(() => {
     const node = findNodeHandle(rootRef.current);
@@ -112,14 +128,14 @@ export default function MenteeChatScreen() {
 
   const listBottomSpacer = composerHeight + composerBottom + EXTRA_LIST_GAP;
 
-  const clearPendingScroll = () => {
+  const clearPendingScroll = useCallback(() => {
     if (pendingScrollTimeoutRef.current) {
       clearTimeout(pendingScrollTimeoutRef.current);
       pendingScrollTimeoutRef.current = null;
     }
-  };
+  }, []);
 
-  const scrollToBottom = (animated = true, delay = 0, force = false) => {
+  const scrollToBottom = useCallback((animated = true, delay = 0, force = false) => {
     if (!force && !isNearBottomRef.current) return;
 
     clearPendingScroll();
@@ -138,12 +154,12 @@ export default function MenteeChatScreen() {
     } else {
       run();
     }
-  };
+  }, [clearPendingScroll]);
 
   const formatReplyPreview = (
     m: { id: string | number; sender: string; body: string | null; deleted_at?: string | null },
     currentUserId: string,
-  ): Message['replyTo'] => ({ //I got an ambiguous error on this line so I made it explicit. Hopefully this doesn't cause any issues
+  ): Message['replyTo'] => ({
     id: String(m.id),
     from: m.sender === currentUserId ? 'me' : 'them',
     text: m.deleted_at ? 'Message deleted' : m.body ?? '',
@@ -171,6 +187,8 @@ export default function MenteeChatScreen() {
 
     return {
       id: String(m.id),
+      clientId: m.client_id ?? null,
+      insertedAt: m.inserted_at ?? null,
       from: m.sender === currentUserId ? 'me' : 'them',
       text: deleted ? 'Message deleted' : m.body,
       time: new Date(m.inserted_at).toLocaleTimeString([], {
@@ -181,6 +199,7 @@ export default function MenteeChatScreen() {
       replyTo,
       deleted,
       edited,
+      sendState: m.sender === currentUserId ? 'sent' : undefined,
     };
   };
 
@@ -194,9 +213,25 @@ export default function MenteeChatScreen() {
     [fetchReplyPreview],
   );
 
+  const loadThreadMembershipState = useCallback(async () => {
+    if (!threadId) return;
+
+    try {
+      const memberships = await fetchThreadMemberships(threadId);
+      setThreadMemberships(memberships);
+    } catch (error) {
+      console.warn('Failed to load thread membership state', error);
+    }
+  }, [threadId]);
+
   const upsertMessage = useCallback((nextMessage: Message) => {
     setMessages((prev) => {
-      const existingIndex = prev.findIndex((message) => message.id === nextMessage.id);
+      const existingIndex = prev.findIndex((message) => {
+        if (message.id === nextMessage.id) return true;
+        if (message.clientId && nextMessage.clientId && message.clientId === nextMessage.clientId) return true;
+        return false;
+      });
+
       if (existingIndex === -1) {
         return [...prev, nextMessage];
       }
@@ -247,7 +282,7 @@ export default function MenteeChatScreen() {
 
       const { data, error } = await supabase
         .from('messages')
-        .select('id, sender, body, inserted_at, edited_at, deleted_at, reply_to_message_id')
+        .select('id, sender, body, inserted_at, edited_at, deleted_at, reply_to_message_id, client_id')
         .eq('thread_id', threadId)
         .order('inserted_at', { ascending: true });
 
@@ -262,6 +297,16 @@ export default function MenteeChatScreen() {
       setMessages(mapped);
       isNearBottomRef.current = true;
       scrollToBottom(false, SCROLL_DELAY, true);
+      await loadThreadMembershipState();
+
+      const latestIncomingMessageId = getLatestIncomingMessageId(mapped);
+      if (latestIncomingMessageId) {
+        try {
+          await markThreadRead(threadId, latestIncomingMessageId);
+        } catch (receiptError) {
+          console.warn('Failed to mark thread read on load', receiptError);
+        }
+      }
 
       channel = supabase
         .channel(`messages-thread-${threadId}`)
@@ -280,6 +325,15 @@ export default function MenteeChatScreen() {
 
             if (row.sender !== me.id) {
               playMessageSound();
+              try {
+                if (isNearBottomRef.current) {
+                  await markThreadRead(threadId, String(row.id));
+                } else {
+                  await markThreadDelivered(threadId, String(row.id));
+                }
+              } catch (receiptError) {
+                console.warn('Failed to update message receipt state', receiptError);
+              }
             }
             scrollToBottom(true, SCROLL_DELAY);
           }
@@ -312,24 +366,61 @@ export default function MenteeChatScreen() {
         supabase.removeChannel(channel);
       }
     };
-  }, [threadId, otherId, hydrateMessage, upsertMessage]);
+  }, [clearPendingScroll, threadId, otherId, hydrateMessage, loadThreadMembershipState, scrollToBottom, upsertMessage]);
+
+  useEffect(() => {
+    if (!threadId) return;
+
+    const channel = supabase
+      .channel(`mentee-thread-memberships-${threadId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'thread_memberships',
+          filter: `thread_id=eq.${threadId}`,
+        },
+        () => {
+          void loadThreadMembershipState();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [threadId, loadThreadMembershipState]);
+
+  const markVisibleMessagesRead = useCallback(async () => {
+    if (!threadId) return;
+
+    const latestIncomingMessageId = getLatestIncomingMessageId(messages);
+    if (!latestIncomingMessageId) return;
+
+    try {
+      await markThreadRead(threadId, latestIncomingMessageId);
+    } catch (error) {
+      console.warn('Failed to mark visible messages as read', error);
+    }
+  }, [messages, threadId]);
 
   useEffect(() => {
     if (messages.length > 0) {
       scrollToBottom(false, 40, true);
     }
-  }, [messages.length, listBottomSpacer]);
+  }, [messages.length, listBottomSpacer, scrollToBottom]);
 
   useEffect(() => {
-    if (!threadId) return;
-    setLastReadAt(threadId).catch(() => {});
-  }, [threadId, messages.length]);
+    if (!threadId || messages.length === 0 || !isNearBottomRef.current) return;
+    void markVisibleMessagesRead();
+  }, [threadId, messages.length, markVisibleMessagesRead]);
 
   useEffect(() => {
     measureRootInWindow();
     const t = setTimeout(measureRootInWindow, 120);
     return () => clearTimeout(t);
-  }, [measureRootInWindow]);
+  }, [measureRootInWindow, scrollToBottom]);
 
   useEffect(() => {
     const handleKeyboardShow = (e: any) => {
@@ -386,7 +477,7 @@ export default function MenteeChatScreen() {
       hideSub.remove();
       frameSub?.remove();
     };
-  }, [measureRootInWindow]);
+  }, [measureRootInWindow, scrollToBottom]);
 
   const handleSend = async () => {
     if (!threadId || !meId || !input.trim() || blockedNotice) return;
@@ -422,39 +513,66 @@ export default function MenteeChatScreen() {
       return;
     }
 
-      const { data, error } = await supabase
-        .from('messages')
-        .insert({
-          thread_id: threadId,
-          sender: meId,
-          body,
-          reply_to_message_id: activeReply ? Number(activeReply.id) : null,
-        })
-        .select('id, sender, body, inserted_at, edited_at, deleted_at, reply_to_message_id')
-        .single();
+    const clientId = createMessageClientId();
+    const optimisticInsertedAt = new Date().toISOString();
+    const optimisticReplyPreview = activeReply
+      ? {
+          id: activeReply.id,
+          from: activeReply.from,
+          text: activeReply.text,
+          deleted: activeReply.deleted,
+        }
+      : null;
 
-    if (error) {
+    upsertMessage({
+      id: `optimistic:${clientId}`,
+      clientId,
+      insertedAt: optimisticInsertedAt,
+      from: 'me',
+      text: body,
+      time: new Date(optimisticInsertedAt).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      replyToMessageId: activeReply?.id ?? null,
+      replyTo: optimisticReplyPreview,
+      deleted: false,
+      edited: false,
+      sendState: 'sending',
+    });
+    scrollToBottom(true, SCROLL_DELAY, true);
+
+    try {
+      const data = await sendThreadMessage({
+        threadId,
+        body,
+        replyToMessageId: activeReply?.id ?? null,
+        clientId,
+      });
+
+      upsertMessage(formatMessage(data, meId, optimisticReplyPreview));
+      void loadThreadMembershipState();
+    } catch (error) {
       console.error('Failed to send message', error);
       setInput(trimmedInput);
       setReplyingToMessage(activeReply);
-      return;
+      upsertMessage({
+        id: `optimistic:${clientId}`,
+        clientId,
+        insertedAt: optimisticInsertedAt,
+        from: 'me',
+        text: body,
+        time: new Date(optimisticInsertedAt).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        replyToMessageId: activeReply?.id ?? null,
+        replyTo: optimisticReplyPreview,
+        deleted: false,
+        edited: false,
+        sendState: 'failed',
+      });
     }
-
-    upsertMessage(
-      formatMessage(
-        data,
-        meId,
-        activeReply
-          ? {
-              id: activeReply.id,
-              from: activeReply.from,
-              text: activeReply.text,
-              deleted: activeReply.deleted,
-            }
-          : null,
-      ),
-    );
-    scrollToBottom(true, SCROLL_DELAY, true);
   };
 
   const closeMessageOptions = () => setSelectedMessage(null);
@@ -532,10 +650,15 @@ export default function MenteeChatScreen() {
   };
 
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const wasNearBottom = isNearBottomRef.current;
     const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
     const distanceFromBottom =
       contentSize.height - (contentOffset.y + layoutMeasurement.height);
     isNearBottomRef.current = distanceFromBottom < NEAR_BOTTOM_THRESHOLD;
+
+    if (!wasNearBottom && isNearBottomRef.current) {
+      void markVisibleMessagesRead();
+    }
   };
 
   return (
@@ -614,6 +737,7 @@ export default function MenteeChatScreen() {
             <MessageBubble
               message={item}
               theme={theme}
+              otherMembership={otherMembership}
               onLongPress={handleMessageLongPress}
             />
           )}
@@ -740,14 +864,19 @@ export default function MenteeChatScreen() {
 type MessageBubbleProps = {
   message: Message;
   theme: AppTheme;
+  otherMembership?: Pick<ThreadMembership, 'last_delivered_message_id' | 'last_read_message_id'> | null;
   onLongPress?: (message: Message) => void;
 };
 
-function MessageBubble({ message, theme, onLongPress }: MessageBubbleProps) {
+function MessageBubble({ message, theme, otherMembership, onLongPress }: MessageBubbleProps) {
   const isMe = message.from === 'me';
   const timeColor = isMe ? 'rgba(255,255,255,0.72)' : '#8a8f98';
   const replyPreviewColor = isMe ? 'rgba(255,255,255,0.18)' : '#d9dce3';
   const replyTextColor = isMe ? 'rgba(255,255,255,0.82)' : '#5c6470';
+  const receiptState = isMe
+    ? getOutgoingReceiptState(message.id, otherMembership, message.sendState)
+    : null;
+  const receiptLabel = receiptState ? getReceiptStateLabel(receiptState) : null;
 
   return (
     <TouchableOpacity
@@ -801,11 +930,29 @@ function MessageBubble({ message, theme, onLongPress }: MessageBubbleProps) {
           {message.edited && !message.deleted ? (
             <Text style={[styles.editedText, { color: timeColor }]}>Edited</Text>
           ) : null}
+          {isMe && receiptLabel ? (
+            <Text style={[styles.receiptText, { color: timeColor }]}>{receiptLabel}</Text>
+          ) : null}
           <Text style={[styles.bubbleTime, { color: timeColor }]}>{message.time}</Text>
         </View>
       </View>
     </TouchableOpacity>
   );
+}
+
+function getReceiptStateLabel(state: MessageReceiptState) {
+  switch (state) {
+    case 'sending':
+      return 'Sending';
+    case 'delivered':
+      return 'Delivered';
+    case 'read':
+      return 'Read';
+    case 'failed':
+      return 'Failed';
+    default:
+      return 'Sent';
+  }
 }
 
 const styles = StyleSheet.create({
@@ -940,6 +1087,11 @@ const styles = StyleSheet.create({
   },
 
   editedText: {
+    fontSize: 10,
+    marginRight: 6,
+  },
+
+  receiptText: {
     fontSize: 10,
     marginRight: 6,
   },

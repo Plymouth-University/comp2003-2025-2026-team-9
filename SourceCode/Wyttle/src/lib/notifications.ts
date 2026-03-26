@@ -124,7 +124,9 @@ function getFallbackRoute(eventType?: string, recipientRole?: string): string | 
 
   switch (eventType) {
     case 'new_message':
-      return role === 'mentor' ? '/(app)/Mentor/chat' : '/(app)/Mentee/chat';
+      // Without route params, the chat screens cannot open a specific thread.
+      // Land on connections so the unread conversation is still reachable.
+      return role === 'mentor' ? '/(app)/Mentor/connections' : '/(app)/Mentee/connections';
     case 'incoming_like':
     case 'mutual_connection':
       return role === 'mentor' ? '/(app)/Mentor/connections' : '/(app)/Mentee/connections';

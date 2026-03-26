@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { sendThreadMessage } from './chat-receipts';
 import { createDailyRoom } from './daily';
 
 const SESSION_DURATION_MINUTES = 30;
@@ -69,6 +70,8 @@ export async function requestSession(
     .select('id')
     .single();
   if (reqErr || !req) throw new Error(reqErr?.message ?? 'Failed to create session request');
+
+  await seedSessionRequestMessage(thread.id, description);
 
   return { requestId: req.id, threadId: thread.id };
 }
@@ -213,4 +216,21 @@ async function refundTokens(menteeId: string, amount: number): Promise<void> {
     .update({ tokens_balance: current + amount })
     .eq('id', menteeId);
   if (error) console.error('Failed to refund tokens', error);
+}
+
+export async function seedSessionRequestMessage(
+  threadId: number,
+  description: string,
+): Promise<void> {
+  const body = description.trim();
+  if (!body) return;
+
+  try {
+    await sendThreadMessage({
+      threadId,
+      body,
+    });
+  } catch (error) {
+    console.warn('Failed to seed initial session message', error);
+  }
 }

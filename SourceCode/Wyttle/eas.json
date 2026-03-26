@@ -24,6 +24,12 @@
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_yHKdhPpSapIfDmCxttrlDNqMJcE",
         "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_djydSEqGgwdevzrJyAlnHTZPPdy"
       }
+    },
+    "production-local-signing": {
+      "extends": "production",
+      "ios": {
+        "credentialsSource": "local"
+      }
     }
   },
   "submit": {

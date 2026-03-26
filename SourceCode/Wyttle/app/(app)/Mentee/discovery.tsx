@@ -31,12 +31,12 @@ import { ThemedText } from '@/components/themed-text';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { sendThreadMessage } from '../../../src/lib/chat-receipts';
 import { font } from '../../../src/lib/fonts';
 import { subscribeToDiscoveryRefresh } from '../../../src/lib/discovery-refresh';
 import {
   blockUser,
   fetchDiscoveryProfiles,
-  getCurrentUser,
   getLastPassSwipeId,
   likeProfile,
   Profile,
@@ -257,13 +257,10 @@ export default function DiscoveryStackScreen() {
 
       const text = matchIntro.trim();
       if (text.length > 0) {
-        const me = await getCurrentUser();
-        const { error: msgError } = await supabase.from('messages').insert({
-          thread_id: threadId,
-          sender: me.id,
+        await sendThreadMessage({
+          threadId,
           body: text,
         });
-        if (msgError) throw msgError;
       }
 
       const name = matchModalProfile.full_name ?? 'Peer';

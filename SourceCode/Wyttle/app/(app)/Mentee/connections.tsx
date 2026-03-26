@@ -17,8 +17,12 @@ import { ThemedText } from '@/components/themed-text';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import {
+  fetchUserThreadMembershipMap,
+  hasCursorReachedMessage,
+  markThreadDelivered,
+} from '../../../src/lib/chat-receipts';
 import { font } from '../../../src/lib/fonts';
-import { getLastReadAt } from '../../../src/lib/chat-read-state';
 import { fetchBlockedUserIds, supabase } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 
@@ -344,7 +348,7 @@ export default function MenteeConnectionsScreen() {
       );
 
       const threadIds = chatsResultUnsorted.map((chat) => chat.threadId);
-      let lastByThread: Record<number, { sender: string | null; body: string; inserted_at: string }> = {};
+      let lastByThread: Record<number, { id: string; sender: string | null; body: string; inserted_at: string }> = {};
 
       if (threadIds.length > 0) {
         const { data: messages, error: messageError } = await supabase
@@ -358,6 +362,7 @@ export default function MenteeConnectionsScreen() {
         (messages ?? []).forEach((message: any) => {
           if (!lastByThread[message.thread_id]) {
             lastByThread[message.thread_id] = {
+              id: String(message.id),
               sender: message.sender ?? null,
               body: message.body,
               inserted_at: message.inserted_at,
@@ -366,26 +371,46 @@ export default function MenteeConnectionsScreen() {
         });
       }
 
-      const chatsWithMessages = await Promise.all(
-        chatsResultUnsorted.map(async (chat) => {
-          const last = lastByThread[chat.threadId];
-          const lastReadAt = await getLastReadAt(chat.threadId);
-          const unread = !!(
-            last?.inserted_at &&
-            last?.sender &&
-            last.sender !== user.id &&
-            (!lastReadAt || new Date(last.inserted_at).getTime() > new Date(lastReadAt).getTime())
-          );
+      const membershipMap =
+        threadIds.length > 0 ? await fetchUserThreadMembershipMap(threadIds, user.id) : {};
 
-          return {
-            ...chat,
-            lastMessageSender: last?.sender ?? null,
-            lastMessage: last?.body ?? null,
-            lastMessageAt: last?.inserted_at ?? null,
-            unread,
-          };
-        }),
-      );
+      const chatsWithMessages = chatsResultUnsorted.map((chat) => {
+        const last = lastByThread[chat.threadId];
+        const membership = membershipMap[chat.threadId];
+        const unread = !!(
+          last?.id &&
+          last?.sender &&
+          last.sender !== user.id &&
+          !hasCursorReachedMessage(membership?.last_read_message_id, last.id)
+        );
+
+        return {
+          ...chat,
+          lastMessageSender: last?.sender ?? null,
+          lastMessage: last?.body ?? null,
+          lastMessageAt: last?.inserted_at ?? null,
+          unread,
+        };
+      });
+
+      const deliveredUpdates = chatsResultUnsorted.flatMap((chat) => {
+        const last = lastByThread[chat.threadId];
+        const membership = membershipMap[chat.threadId];
+
+        if (!last?.id || !last.sender || last.sender === user.id) {
+          return [];
+        }
+
+        if (hasCursorReachedMessage(membership?.last_delivered_message_id, last.id)) {
+          return [];
+        }
+
+        return [markThreadDelivered(chat.threadId, last.id)];
+      });
+
+      if (deliveredUpdates.length > 0) {
+        await Promise.allSettled(deliveredUpdates);
+      }
 
       const collapsedChats = collapseMentorshipChats(chatsWithMessages);
 

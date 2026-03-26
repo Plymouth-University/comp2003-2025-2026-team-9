@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { font } from '../../src/lib/fonts';
+import { seedSessionRequestMessage } from '../../src/lib/sessions';
 import type { Profile } from '../../src/lib/supabase';
 import {
   blockUser,
@@ -318,6 +319,8 @@ export default function ProfileViewScreen() {
         setBookingLoading(false);
         return;
       }
+
+      await seedSessionRequestMessage(thread.id, bookingDescription);
 
       // Calendar entry + video link are created when the mentor accepts
 

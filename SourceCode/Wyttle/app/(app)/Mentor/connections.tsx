@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Image,
   Platform,
@@ -18,10 +19,17 @@ import { ThemedText } from '@/components/themed-text';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import {
+  fetchUserThreadMembershipMap,
+  hasCursorReachedMessage,
+  markThreadDelivered,
+} from '../../../src/lib/chat-receipts';
 import { font } from '../../../src/lib/fonts';
-import { getLastReadAt } from '../../../src/lib/chat-read-state';
+import { acceptSession, declineSession } from '../../../src/lib/sessions';
 import { fetchBlockedUserIds, supabase } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
+
+type MentorRequestStatus = 'requested' | 'scheduled' | 'cancelled' | 'done' | null;
 
 type MentorChatItem = {
   requestId: number;
@@ -33,6 +41,9 @@ type MentorChatItem = {
   lastMessage: string | null;
   lastMessageAt: string | null;
   proposedAt: string | null;
+  scheduledStart: string | null;
+  description: string | null;
+  status: MentorRequestStatus;
   unread: boolean;
 };
 
@@ -100,7 +111,7 @@ function EmptyChatsDropdown({
         <View style={styles.pendingToggleTextBlock}>
           <View style={styles.pendingToggleTitleRow}>
             <ThemedText style={[styles.sectionTitle, styles.pendingToggleTitle, font('GlacialIndifference', '800')]}>
-              New Mentorship Requests
+              No Messages Yet
             </ThemedText>
             <View style={styles.pendingBadge}>
               <Text style={styles.pendingBadgeText}>{emptyChats.length}</Text>
@@ -133,8 +144,8 @@ function EmptyChatsDropdown({
               <ConversationRow
                 name={item.name}
                 role="Mentee"
-                lastMessage="New mentorship request"
-                time={formatChatTimestamp(item.proposedAt)}
+                lastMessage={getFallbackChatPreview(item)}
+                time={formatChatTimestamp(item.lastMessageAt ?? item.scheduledStart ?? item.proposedAt)}
                 photoUrl={item.photoUrl}
                 unread={item.unread}
                 theme={theme}
@@ -162,8 +173,8 @@ function EmptyChatsDropdown({
                 <ConversationRow
                   name={item.name}
                   role="Mentee"
-                  lastMessage="New mentorship request"
-                  time={formatChatTimestamp(item.proposedAt)}
+                  lastMessage={getFallbackChatPreview(item)}
+                  time={formatChatTimestamp(item.lastMessageAt ?? item.scheduledStart ?? item.proposedAt)}
                   photoUrl={item.photoUrl}
                   unread={item.unread}
                   theme={theme}
@@ -187,6 +198,7 @@ export default function MentorConnectionsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [chatFilter, setChatFilter] = useState<ChatFilter>('all');
   const [emptyChatsExpanded, setEmptyChatsExpanded] = useState(false);
+  const [requestActionId, setRequestActionId] = useState<number | null>(null);
 
   useEffect(() => {
     if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -212,7 +224,7 @@ export default function MentorConnectionsScreen() {
 
       const { data: requests, error: reqError } = await supabase
         .from('mentor_requests')
-        .select('id, mentee, mentor, thread_id, proposed_at')
+        .select('id, mentee, mentor, thread_id, proposed_at, scheduled_start, description, status')
         .eq('mentor', user.id)
         .not('thread_id', 'is', null)
         .order('proposed_at', { ascending: false });
@@ -251,7 +263,7 @@ export default function MentorConnectionsScreen() {
         ),
       );
 
-      let lastByThread: Record<number, { sender: string | null; body: string; inserted_at: string }> = {};
+      let lastByThread: Record<number, { id: string; sender: string | null; body: string; inserted_at: string }> = {};
       if (threadIds.length > 0) {
         const { data: messages, error: messageError } = await supabase
           .from('messages')
@@ -264,6 +276,7 @@ export default function MentorConnectionsScreen() {
         (messages ?? []).forEach((message: any) => {
           if (!lastByThread[message.thread_id]) {
             lastByThread[message.thread_id] = {
+              id: String(message.id),
               sender: message.sender ?? null,
               body: message.body,
               inserted_at: message.inserted_at,
@@ -272,33 +285,58 @@ export default function MentorConnectionsScreen() {
         });
       }
 
-      const chatItemsUnsorted: MentorChatItem[] = await Promise.all(
-        visibleRequests.map(async (request: any) => {
-          const profile = profileMap[request.mentee] ?? { name: 'Mentee', photoUrl: null };
-          const last = request.thread_id ? lastByThread[request.thread_id] : undefined;
-          const lastReadAt = request.thread_id ? await getLastReadAt(request.thread_id) : null;
-          const unread = !!(
-            request.thread_id &&
-            last?.inserted_at &&
-            last?.sender &&
-            last.sender !== user.id &&
-            (!lastReadAt || new Date(last.inserted_at).getTime() > new Date(lastReadAt).getTime())
-          );
+      const membershipMap =
+        threadIds.length > 0 ? await fetchUserThreadMembershipMap(threadIds, user.id) : {};
 
-          return {
-            requestId: request.id,
-            threadId: request.thread_id!,
-            otherUserId: request.mentee,
-            name: profile.name,
-            photoUrl: profile.photoUrl,
-            lastMessageSender: last?.sender ?? null,
-            lastMessage: last?.body ?? null,
-            lastMessageAt: last?.inserted_at ?? null,
-            proposedAt: request.proposed_at ?? null,
-            unread,
-          };
-        }),
-      );
+      const chatItemsUnsorted: MentorChatItem[] = visibleRequests.map((request: any) => {
+        const profile = profileMap[request.mentee] ?? { name: 'Mentee', photoUrl: null };
+        const last = request.thread_id ? lastByThread[request.thread_id] : undefined;
+        const membership = request.thread_id ? membershipMap[request.thread_id] : undefined;
+        const unread = !!(
+          request.thread_id &&
+          last?.id &&
+          last?.sender &&
+          last.sender !== user.id &&
+          !hasCursorReachedMessage(membership?.last_read_message_id, last.id)
+        );
+
+        return {
+          requestId: request.id,
+          threadId: request.thread_id!,
+          otherUserId: request.mentee,
+          name: profile.name,
+          photoUrl: profile.photoUrl,
+          lastMessageSender: last?.sender ?? null,
+          lastMessage: last?.body ?? null,
+          lastMessageAt: last?.inserted_at ?? null,
+          proposedAt: request.proposed_at ?? null,
+          scheduledStart: request.scheduled_start ?? null,
+          description: request.description ?? null,
+          status: request.status ?? null,
+          unread,
+        };
+      });
+
+      const deliveredUpdates = visibleRequests.flatMap((request: any) => {
+        if (!request.thread_id) return [];
+
+        const last = lastByThread[request.thread_id];
+        const membership = membershipMap[request.thread_id];
+
+        if (!last?.id || !last.sender || last.sender === user.id) {
+          return [];
+        }
+
+        if (hasCursorReachedMessage(membership?.last_delivered_message_id, last.id)) {
+          return [];
+        }
+
+        return [markThreadDelivered(request.thread_id, last.id)];
+      });
+
+      if (deliveredUpdates.length > 0) {
+        await Promise.allSettled(deliveredUpdates);
+      }
 
       const sortedChatItems = chatItemsUnsorted.sort((a, b) => {
         const aDate = a.lastMessageAt ?? a.proposedAt ?? '';
@@ -377,10 +415,12 @@ export default function MentorConnectionsScreen() {
     return true;
   });
 
-  const activeChats = filteredChats.filter(hasLastMessage);
-  const emptyChats = filteredChats.filter((chat) => !hasLastMessage(chat));
+  const pendingRequests = filteredChats.filter((chat) => chat.status === 'requested');
+  const conversationChats = filteredChats.filter((chat) => chat.status !== 'requested');
+  const activeChats = conversationChats.filter(hasLastMessage);
+  const emptyChats = conversationChats.filter((chat) => !hasLastMessage(chat));
   const showEmptyChatsDropdown = activeChats.length > 0 && emptyChats.length > 0;
-  const visibleChats = showEmptyChatsDropdown ? activeChats : filteredChats;
+  const visibleChats = showEmptyChatsDropdown ? activeChats : conversationChats;
   const groupedChats = groupChatsByDate(visibleChats);
 
   const openChat = (item: MentorChatItem) => {
@@ -398,9 +438,74 @@ export default function MentorConnectionsScreen() {
     setEmptyChatsExpanded((current) => !current);
   };
 
+  const handleRequestAction = useCallback(
+    async (item: MentorChatItem, action: 'accept' | 'decline') => {
+      setRequestActionId(item.requestId);
+
+      try {
+        if (action === 'accept') {
+          await acceptSession(item.requestId);
+          Alert.alert('Session accepted', `${item.name}'s session has been booked in.`);
+        } else {
+          await declineSession(item.requestId);
+          Alert.alert('Request declined', 'Tokens have been refunded to the mentee.');
+        }
+
+        await load();
+      } catch (err: any) {
+        Alert.alert(
+          action === 'accept' ? 'Unable to accept request' : 'Unable to decline request',
+          err.message ?? 'Please try again.',
+        );
+      } finally {
+        setRequestActionId(null);
+      }
+    },
+    [load],
+  );
+
+  const confirmAcceptRequest = useCallback(
+    (item: MentorChatItem) => {
+      Alert.alert(
+        'Accept session request',
+        `Book ${item.name} for ${formatSessionDateTime(item.scheduledStart)}?`,
+        [
+          { text: 'Not now', style: 'cancel' },
+          {
+            text: 'Accept',
+            onPress: () => {
+              void handleRequestAction(item, 'accept');
+            },
+          },
+        ],
+      );
+    },
+    [handleRequestAction],
+  );
+
+  const confirmDeclineRequest = useCallback(
+    (item: MentorChatItem) => {
+      Alert.alert(
+        'Decline session request',
+        'This will decline the booking and refund the mentee.',
+        [
+          { text: 'Keep request', style: 'cancel' },
+          {
+            text: 'Decline',
+            style: 'destructive',
+            onPress: () => {
+              void handleRequestAction(item, 'decline');
+            },
+          },
+        ],
+      );
+    },
+    [handleRequestAction],
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <ScreenHeader title="Connections" subtitle="Mentees who have booked sessions with you." />
+      <ScreenHeader title="Connections" subtitle="Manage session requests and mentee chats." />
 
       {loading && (
         <View style={{ paddingVertical: 16 }}>
@@ -411,6 +516,31 @@ export default function MentorConnectionsScreen() {
       {error && <Text style={{ color: 'red', marginBottom: 8 }}>{error}</Text>}
 
       <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+        {pendingRequests.length > 0 && (
+          <View style={styles.requestSection}>
+            <View style={styles.requestHeaderRow}>
+              <ThemedText style={[styles.sectionTitle, font('GlacialIndifference', '800')]}>
+                Session Requests
+              </ThemedText>
+              <View style={styles.requestCountBadge}>
+                <Text style={styles.requestCountBadgeText}>{pendingRequests.length}</Text>
+              </View>
+            </View>
+
+            {pendingRequests.map((item) => (
+              <SessionRequestCard
+                key={`request-${item.requestId}`}
+                item={item}
+                busy={requestActionId === item.requestId}
+                theme={theme}
+                onMessage={() => openChat(item)}
+                onAccept={() => confirmAcceptRequest(item)}
+                onDecline={() => confirmDeclineRequest(item)}
+              />
+            ))}
+          </View>
+        )}
+
         {showEmptyChatsDropdown && (
           <EmptyChatsDropdown
             open={emptyChatsExpanded}
@@ -452,7 +582,11 @@ export default function MentorConnectionsScreen() {
 
         {visibleChats.length === 0 && !loading ? (
           <Text style={{ fontSize: 14, color: '#8f8e8e' }}>
-            {chatFilter === 'unread' ? 'No unread chats right now.' : 'No active mentee chats yet.'}
+            {chatFilter === 'unread'
+              ? 'No unread chats right now.'
+              : pendingRequests.length > 0
+                ? 'No accepted session chats yet.'
+                : 'No active mentee chats yet.'}
           </Text>
         ) : (
           groupedChats.map((group) => (
@@ -468,8 +602,8 @@ export default function MentorConnectionsScreen() {
                   <ConversationRow
                     name={item.name}
                     role="Mentee"
-                    lastMessage={item.lastMessage ?? 'New mentorship request'}
-                    time={formatChatTimestamp(item.lastMessageAt ?? item.proposedAt)}
+                    lastMessage={item.lastMessage ?? getFallbackChatPreview(item)}
+                    time={formatChatTimestamp(item.lastMessageAt ?? item.scheduledStart ?? item.proposedAt)}
                     photoUrl={item.photoUrl}
                     unread={item.unread}
                     theme={theme}
@@ -519,6 +653,19 @@ function hasLastMessage(chat: MentorChatItem) {
   return Boolean(chat.lastMessage && chat.lastMessage.trim().length > 0);
 }
 
+function getFallbackChatPreview(chat: MentorChatItem) {
+  switch (chat.status) {
+    case 'scheduled':
+      return 'Session scheduled';
+    case 'cancelled':
+      return 'Session declined';
+    case 'done':
+      return 'Session completed';
+    default:
+      return 'No messages yet';
+  }
+}
+
 function formatChatTimestamp(timestamp: string | null) {
   if (!timestamp) return '';
 
@@ -534,6 +681,19 @@ function formatChatTimestamp(timestamp: string | null) {
   }
 
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function formatSessionDateTime(timestamp: string | null) {
+  if (!timestamp) return 'Requested time unavailable';
+
+  const date = new Date(timestamp);
+  return `${date.toLocaleDateString([], {
+    month: 'short',
+    day: 'numeric',
+  })} at ${date.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  })}`;
 }
 
 type ConversationRowProps = {
@@ -585,6 +745,84 @@ function ConversationRow({ name, role, lastMessage, time, photoUrl, unread, them
   );
 }
 
+function SessionRequestCard({
+  item,
+  busy,
+  theme,
+  onMessage,
+  onAccept,
+  onDecline,
+}: {
+  item: MentorChatItem;
+  busy: boolean;
+  theme: (typeof Colors)[keyof typeof Colors];
+  onMessage: () => void;
+  onAccept: () => void;
+  onDecline: () => void;
+}) {
+  const initials = item.name
+    .split(' ')
+    .map((segment) => segment.charAt(0))
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  return (
+    <View style={[styles.requestCard, { backgroundColor: theme.card, borderColor: theme.border ?? '#d9d3c3' }]}>
+      <View style={styles.requestCardHeader}>
+        <View style={styles.avatar}>
+          {item.photoUrl ? (
+            <Image source={{ uri: item.photoUrl }} style={styles.avatarImage} />
+          ) : (
+            <Text style={styles.avatarText}>{initials}</Text>
+          )}
+        </View>
+
+        <View style={styles.requestCardMeta}>
+          <Text style={[styles.name, font('GlacialIndifference', '800'), { color: theme.text }]}>
+            {item.name}
+          </Text>
+          <Text style={styles.requestSubtitle}>Pending approval</Text>
+          <Text style={styles.requestSchedule}>{formatSessionDateTime(item.scheduledStart)}</Text>
+        </View>
+      </View>
+
+      <Text style={[styles.requestDescription, { color: theme.text }]} numberOfLines={3}>
+        {item.description?.trim() || 'No booking notes were included with this request.'}
+      </Text>
+
+      <View style={styles.requestActions}>
+        <TouchableOpacity
+          style={[styles.requestButton, styles.requestButtonSecondary]}
+          activeOpacity={0.8}
+          onPress={onMessage}
+          disabled={busy}
+        >
+          <Text style={styles.requestButtonSecondaryText}>Message</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.requestButton, styles.requestButtonDanger]}
+          activeOpacity={0.8}
+          onPress={onDecline}
+          disabled={busy}
+        >
+          <Text style={styles.requestButtonDangerText}>{busy ? 'Working...' : 'Decline'}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.requestButton, styles.requestButtonPrimary, busy && styles.requestButtonDisabled]}
+          activeOpacity={0.8}
+          onPress={onAccept}
+          disabled={busy}
+        >
+          <Text style={styles.requestButtonPrimaryText}>{busy ? 'Working...' : 'Accept'}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     ...commonStyles.screen,
@@ -594,6 +832,96 @@ const styles = StyleSheet.create({
   listContent: {
     paddingTop: 8,
     paddingBottom: 140,
+  },
+  requestSection: {
+    marginBottom: 18,
+  },
+  requestHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  requestCountBadge: {
+    minWidth: 24,
+    height: 24,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    backgroundColor: '#d64545',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requestCountBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  requestCard: {
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 14,
+    marginBottom: 10,
+  },
+  requestCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  requestCardMeta: {
+    flex: 1,
+  },
+  requestSubtitle: {
+    fontSize: 12,
+    color: '#968c6c',
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  requestSchedule: {
+    fontSize: 13,
+    color: '#666',
+  },
+  requestDescription: {
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 12,
+  },
+  requestActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  requestButton: {
+    flex: 1,
+    borderRadius: 999,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requestButtonPrimary: {
+    backgroundColor: '#333f5c',
+  },
+  requestButtonPrimaryText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  requestButtonSecondary: {
+    backgroundColor: '#f3ede2',
+  },
+  requestButtonSecondaryText: {
+    color: '#5f5848',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  requestButtonDanger: {
+    backgroundColor: '#faecec',
+  },
+  requestButtonDangerText: {
+    color: '#b43f3f',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  requestButtonDisabled: {
+    opacity: 0.7,
   },
   row: {
     flexDirection: 'row',

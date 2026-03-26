@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   findNodeHandle,
   FlatList,
   Image,
@@ -25,14 +26,28 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { setLastReadAt } from '../../../src/lib/chat-read-state';
+import {
+  createMessageClientId,
+  fetchThreadMemberships,
+  getLatestIncomingMessageId,
+  getOtherParticipantMembership,
+  getOutgoingReceiptState,
+  markThreadDelivered,
+  markThreadRead,
+  sendThreadMessage,
+  type MessageReceiptState,
+  type ThreadMembership,
+} from '../../../src/lib/chat-receipts';
 import { playMessageSound } from '../../../src/lib/message-sound';
+import { acceptSession, declineSession } from '../../../src/lib/sessions';
 import type { Profile } from '../../../src/lib/supabase';
 import { getBlockStatus, getCurrentUser, supabase } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 
 type Message = {
   id: string;
+  clientId?: string | null;
+  insertedAt?: string | null;
   from: 'me' | 'them';
   text: string;
   time: string;
@@ -45,9 +60,17 @@ type Message = {
   } | null;
   deleted?: boolean;
   edited?: boolean;
+  sendState?: MessageReceiptState;
 };
 
 type AppTheme = typeof Colors[keyof typeof Colors];
+type MentorRequestStatus = 'requested' | 'scheduled' | 'cancelled' | 'done' | null;
+type MentorRequestDetails = {
+  requestId: number;
+  status: MentorRequestStatus;
+  scheduledStart: string | null;
+  description: string | null;
+};
 
 const GAP_ABOVE_KEYBOARD = 6;
 const EXTRA_LIST_GAP = 16;
@@ -70,7 +93,10 @@ export default function MentorChatScreen() {
   const [input, setInput] = useState('');
   const [meId, setMeId] = useState<string | null>(null);
   const [otherProfile, setOtherProfile] = useState<Profile | null>(null);
+  const [threadMemberships, setThreadMemberships] = useState<ThreadMembership[]>([]);
   const [blockedNotice, setBlockedNotice] = useState<string | null>(null);
+  const [requestDetails, setRequestDetails] = useState<MentorRequestDetails | null>(null);
+  const [requestActionBusy, setRequestActionBusy] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [replyingToMessage, setReplyingToMessage] = useState<Message | null>(null);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
@@ -87,6 +113,7 @@ export default function MentorChatScreen() {
   const pendingScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const displayName = otherProfile?.full_name ?? fallbackName;
+  const otherMembership = getOtherParticipantMembership(threadMemberships, meId);
 
   const measureRootInWindow = useCallback(() => {
     const node = findNodeHandle(rootRef.current);
@@ -110,14 +137,14 @@ export default function MentorChatScreen() {
 
   const listBottomSpacer = composerHeight + composerBottom + EXTRA_LIST_GAP;
 
-  const clearPendingScroll = () => {
+  const clearPendingScroll = useCallback(() => {
     if (pendingScrollTimeoutRef.current) {
       clearTimeout(pendingScrollTimeoutRef.current);
       pendingScrollTimeoutRef.current = null;
     }
-  };
+  }, []);
 
-  const scrollToBottom = (animated = true, delay = 0, force = false) => {
+  const scrollToBottom = useCallback((animated = true, delay = 0, force = false) => {
     if (!force && !isNearBottomRef.current) return;
 
     clearPendingScroll();
@@ -136,7 +163,7 @@ export default function MentorChatScreen() {
     } else {
       run();
     }
-  };
+  }, [clearPendingScroll]);
 
   const formatReplyPreview = (
     m: { id: string | number; sender: string; body: string | null; deleted_at?: string | null },
@@ -169,6 +196,8 @@ export default function MentorChatScreen() {
 
     return {
       id: String(m.id),
+      clientId: m.client_id ?? null,
+      insertedAt: m.inserted_at ?? null,
       from: m.sender === currentUserId ? 'me' : 'them',
       text: deleted ? 'Message deleted' : m.body,
       time: new Date(m.inserted_at).toLocaleTimeString([], {
@@ -179,6 +208,7 @@ export default function MentorChatScreen() {
       replyTo,
       deleted,
       edited,
+      sendState: m.sender === currentUserId ? 'sent' : undefined,
     };
   };
 
@@ -192,9 +222,25 @@ export default function MentorChatScreen() {
     [fetchReplyPreview],
   );
 
+  const loadThreadMembershipState = useCallback(async () => {
+    if (!threadId) return;
+
+    try {
+      const memberships = await fetchThreadMemberships(threadId);
+      setThreadMemberships(memberships);
+    } catch (error) {
+      console.warn('Failed to load thread membership state', error);
+    }
+  }, [threadId]);
+
   const upsertMessage = useCallback((nextMessage: Message) => {
     setMessages((prev) => {
-      const existingIndex = prev.findIndex((message) => message.id === nextMessage.id);
+      const existingIndex = prev.findIndex((message) => {
+        if (message.id === nextMessage.id) return true;
+        if (message.clientId && nextMessage.clientId && message.clientId === nextMessage.clientId) return true;
+        return false;
+      });
+
       if (existingIndex === -1) {
         return [...prev, nextMessage];
       }
@@ -204,6 +250,35 @@ export default function MentorChatScreen() {
       return updated;
     });
   }, []);
+
+  const loadRequestDetails = useCallback(async () => {
+    if (!threadId) {
+      setRequestDetails(null);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('mentor_requests')
+      .select('id, status, scheduled_start, description')
+      .eq('thread_id', threadId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Failed to load mentorship request details', error);
+      return;
+    }
+
+    setRequestDetails(
+      data
+        ? {
+            requestId: data.id,
+            status: data.status ?? null,
+            scheduledStart: data.scheduled_start ?? null,
+            description: data.description ?? null,
+          }
+        : null,
+    );
+  }, [threadId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -245,7 +320,7 @@ export default function MentorChatScreen() {
 
       const { data, error } = await supabase
         .from('messages')
-        .select('id, sender, body, inserted_at, edited_at, deleted_at, reply_to_message_id')
+        .select('id, sender, body, inserted_at, edited_at, deleted_at, reply_to_message_id, client_id')
         .eq('thread_id', threadId)
         .order('inserted_at', { ascending: true });
 
@@ -260,6 +335,16 @@ export default function MentorChatScreen() {
       setMessages(mapped);
       isNearBottomRef.current = true;
       scrollToBottom(false, SCROLL_DELAY, true);
+      await loadThreadMembershipState();
+
+      const latestIncomingMessageId = getLatestIncomingMessageId(mapped);
+      if (latestIncomingMessageId) {
+        try {
+          await markThreadRead(threadId, latestIncomingMessageId);
+        } catch (receiptError) {
+          console.warn('Failed to mark thread read on load', receiptError);
+        }
+      }
 
       channel = supabase
         .channel(`messages-thread-${threadId}`)
@@ -278,6 +363,15 @@ export default function MentorChatScreen() {
 
             if (row.sender !== me.id) {
               playMessageSound();
+              try {
+                if (isNearBottomRef.current) {
+                  await markThreadRead(threadId, String(row.id));
+                } else {
+                  await markThreadDelivered(threadId, String(row.id));
+                }
+              } catch (receiptError) {
+                console.warn('Failed to update message receipt state', receiptError);
+              }
             }
             scrollToBottom(true, SCROLL_DELAY);
           }
@@ -310,24 +404,89 @@ export default function MentorChatScreen() {
         supabase.removeChannel(channel);
       }
     };
-  }, [threadId, otherId, hydrateMessage, upsertMessage]);
+  }, [clearPendingScroll, threadId, otherId, hydrateMessage, loadThreadMembershipState, scrollToBottom, upsertMessage]);
+
+  useEffect(() => {
+    void loadRequestDetails();
+  }, [loadRequestDetails]);
+
+  useEffect(() => {
+    if (!threadId) return;
+
+    const membershipChannel = supabase
+      .channel(`mentor-thread-memberships-${threadId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'thread_memberships',
+          filter: `thread_id=eq.${threadId}`,
+        },
+        () => {
+          void loadThreadMembershipState();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(membershipChannel);
+    };
+  }, [threadId, loadThreadMembershipState]);
+
+  const markVisibleMessagesRead = useCallback(async () => {
+    if (!threadId) return;
+
+    const latestIncomingMessageId = getLatestIncomingMessageId(messages);
+    if (!latestIncomingMessageId) return;
+
+    try {
+      await markThreadRead(threadId, latestIncomingMessageId);
+    } catch (error) {
+      console.warn('Failed to mark visible messages as read', error);
+    }
+  }, [messages, threadId]);
+
+  useEffect(() => {
+    if (!threadId) return;
+
+    const channel = supabase
+      .channel(`mentor-request-${threadId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'mentor_requests',
+          filter: `thread_id=eq.${threadId}`,
+        },
+        () => {
+          void loadRequestDetails();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [threadId, loadRequestDetails]);
 
   useEffect(() => {
     if (messages.length > 0) {
       scrollToBottom(false, 40, true);
     }
-  }, [messages.length, listBottomSpacer]);
+  }, [messages.length, listBottomSpacer, scrollToBottom]);
 
   useEffect(() => {
-    if (!threadId) return;
-    setLastReadAt(threadId).catch(() => {});
-  }, [threadId, messages.length]);
+    if (!threadId || messages.length === 0 || !isNearBottomRef.current) return;
+    void markVisibleMessagesRead();
+  }, [threadId, messages.length, markVisibleMessagesRead]);
 
   useEffect(() => {
     measureRootInWindow();
     const t = setTimeout(measureRootInWindow, 120);
     return () => clearTimeout(t);
-  }, [measureRootInWindow]);
+  }, [measureRootInWindow, scrollToBottom]);
 
   useEffect(() => {
     const handleKeyboardShow = (e: any) => {
@@ -384,7 +543,7 @@ export default function MentorChatScreen() {
       hideSub.remove();
       frameSub?.remove();
     };
-  }, [measureRootInWindow]);
+  }, [measureRootInWindow, scrollToBottom]);
 
   const handleSend = async () => {
     if (!threadId || !meId || !input.trim() || blockedNotice) return;
@@ -420,39 +579,66 @@ export default function MentorChatScreen() {
       return;
     }
 
-      const { data, error } = await supabase
-        .from('messages')
-        .insert({
-          thread_id: threadId,
-          sender: meId,
-          body,
-          reply_to_message_id: activeReply ? Number(activeReply.id) : null,
-        })
-        .select('id, sender, body, inserted_at, edited_at, deleted_at, reply_to_message_id')
-        .single();
+    const clientId = createMessageClientId();
+    const optimisticInsertedAt = new Date().toISOString();
+    const optimisticReplyPreview = activeReply
+      ? {
+          id: activeReply.id,
+          from: activeReply.from,
+          text: activeReply.text,
+          deleted: activeReply.deleted,
+        }
+      : null;
 
-    if (error) {
+    upsertMessage({
+      id: `optimistic:${clientId}`,
+      clientId,
+      insertedAt: optimisticInsertedAt,
+      from: 'me',
+      text: body,
+      time: new Date(optimisticInsertedAt).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      replyToMessageId: activeReply?.id ?? null,
+      replyTo: optimisticReplyPreview,
+      deleted: false,
+      edited: false,
+      sendState: 'sending',
+    });
+    scrollToBottom(true, SCROLL_DELAY, true);
+
+    try {
+      const data = await sendThreadMessage({
+        threadId,
+        body,
+        replyToMessageId: activeReply?.id ?? null,
+        clientId,
+      });
+
+      upsertMessage(formatMessage(data, meId, optimisticReplyPreview));
+      void loadThreadMembershipState();
+    } catch (error) {
       console.error('Failed to send message', error);
       setInput(trimmedInput);
       setReplyingToMessage(activeReply);
-      return;
+      upsertMessage({
+        id: `optimistic:${clientId}`,
+        clientId,
+        insertedAt: optimisticInsertedAt,
+        from: 'me',
+        text: body,
+        time: new Date(optimisticInsertedAt).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        replyToMessageId: activeReply?.id ?? null,
+        replyTo: optimisticReplyPreview,
+        deleted: false,
+        edited: false,
+        sendState: 'failed',
+      });
     }
-
-    upsertMessage(
-      formatMessage(
-        data,
-        meId,
-        activeReply
-          ? {
-              id: activeReply.id,
-              from: activeReply.from,
-              text: activeReply.text,
-              deleted: activeReply.deleted,
-            }
-          : null,
-      ),
-    );
-    scrollToBottom(true, SCROLL_DELAY, true);
   };
 
   const closeMessageOptions = () => setSelectedMessage(null);
@@ -518,6 +704,69 @@ export default function MentorChatScreen() {
     }
   };
 
+  const runRequestAction = useCallback(
+    async (action: 'accept' | 'decline') => {
+      if (!requestDetails) return;
+
+      setRequestActionBusy(true);
+
+      try {
+        if (action === 'accept') {
+          await acceptSession(requestDetails.requestId);
+          Alert.alert('Session accepted', 'The session has been booked in and added to your waiting room.');
+        } else {
+          await declineSession(requestDetails.requestId);
+          Alert.alert('Request declined', 'The session request has been declined and refunded.');
+        }
+
+        await loadRequestDetails();
+      } catch (err: any) {
+        Alert.alert(
+          action === 'accept' ? 'Unable to accept request' : 'Unable to decline request',
+          err.message ?? 'Please try again.',
+        );
+      } finally {
+        setRequestActionBusy(false);
+      }
+    },
+    [loadRequestDetails, requestDetails],
+  );
+
+  const confirmAcceptRequest = useCallback(() => {
+    if (!requestDetails) return;
+
+    Alert.alert(
+      'Accept session request',
+      `Book this session for ${formatSessionDateTime(requestDetails.scheduledStart)}?`,
+      [
+        { text: 'Not now', style: 'cancel' },
+        {
+          text: 'Accept',
+          onPress: () => {
+            void runRequestAction('accept');
+          },
+        },
+      ],
+    );
+  }, [requestDetails, runRequestAction]);
+
+  const confirmDeclineRequest = useCallback(() => {
+    Alert.alert(
+      'Decline session request',
+      'This will decline the booking and refund the mentee.',
+      [
+        { text: 'Keep request', style: 'cancel' },
+        {
+          text: 'Decline',
+          style: 'destructive',
+          onPress: () => {
+            void runRequestAction('decline');
+          },
+        },
+      ],
+    );
+  }, [runRequestAction]);
+
   const handleRootLayout = (_e: LayoutChangeEvent) => {
     measureRootInWindow();
     scrollToBottom(false, 30, true);
@@ -530,10 +779,15 @@ export default function MentorChatScreen() {
   };
 
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const wasNearBottom = isNearBottomRef.current;
     const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
     const distanceFromBottom =
       contentSize.height - (contentOffset.y + layoutMeasurement.height);
     isNearBottomRef.current = distanceFromBottom < NEAR_BOTTOM_THRESHOLD;
+
+    if (!wasNearBottom && isNearBottomRef.current) {
+      void markVisibleMessagesRead();
+    }
   };
 
   return (
@@ -576,6 +830,49 @@ export default function MentorChatScreen() {
           </TouchableOpacity>
         </View>
 
+        {requestDetails ? (
+          <View style={[styles.requestPanel, { backgroundColor: theme.card, borderColor: theme.border ?? '#d9d3c3' }]}>
+            <View style={styles.requestPanelHeader}>
+              <View style={[styles.requestStatusBadge, getRequestStatusBadgeStyle(requestDetails.status)]}>
+                <Text style={styles.requestStatusBadgeText}>{getRequestStatusLabel(requestDetails.status)}</Text>
+              </View>
+              <Text style={styles.requestPanelTime}>{formatSessionDateTime(requestDetails.scheduledStart)}</Text>
+            </View>
+
+            <Text style={[styles.requestPanelDescription, { color: theme.text }]}>
+              {requestDetails.description?.trim() || 'No booking notes were included with this request.'}
+            </Text>
+
+            {requestDetails.status === 'requested' ? (
+              <View style={styles.requestPanelActions}>
+                <TouchableOpacity
+                  style={[styles.requestActionButton, styles.requestActionButtonDanger]}
+                  activeOpacity={0.8}
+                  onPress={confirmDeclineRequest}
+                  disabled={requestActionBusy}
+                >
+                  <Text style={styles.requestActionButtonDangerText}>
+                    {requestActionBusy ? 'Working...' : 'Decline'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.requestActionButton, styles.requestActionButtonPrimary, requestActionBusy && styles.requestActionButtonDisabled]}
+                  activeOpacity={0.8}
+                  onPress={confirmAcceptRequest}
+                  disabled={requestActionBusy}
+                >
+                  <Text style={styles.requestActionButtonPrimaryText}>
+                    {requestActionBusy ? 'Working...' : 'Accept'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <Text style={styles.requestPanelNote}>{getRequestStatusNote(requestDetails.status)}</Text>
+            )}
+          </View>
+        ) : null}
+
         <FlatList
           ref={listRef}
           data={messages}
@@ -604,6 +901,7 @@ export default function MentorChatScreen() {
             <MessageBubble
               message={item}
               theme={theme}
+              otherMembership={otherMembership}
               onLongPress={handleMessageLongPress}
             />
           )}
@@ -730,14 +1028,19 @@ export default function MentorChatScreen() {
 type MessageBubbleProps = {
   message: Message;
   theme: AppTheme;
+  otherMembership?: Pick<ThreadMembership, 'last_delivered_message_id' | 'last_read_message_id'> | null;
   onLongPress?: (message: Message) => void;
 };
 
-function MessageBubble({ message, theme, onLongPress }: MessageBubbleProps) {
+function MessageBubble({ message, theme, otherMembership, onLongPress }: MessageBubbleProps) {
   const isMe = message.from === 'me';
   const timeColor = isMe ? 'rgba(255,255,255,0.72)' : '#8a8f98';
   const replyPreviewColor = isMe ? 'rgba(255,255,255,0.18)' : '#d9dce3';
   const replyTextColor = isMe ? 'rgba(255,255,255,0.82)' : '#5c6470';
+  const receiptState = isMe
+    ? getOutgoingReceiptState(message.id, otherMembership, message.sendState)
+    : null;
+  const receiptLabel = receiptState ? getReceiptStateLabel(receiptState) : null;
 
   return (
     <TouchableOpacity
@@ -791,11 +1094,81 @@ function MessageBubble({ message, theme, onLongPress }: MessageBubbleProps) {
           {message.edited && !message.deleted ? (
             <Text style={[styles.editedText, { color: timeColor }]}>Edited</Text>
           ) : null}
+          {isMe && receiptLabel ? (
+            <Text style={[styles.receiptText, { color: timeColor }]}>{receiptLabel}</Text>
+          ) : null}
           <Text style={[styles.bubbleTime, { color: timeColor }]}>{message.time}</Text>
         </View>
       </View>
     </TouchableOpacity>
   );
+}
+
+function getReceiptStateLabel(state: MessageReceiptState) {
+  switch (state) {
+    case 'sending':
+      return 'Sending';
+    case 'delivered':
+      return 'Delivered';
+    case 'read':
+      return 'Read';
+    case 'failed':
+      return 'Failed';
+    default:
+      return 'Sent';
+  }
+}
+
+function formatSessionDateTime(timestamp: string | null) {
+  if (!timestamp) return 'Requested time unavailable';
+
+  const date = new Date(timestamp);
+  return `${date.toLocaleDateString([], {
+    month: 'short',
+    day: 'numeric',
+  })} at ${date.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  })}`;
+}
+
+function getRequestStatusLabel(status: MentorRequestStatus) {
+  switch (status) {
+    case 'scheduled':
+      return 'Accepted';
+    case 'cancelled':
+      return 'Declined';
+    case 'done':
+      return 'Completed';
+    default:
+      return 'Pending';
+  }
+}
+
+function getRequestStatusNote(status: MentorRequestStatus) {
+  switch (status) {
+    case 'scheduled':
+      return 'This session is booked in. It will appear in the waiting room near the start time.';
+    case 'cancelled':
+      return 'This request has been declined. The mentee has been refunded.';
+    case 'done':
+      return 'This session has already been completed.';
+    default:
+      return 'This request is waiting for your decision.';
+  }
+}
+
+function getRequestStatusBadgeStyle(status: MentorRequestStatus) {
+  switch (status) {
+    case 'scheduled':
+      return styles.requestStatusBadgeSuccess;
+    case 'cancelled':
+      return styles.requestStatusBadgeWarning;
+    case 'done':
+      return styles.requestStatusBadgeNeutral;
+    default:
+      return styles.requestStatusBadgePending;
+  }
 }
 
 const styles = StyleSheet.create({
@@ -847,6 +1220,88 @@ const styles = StyleSheet.create({
 
   headerTextBlock: {
     flex: 1,
+  },
+
+  requestPanel: {
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 14,
+    marginBottom: 12,
+  },
+  requestPanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 10,
+  },
+  requestStatusBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  requestStatusBadgePending: {
+    backgroundColor: '#f3ede2',
+  },
+  requestStatusBadgeSuccess: {
+    backgroundColor: '#e4f3ea',
+  },
+  requestStatusBadgeWarning: {
+    backgroundColor: '#faecec',
+  },
+  requestStatusBadgeNeutral: {
+    backgroundColor: '#eceff4',
+  },
+  requestStatusBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#5f5848',
+  },
+  requestPanelTime: {
+    fontSize: 12,
+    color: '#777',
+    flexShrink: 1,
+    textAlign: 'right',
+  },
+  requestPanelDescription: {
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 12,
+  },
+  requestPanelActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  requestActionButton: {
+    flex: 1,
+    borderRadius: 999,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requestActionButtonPrimary: {
+    backgroundColor: '#333f5c',
+  },
+  requestActionButtonPrimaryText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  requestActionButtonDanger: {
+    backgroundColor: '#faecec',
+  },
+  requestActionButtonDangerText: {
+    color: '#b43f3f',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  requestActionButtonDisabled: {
+    opacity: 0.7,
+  },
+  requestPanelNote: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#6b6f78',
   },
 
   listContent: {
@@ -920,6 +1375,11 @@ const styles = StyleSheet.create({
   },
 
   editedText: {
+    fontSize: 10,
+    marginRight: 6,
+  },
+
+  receiptText: {
     fontSize: 10,
     marginRight: 6,
   },
