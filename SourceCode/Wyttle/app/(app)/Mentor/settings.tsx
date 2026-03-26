@@ -58,6 +58,7 @@ import {
   type BlockedUserProfile,
   deleteMyAccount,
   fetchMyBlockedUsers,
+  submitBugReport,
   supabase,
   unblockUser,
   uploadProfilePhoto,
@@ -225,6 +226,10 @@ export default function MenteeSettingsScreen() {
   //const [tokensBalance, setTokensBalance] = useState<number | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showAcknowledgementsModal, setShowAcknowledgementsModal] = useState(false);
+  const [showBugReportModal, setShowBugReportModal] = useState(false);
+  const [bugReportTitle, setBugReportTitle] = useState('');
+  const [bugReportDescription, setBugReportDescription] = useState('');
+  const [isSubmittingBugReport, setIsSubmittingBugReport] = useState(false);
   const [showBlockedUsersModal, setShowBlockedUsersModal] = useState(false);
   const [isPasswordSectionOpen, setIsPasswordSectionOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -575,6 +580,39 @@ export default function MenteeSettingsScreen() {
         'Clipboard unavailable',
         'Clipboard support is not available in this build yet. Rebuild the app to enable copy, or enter the key manually for now.',
       );
+    }
+  };
+
+  const handleSubmitBugReport = async () => {
+    const trimmedDescription = bugReportDescription.trim();
+
+    if (!trimmedDescription) {
+      Alert.alert('Missing details', 'Please describe the bug before submitting.');
+      return;
+    }
+
+    try {
+      setIsSubmittingBugReport(true);
+
+      await submitBugReport({
+        title: bugReportTitle,
+        description: trimmedDescription,
+        sourceScreen: 'Mentor settings acknowledgements',
+        platform: Platform.OS,
+        appVersion: '1.0.9',
+        context: {
+          entry_point: 'acknowledgements_modal',
+        },
+      });
+
+      setBugReportTitle('');
+      setBugReportDescription('');
+      setShowBugReportModal(false);
+      Alert.alert('Thanks', 'Bug report submitted.');
+    } catch (error: any) {
+      Alert.alert('Submit failed', error?.message ?? 'Could not submit bug report right now.');
+    } finally {
+      setIsSubmittingBugReport(false);
     }
   };
 
@@ -1274,6 +1312,8 @@ export default function MenteeSettingsScreen() {
               { marginLeft: 8 },
             ]}>Replay Introduction</ThemedText>
           </Pressable>
+
+
           <Pressable
             style={({ pressed }) => [
               styles.replayButton,
@@ -1288,6 +1328,24 @@ export default function MenteeSettingsScreen() {
               { marginLeft: 8 },
             ]}>Acknowledgements</ThemedText>
           </Pressable>
+          
+          <Pressable
+            style={({ pressed }) => [
+              styles.replayButton,
+              pressed && styles.replayButtonPressed,
+            ]}
+            onPress={() => setShowBugReportModal(true)}
+            android_ripple={{ color: '#00000008' }}
+          >
+            <Ionicons name="bug-outline" size={18} color="#c43b3b" />
+            <ThemedText darkColor="#f3b4b4" style={[
+              styles.replayButtonText,
+              { marginLeft: 8 },
+            ]}>Notice any bugs?</ThemedText>
+          </Pressable>
+
+
+
           <Text style={[styles.versionText, { color: theme.placeholder }]}>Version 1.0.9</Text>
         </View>
       )}
@@ -1397,32 +1455,10 @@ export default function MenteeSettingsScreen() {
                 darkColor="#cfd3ff"
                 style={[styles.itemText, font('GlacialIndifference', '400'), { marginLeft: 8, flex: 1 }]}
               >
-                Sound Effect by{' '}
-                <ThemedText
-                  darkColor="#cfd3ff"
-                  style={[styles.itemText, font('GlacialIndifference', '400'), { color: theme.tint }]}
-                  onPress={() =>
-                    Linking.openURL(
-                      'https://pixabay.com/users/dragon-studio-38165424/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=398649'
-                    )
-                  }
-                >
-                  DRAGON-STUDIO
-                </ThemedText>{' '}
-                from{' '}
-                <ThemedText
-                  darkColor="#cfd3ff"
-                  style={[styles.itemText, font('GlacialIndifference', '400'), { color: theme.tint }]}
-                  onPress={() =>
-                    Linking.openURL(
-                      'https://pixabay.com/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=398649'
-                    )
-                  }
-                >
-                  Pixabay
-                </ThemedText>
+                Sound Effect by ...
               </ThemedText>
             </View>
+
             <TouchableOpacity
               style={[styles.modalCloseButton, { backgroundColor: '#333f5c' }]}
               onPress={() => setShowAcknowledgementsModal(false)}
@@ -1432,6 +1468,85 @@ export default function MenteeSettingsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <Modal
+        visible={showBugReportModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBugReportModal(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowBugReportModal(false)}>
+          <Pressable
+            style={[styles.modalCard, { backgroundColor: theme.background }]}
+            onPress={(event) => event.stopPropagation()}
+          >
+            <ThemedText
+              style={[styles.modalTitle, { color: theme.text }, font('GlacialIndifference', '400')]}
+            >
+              Report a Bug
+            </ThemedText>
+
+            <TextInput
+              value={bugReportTitle}
+              onChangeText={setBugReportTitle}
+              placeholder="Short title (optional)"
+              placeholderTextColor={theme.placeholder}
+              style={[
+                styles.bugReportInput,
+                { color: theme.text, borderColor: theme.border, backgroundColor: theme.background },
+              ]}
+              maxLength={120}
+            />
+
+            <TextInput
+              value={bugReportDescription}
+              onChangeText={setBugReportDescription}
+              placeholder="What happened? What did you expect?"
+              placeholderTextColor={theme.placeholder}
+              style={[
+                styles.bugReportTextArea,
+                { color: theme.text, borderColor: theme.border, backgroundColor: theme.background },
+              ]}
+              multiline
+              textAlignVertical="top"
+              maxLength={1200}
+            />
+
+            <Text style={[styles.bugReportHint, { color: theme.placeholder }]}>
+              Basic report only. No follow-up inbox inside the app yet.
+            </Text>
+
+            <View style={styles.bugReportActions}>
+              <TouchableOpacity
+                style={styles.bugReportCancelButton}
+                onPress={() => setShowBugReportModal(false)}
+                disabled={isSubmittingBugReport}
+              >
+                <Text style={[styles.bugReportCancelButtonText, { color: theme.text }]}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.bugReportSubmitButton,
+                  isSubmittingBugReport ? { opacity: 0.6 } : null,
+                ]}
+                onPress={handleSubmitBugReport}
+                disabled={isSubmittingBugReport}
+              >
+                <Text style={styles.bugReportSubmitButtonText}>
+                  {isSubmittingBugReport ? 'Submitting...' : 'Submit'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+
+
+
+
+
       <OnboardingOverlay
         visible={showOnboarding}
         steps={MENTOR_STEPS}
@@ -1541,18 +1656,18 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   dropdownContainer: {
-  marginBottom: 12,
-  marginTop: 8,
-  borderRadius: 12,
-  overflow: 'hidden',
-  borderWidth: 0,
-  borderColor: 'transparent',
-  shadowColor: 'transparent',
-  shadowOpacity: 0,
-  shadowRadius: 0,
-  shadowOffset: { width: 0, height: 0 },
-  elevation: 0,
-},
+    marginBottom: 12,
+    marginTop: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 0,
+    borderColor: 'transparent',
+    shadowColor: 'transparent',
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 0,
+  },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1578,14 +1693,14 @@ const styles = StyleSheet.create({
   chevron: {
     marginLeft: 12,
   },
-animatedContainer: {
-  overflow: 'hidden',
-},
-measureContainer: {
-  position: 'absolute',
-  opacity: 0,
-  zIndex: -1,
-},
+  animatedContainer: {
+    overflow: 'hidden',
+  },
+  measureContainer: {
+    position: 'absolute',
+    opacity: 0,
+    zIndex: -1,
+  },
   itemsContainer: {
     paddingVertical: 4,
   },
@@ -1600,124 +1715,124 @@ measureContainer: {
   itemText: {
     fontSize: 15,
   },
-itemSubText: {
-  marginLeft: 'auto',
-  fontSize: 13,
-},
-itemRowWithSwitch: {
-  paddingVertical: 14,
-  paddingHorizontal: 12,
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-},
-profileDetailsSection: {
-  paddingHorizontal: 12,
-  paddingVertical: 8,
-  gap: 10,
-},
-textInput: {
-  borderWidth: 1,
-  borderColor: '#c6c1ae',
-  borderRadius: 10,
-  paddingHorizontal: 12,
-  paddingVertical: 10,
-  fontSize: 15,
-},
-textArea: {
-  borderWidth: 1,
-  borderColor: '#c6c1ae',
-  borderRadius: 10,
-  paddingHorizontal: 12,
-  paddingVertical: 12,
-  fontSize: 15,
-  minHeight: 90,
-  textAlignVertical: 'top',
-},
-locationButton: {
-  paddingVertical: 12,
-  paddingHorizontal: 12,
-  borderRadius: 10,
-  backgroundColor: '#1F2940',
-},
-locationButtonText: {
-  color: '#fff',
-  fontWeight: '600',
-  textAlign: 'center',
-},
-saveButton: {
-  paddingVertical: 14,
-  borderRadius: 10,
-  backgroundColor: '#333f5c',
-  alignItems: 'center',
-},
-saveButtonText: {
-  color: '#fff',
-  fontWeight: '700',
-},
-skillsContainer: {
-  flexDirection: 'row',
-  flexWrap: 'wrap',
-  gap: 8,
-  marginBottom: 8,
-},
-skillChip: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  backgroundColor: '#e0e0e0',
-  paddingHorizontal: 12,
-  paddingVertical: 6,
-  borderRadius: 16,
-  gap: 6,
-},
-skillText: {
-  fontSize: 14,
-  color: '#333',
-},
-addSkillRow: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 8,
-},
-skillInput: {
-  flex: 1,
-  borderWidth: 1,
-  borderColor: '#c6c1ae',
-  borderRadius: 10,
-  paddingHorizontal: 12,
-  paddingVertical: 10,
-  fontSize: 15,
-},
-addSkillButton: {
-  padding: 4,
-},
-charCounter: {
-  fontSize: 12,
-  color: '#666',
-  textAlign: 'right',
-  marginTop: 4,
-},
-limitText: {
-  fontSize: 12,
-  color: '#d32f2f',
-  marginTop: 4,
-},
-sliderContainer: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 10,
-  flex: 1,
-  marginLeft: 12,
-},
-slider: {
-  flex: 1,
-  height: 40,
-},
-  sliderValue: {
-  fontSize: 14,
-  minWidth: 45,
-  textAlign: 'right',
-},
+  itemSubText: {
+    marginLeft: 'auto',
+    fontSize: 13,
+  },
+  itemRowWithSwitch: {
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  profileDetailsSection: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 10,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#c6c1ae',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+  },
+  textArea: {
+    borderWidth: 1,
+    borderColor: '#c6c1ae',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 15,
+    minHeight: 90,
+    textAlignVertical: 'top',
+  },
+  locationButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: '#1F2940',
+  },
+  locationButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  saveButton: {
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#333f5c',
+    alignItems: 'center',
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  skillsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  skillChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e0e0e0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 6,
+  },
+  skillText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  addSkillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  skillInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#c6c1ae',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+  },
+  addSkillButton: {
+    padding: 4,
+  },
+  charCounter: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'right',
+    marginTop: 4,
+  },
+  limitText: {
+    fontSize: 12,
+    color: '#d32f2f',
+    marginTop: 4,
+  },
+  sliderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    marginLeft: 12,
+  },
+  slider: {
+    flex: 1,
+    height: 40,
+  },
+    sliderValue: {
+    fontSize: 14,
+    minWidth: 45,
+    textAlign: 'right',
+  },
   dangerItemText: {
     color: '#dc2626',
   },
@@ -1732,11 +1847,11 @@ slider: {
     backgroundColor: '#00000006',
     borderRadius: 10,
   },
-logoutButtonText: {
-  color: '#dc2626',
-  fontWeight: '700',
-  fontSize: 16,
-},
+  logoutButtonText: {
+    color: '#dc2626',
+    fontWeight: '700',
+    fontSize: 16,
+  },
   replayButton: {
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -1781,171 +1896,218 @@ logoutButtonText: {
     fontWeight: '700',
     fontSize: 15,
   },
-replayTutorialRow: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  paddingVertical: 14,
-  paddingHorizontal: 12,
-  marginTop: 8,
-  borderTopWidth: 1,
-  borderTopColor: '#00000010',
-},
-accountSubsection: {
-  paddingTop: 8,
-  paddingBottom: 14,
-  paddingHorizontal: 12,
-  gap: 12,
-},
-accountFieldGroup: {
-  gap: 6,
-},
-twoFactorStatusText: {
-  fontSize: 13,
-  lineHeight: 18,
-},
-twoFactorHelperText: {
-  fontSize: 13,
-  lineHeight: 18,
-},
-twoFactorSecretText: {
-  flex: 1,
-  fontSize: 12,
-  lineHeight: 18,
-  fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
-  paddingVertical: 8,
-},
-twoFactorSecretRow: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 12,
-},
-twoFactorCopyButton: {
-  padding: 6,
-},
-twoFactorQrWrapper: {
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingVertical: 8,
-},
-twoFactorQrImage: {
-  width: 168,
-  height: 168,
-},
-twoFactorCodeInput: {
-  letterSpacing: 6,
-  textAlign: 'center',
-},
-accountFieldLabel: {
-  marginBottom: 0,
-},
-blockedUsersHint: {
-  fontSize: 13,
-  lineHeight: 18,
-  opacity: 0.8,
-},
-blockedUserRow: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 12,
-},
-blockedUserInfo: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 12,
-  flex: 1,
-},
-blockedAvatar: {
-  width: 40,
-  height: 40,
-  borderRadius: 20,
-  backgroundColor: '#333f5c',
-  alignItems: 'center',
-  justifyContent: 'center',
-  overflow: 'hidden',
-},
-blockedAvatarImage: {
-  width: '100%',
-  height: '100%',
-},
-blockedAvatarText: {
-  color: '#fff',
-  fontWeight: '700',
-},
-blockedUserName: {
-  fontSize: 15,
-  flexShrink: 1,
-},
-unblockButton: {
-  paddingVertical: 8,
-  paddingHorizontal: 12,
-  borderRadius: 999,
-  backgroundColor: '#333f5c',
-},
-unblockButtonText: {
-  color: '#fff',
-  fontWeight: '700',
-  fontSize: 13,
-},
-blockedUsersModalCard: {
-  maxHeight: '70%',
-},
-blockedUsersModalList: {
-  maxHeight: 360,
-},
-blockedUsersModalContent: {
-  gap: 12,
-},
-dangerItemRow: {
-  paddingVertical: 14,
-},
-deleteAccountSubsection: {
-  paddingHorizontal: 12,
-  paddingBottom: 14,
-  gap: 12,
-},
-deleteAccountHelperText: {
-  fontSize: 13,
-  lineHeight: 18,
-},
-deleteAccountButton: {
-  backgroundColor: '#dc2626',
-  borderRadius: 10,
-  paddingVertical: 12,
-  paddingHorizontal: 14,
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 8,
-},
-deleteAccountButtonText: {
-  color: '#fff',
-  fontWeight: '700',
-},
-passwordField: {
-  position: 'relative',
-  width: '100%',
-},
-passwordInput: {
-  paddingRight: 72,
-},
-passwordToggle: {
-  position: 'absolute',
-  right: 12,
-  top: 0,
-  bottom: 0,
-  justifyContent: 'center',
-  alignItems: 'center',
-  paddingHorizontal: 6,
-  paddingVertical: 4,
-},
-passwordSaveButton: {
-  alignSelf: 'stretch',
-},
-acknowledgementRow: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  paddingVertical: 10,
-  paddingHorizontal: 4,
-},
+  replayTutorialRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#00000010',
+  },
+  accountSubsection: {
+    paddingTop: 8,
+    paddingBottom: 14,
+    paddingHorizontal: 12,
+    gap: 12,
+  },
+  accountFieldGroup: {
+    gap: 6,
+  },
+  twoFactorStatusText: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  twoFactorHelperText: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  twoFactorSecretText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
+    paddingVertical: 8,
+  },
+  twoFactorSecretRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  twoFactorCopyButton: {
+    padding: 6,
+  },
+  twoFactorQrWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  twoFactorQrImage: {
+    width: 168,
+    height: 168,
+  },
+  twoFactorCodeInput: {
+    letterSpacing: 6,
+    textAlign: 'center',
+  },
+  accountFieldLabel: {
+    marginBottom: 0,
+  },
+  blockedUsersHint: {
+    fontSize: 13,
+    lineHeight: 18,
+    opacity: 0.8,
+  },
+  blockedUserRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  blockedUserInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  blockedAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#333f5c',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  blockedAvatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  blockedAvatarText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  blockedUserName: {
+    fontSize: 15,
+    flexShrink: 1,
+  },
+  unblockButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: '#333f5c',
+  },
+  unblockButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  blockedUsersModalCard: {
+    maxHeight: '70%',
+  },
+  blockedUsersModalList: {
+    maxHeight: 360,
+  },
+  blockedUsersModalContent: {
+    gap: 12,
+  },
+  dangerItemRow: {
+    paddingVertical: 14,
+  },
+  deleteAccountSubsection: {
+    paddingHorizontal: 12,
+    paddingBottom: 14,
+    gap: 12,
+  },
+  deleteAccountHelperText: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  deleteAccountButton: {
+    backgroundColor: '#dc2626',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  deleteAccountButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  passwordField: {
+    position: 'relative',
+    width: '100%',
+  },
+  passwordInput: {
+    paddingRight: 72,
+  },
+  passwordToggle: {
+    position: 'absolute',
+    right: 12,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  passwordSaveButton: {
+    alignSelf: 'stretch',
+  },
+  acknowledgementRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+  },
+  bugReportInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+  },
+  bugReportTextArea: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 15,
+    minHeight: 120,
+  },
+  bugReportHint: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: -6,
+  },
+  bugReportActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+  },
+  bugReportCancelButton: {
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: '#0000001a',
+  },
+  bugReportCancelButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  bugReportSubmitButton: {
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: '#333f5c',
+  },
+  bugReportSubmitButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
 });

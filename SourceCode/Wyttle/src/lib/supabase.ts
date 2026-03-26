@@ -353,6 +353,67 @@ export async function disconnectPeer(otherUserId: string) {
   if (error) throw error;
 }
 
+export type SubmitBugReportInput = {
+  title?: string | null;
+  description: string;
+  sourceScreen: string;
+  platform: string;
+  appVersion?: string | null;
+  context?: Record<string, unknown>;
+};
+
+export async function submitBugReport(input: SubmitBugReportInput) {
+  const trimmedDescription = input.description.trim();
+  const trimmedTitle = input.title?.trim() ?? '';
+
+  if (!trimmedDescription) {
+    throw new Error('Please describe the bug before submitting.');
+  }
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) throw userError;
+  if (!user) throw new Error('You must be signed in to submit a bug report.');
+
+  let reporterName: string | null = null;
+  let reporterRole: string | null = null;
+
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, role')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    reporterName = (profile as any)?.full_name ?? null;
+    reporterRole = (profile as any)?.role ?? null;
+  } catch {
+    // Do not block report creation if profile lookup fails.
+  }
+
+  const { error } = await supabase.from('bug_reports').insert({
+    reporter_user_id: user.id,
+    reporter_email: user.email ?? null,
+    reporter_name: reporterName,
+    reporter_role: reporterRole,
+    source_screen: input.sourceScreen,
+    app_version: input.appVersion ?? null,
+    platform: input.platform,
+    title: trimmedTitle.length > 0 ? trimmedTitle : null,
+    description: trimmedDescription,
+    context: {
+      ...(input.context ?? {}),
+      submitted_at_client: new Date().toISOString(),
+    },
+  });
+
+  if (error) throw error;
+}
+
+
 export async function deleteMyAccount() {
   const { data, error } = await supabase.rpc('delete_my_account');
   if (error) throw error;
