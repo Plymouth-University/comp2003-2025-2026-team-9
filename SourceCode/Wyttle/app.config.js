@@ -1,7 +1,4 @@
-import 'dotenv/config';
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
+require('dotenv/config');
 const pkg = require('./package.json');
 
 const getEnv = (name) => {
@@ -12,7 +9,7 @@ const getEnv = (name) => {
   return value;
 };
 
-export default {
+module.exports = {
   expo: {
     name: 'Wyttle',
     slug: 'Wyttle',
