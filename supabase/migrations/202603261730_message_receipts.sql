@@ -350,6 +350,23 @@ $$;
 
 alter table public.thread_memberships enable row level security;
 
+do $$
+begin
+  if exists (
+    select 1
+    from pg_publication
+    where pubname = 'supabase_realtime'
+  ) then
+    begin
+      alter publication supabase_realtime add table public.thread_memberships;
+    exception
+      when duplicate_object then
+        null;
+    end;
+  end if;
+end
+$$;
+
 drop policy if exists "thread_memberships_select" on public.thread_memberships;
 create policy "thread_memberships_select"
 on public.thread_memberships
