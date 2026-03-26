@@ -592,15 +592,16 @@ export default function ProfileViewScreen() {
               </View>
             )}
 
-            {(canShowBooking || canDisconnect || canManageBlock) && (
+
+
+
+            {(canShowBooking || canDisconnect) && (
               <View style={[styles.sectionCard, colorScheme === 'dark' ? undefined : styles.sectionCardShadow, { backgroundColor: theme.background }]}> 
                 <View style={styles.sectionHeaderRow}>
                   <Ionicons name="flash-outline" size={17} color={theme.text} style={styles.sectionHeaderIcon} />
                   <ThemedText style={[styles.sectionCardTitle, font('GlacialIndifference', '700'), { color: theme.text }]}> 
                     Actions
                   </ThemedText>
-
-                  
                 </View>
 
                 {canBookSession && (
@@ -639,25 +640,7 @@ export default function ProfileViewScreen() {
                   </TouchableOpacity>
                 )}
 
-                {canManageBlock && (
-                  <TouchableOpacity
-                    style={styles.disconnectButton}
-                    onPress={handleBlockToggle}
-                    disabled={blockLoading}
-                  >
-                    <ThemedText style={styles.disconnectButtonText}>
-                      {blockLoading ? 'Saving…' : blockStatus.blockedByMe ? 'Unblock User' : 'Block User'}
-                    </ThemedText>
-                  </TouchableOpacity>
-                )}
-
-                {blockStatus.isBlocked && (
-                  <Text style={[styles.actionHintText, { color: colorScheme === 'dark' ? '#d8dbe6' : '#4b5563' }]}>
-                    {blockStatus.blockedByMe
-                      ? 'This user is blocked. Chat and session booking are disabled until you unblock them.'
-                      : 'This user has blocked you. Chat and session booking are unavailable.'}
-                  </Text>
-                )}
+                
 
                 {canBookSession && (
                   <Text style={[styles.actionHintText, { color: colorScheme === 'dark' ? '#d8dbe6' : '#4b5563' }]}>
@@ -667,6 +650,73 @@ export default function ProfileViewScreen() {
 
               </View>
             )}
+
+            {canManageBlock && (
+              <View style={styles.dangerZoneOuter}>
+                <LinearGradient
+                  colors={['#ff0000', '#ff4d4d']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.dangerZoneGradient}
+                >
+                  <View
+                    style={[
+                      styles.dangerZoneInner,
+                      styles.sectionCardShadow,
+                      { backgroundColor: colorScheme === 'dark' ? '#2b1519' : '#fdecee' },
+                    ]}
+                  >
+                    <View style={styles.sectionHeaderRow}>
+                      <Ionicons
+                        name="warning-outline"
+                        size={17}
+                        color={colorScheme === 'dark' ? '#ffd7d7' : '#7f1d1d'}
+                        style={styles.sectionHeaderIcon}
+                      />
+                      <ThemedText
+                        style={[
+                          styles.sectionCardTitle,
+                          font('GlacialIndifference', '700'),
+                          { color: colorScheme === 'dark' ? '#ffd7d7' : '#7f1d1d' },
+                        ]}
+                      >
+                        Danger Zone
+                      </ThemedText>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.dangerZoneButton}
+                      onPress={handleBlockToggle}
+                      disabled={blockLoading}
+                    >
+                      <ThemedText style={styles.disconnectButtonText}>
+                        {blockLoading ? 'Saving…' : blockStatus.blockedByMe ? 'Unblock User' : 'Block User'}
+                      </ThemedText>
+                    </TouchableOpacity>
+
+                    {blockStatus.isBlocked && (
+                      <Text
+                        style={[
+                          styles.actionHintText,
+                          { color: colorScheme === 'dark' ? '#f8caca' : '#7f1d1d' },
+                        ]}
+                      >
+                        {blockStatus.blockedByMe
+                          ? 'This user is blocked. Chat and session booking are disabled until you unblock them.'
+                          : 'This user has blocked you. Chat and session booking are unavailable.'}
+                      </Text>
+                    )}
+                  </View>
+                </LinearGradient>
+              </View>
+            )}
+
+
+
+            
+
+
+
           </View>
 
           <Modal
@@ -1281,5 +1331,36 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: 12,
     color: '#555',
+  },
+
+  dangerZoneContent: {
+    backgroundColor: '#fdecee', 
+    borderRadius: 6, 
+    padding: 16, 
+  },
+  sectionCardContent: {
+    borderRadius: 6, 
+    padding: 16, 
+  },
+  dangerZoneOuter: {
+    width: '100%',
+    marginBottom: 12,
+    borderRadius: 18,
+  },
+  dangerZoneGradient: {
+    borderRadius: 18,
+    padding: 1.5, //Thinner border
+  },
+  dangerZoneInner: {
+    borderRadius: 16,
+    padding: 16,
+  },
+  dangerZoneButton: {
+    marginTop: 8, //Button height in card
+    alignSelf: 'flex-start',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: '#c43b3b',
   },
 });
