@@ -119,7 +119,7 @@ export default function MentorHub() {
   const { width: screenWidth } = useWindowDimensions();
   const { registerOnHeightChange } = useMenteeBottomNavHeight();
 
-  const COLUMNS = screenWidth < 500 ? 2 : 3; //ISSUE LINE MAYBE
+  const COLUMNS = screenWidth < 400 ? 2 : 3; //ISSUE LINE MAYBE
 
   //Distance filter state (null = no distance filter)
   //const [selectedDistance, setSelectedDistance] = useState<number | null>(null);
@@ -273,8 +273,7 @@ export default function MentorHub() {
   // compute layout: fixed columns, responsive card width, placeholders to fill last row
   const { cardWidth, contentWidth, placeholderCount } = useMemo(() => {
     const availableWidth = Math.max(0, screenWidth - H_PADDING * 2);
-    const computedCardWidth = Math.max(
-      0,
+    const computedCardWidth = Math.floor(
       (availableWidth - GAP * (COLUMNS - 1)) / COLUMNS,
     );
     const contentW = computedCardWidth * COLUMNS + GAP * (COLUMNS - 1);
