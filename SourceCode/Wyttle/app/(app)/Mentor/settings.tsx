@@ -34,6 +34,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as Location from 'expo-location';
 import { TextInput } from 'react-native';
 import OnboardingOverlay from '../../../src/components/OnboardingOverlay';
+import { getAppVersion, getAppVersionLabel } from '../../../src/lib/app-version';
 import { font } from '../../../src/lib/fonts';
 import {
   disableTotpFactor,
@@ -599,7 +600,7 @@ export default function MenteeSettingsScreen() {
         description: trimmedDescription,
         sourceScreen: 'Mentor settings acknowledgements',
         platform: Platform.OS,
-        appVersion: '1.0.9',
+        appVersion: getAppVersion(),
         context: {
           entry_point: 'acknowledgements_modal',
         },
@@ -1346,7 +1347,7 @@ export default function MenteeSettingsScreen() {
 
 
 
-          <Text style={[styles.versionText, { color: theme.placeholder }]}>Version 1.0.9</Text>
+          <Text style={[styles.versionText, { color: theme.placeholder }]}>{getAppVersionLabel()}</Text>
         </View>
       )}
       </KeyboardAwareScrollView>

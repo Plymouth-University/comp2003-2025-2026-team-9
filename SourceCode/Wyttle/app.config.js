@@ -1,4 +1,8 @@
 import 'dotenv/config';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const pkg = require('./package.json');
 
 const getEnv = (name) => {
   const value = process.env[name];
@@ -12,7 +16,7 @@ export default {
   expo: {
     name: 'Wyttle',
     slug: 'Wyttle',
-    version: '1.0.9',
+    version: pkg.version,
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     scheme: 'wyttle',
