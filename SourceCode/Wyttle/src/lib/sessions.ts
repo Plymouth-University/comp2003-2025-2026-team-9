@@ -14,66 +14,90 @@ export async function requestSession(
   description: string,
   scheduledStart: Date,
 ): Promise<{ requestId: number; threadId: number }> {
-  // 1) Fetch mentor rate
-  const { data: mentor, error: mentorErr } = await supabase
-    .from('profiles')
-    .select('mentor_session_rate')
-    .eq('id', mentorId)
-    .single();
-  if (mentorErr || !mentor) throw new Error('Could not load mentor profile');
-  const rate: number = mentor.mentor_session_rate ?? 0;
+  let rate = 0;
+  let tokensEscrowed = false;
+  let threadId: number | null = null;
 
-  // 2) Fetch mentee balance
-  const { data: mentee, error: menteeErr } = await supabase
-    .from('profiles')
-    .select('tokens_balance')
-    .eq('id', menteeId)
-    .single();
-  if (menteeErr || !mentee) throw new Error('Could not load your profile');
-  const balance: number = mentee.tokens_balance ?? 0;
+  try {
+    // 1) Fetch mentor rate
+    const { data: mentor, error: mentorErr } = await supabase
+      .from('profiles')
+      .select('mentor_session_rate')
+      .eq('id', mentorId)
+      .single();
+    if (mentorErr || !mentor) throw new Error('Could not load mentor profile');
+    rate = mentor.mentor_session_rate ?? 0;
 
-  if (balance < rate) {
-    throw new Error(`Not enough tokens. You have ${balance} but this session costs ${rate}.`);
+    // 2) Fetch mentee balance
+    const { data: mentee, error: menteeErr } = await supabase
+      .from('profiles')
+      .select('tokens_balance')
+      .eq('id', menteeId)
+      .single();
+    if (menteeErr || !mentee) throw new Error('Could not load your profile');
+    const balance: number = mentee.tokens_balance ?? 0;
+
+    if (balance < rate) {
+      throw new Error(`Not enough tokens. You have ${balance} but this session costs ${rate}.`);
+    }
+
+    // 3) Deduct tokens (escrow)
+    const { error: deductErr } = await supabase
+      .from('profiles')
+      .update({ tokens_balance: balance - rate })
+      .eq('id', menteeId);
+    if (deductErr) throw new Error('Failed to escrow tokens');
+    tokensEscrowed = true;
+
+    // 4) Create a mentorship thread for chat
+    const { data: thread, error: threadErr } = await supabase
+      .from('threads')
+      .insert({ type: 'mentorship' })
+      .select('id')
+      .single();
+    if (threadErr || !thread) throw new Error('Failed to create chat thread');
+    threadId = thread.id;
+
+    // 5) Compute end time
+    const scheduledEnd = new Date(scheduledStart.getTime() + SESSION_DURATION_MINUTES * 60 * 1000);
+
+    // 6) Insert mentor_request
+    const { data: req, error: reqErr } = await supabase
+      .from('mentor_requests')
+      .insert({
+        mentee: menteeId,
+        mentor: mentorId,
+        thread_id: thread.id,
+        status: 'requested',
+        scheduled_start: scheduledStart.toISOString(),
+        scheduled_end: scheduledEnd.toISOString(),
+        tokens_cost: rate,
+        description: description.trim() || null,
+      })
+      .select('id')
+      .single();
+    if (reqErr || !req) throw new Error(reqErr?.message ?? 'Failed to create session request');
+
+    await seedSessionRequestMessage(thread.id, description);
+
+    return { requestId: req.id, threadId: thread.id };
+  } catch (error) {
+    if (threadId) {
+      const { error: cleanupThreadError } = await supabase
+        .from('threads')
+        .delete()
+        .eq('id', threadId);
+      if (cleanupThreadError) {
+        console.warn('Failed to clean up orphaned mentorship thread', cleanupThreadError);
+      }
+    }
+
+    if (tokensEscrowed && rate > 0) {
+      await refundTokens(menteeId, rate);
+    }
+
+    throw error;
   }
-
-  // 3) Deduct tokens (escrow)
-  const { error: deductErr } = await supabase
-    .from('profiles')
-    .update({ tokens_balance: balance - rate })
-    .eq('id', menteeId);
-  if (deductErr) throw new Error('Failed to escrow tokens');
-
-  // 4) Create a mentorship thread for chat
-  const { data: thread, error: threadErr } = await supabase
-    .from('threads')
-    .insert({ type: 'mentorship' })
-    .select('id')
-    .single();
-  if (threadErr || !thread) throw new Error('Failed to create chat thread');
-
-  // 5) Compute end time
-  const scheduledEnd = new Date(scheduledStart.getTime() + SESSION_DURATION_MINUTES * 60 * 1000);
-
-  // 6) Insert mentor_request
-  const { data: req, error: reqErr } = await supabase
-    .from('mentor_requests')
-    .insert({
-      mentee: menteeId,
-      mentor: mentorId,
-      thread_id: thread.id,
-      status: 'requested',
-      scheduled_start: scheduledStart.toISOString(),
-      scheduled_end: scheduledEnd.toISOString(),
-      tokens_cost: rate,
-      description: description.trim() || null,
-    })
-    .select('id')
-    .single();
-  if (reqErr || !req) throw new Error(reqErr?.message ?? 'Failed to create session request');
-
-  await seedSessionRequestMessage(thread.id, description);
-
-  return { requestId: req.id, threadId: thread.id };
 }
 
 // ── Accept ────────────────────────────────────────────────────────────

@@ -38,6 +38,7 @@ import {
   type MessageReceiptState,
   type ThreadMembership,
 } from '../../../src/lib/chat-receipts';
+import { markThreadReadLocally } from '../../../src/lib/chat-read-state';
 import { playMessageSound } from '../../../src/lib/message-sound';
 import { acceptSession, declineSession } from '../../../src/lib/sessions';
 import type { Profile } from '../../../src/lib/supabase';
@@ -340,7 +341,9 @@ export default function MentorChatScreen() {
       const latestIncomingMessageId = getLatestIncomingMessageId(mapped);
       if (latestIncomingMessageId) {
         try {
+          await markThreadReadLocally(threadId, latestIncomingMessageId);
           await markThreadRead(threadId, latestIncomingMessageId);
+          await loadThreadMembershipState();
         } catch (receiptError) {
           console.warn('Failed to mark thread read on load', receiptError);
         }
@@ -365,10 +368,12 @@ export default function MentorChatScreen() {
               playMessageSound();
               try {
                 if (isNearBottomRef.current) {
+                  await markThreadReadLocally(threadId, String(row.id));
                   await markThreadRead(threadId, String(row.id));
                 } else {
                   await markThreadDelivered(threadId, String(row.id));
                 }
+                await loadThreadMembershipState();
               } catch (receiptError) {
                 console.warn('Failed to update message receipt state', receiptError);
               }
@@ -434,6 +439,18 @@ export default function MentorChatScreen() {
     };
   }, [threadId, loadThreadMembershipState]);
 
+  useEffect(() => {
+    if (!threadId) return;
+
+    const intervalId = setInterval(() => {
+      void loadThreadMembershipState();
+    }, 2500);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [threadId, loadThreadMembershipState]);
+
   const markVisibleMessagesRead = useCallback(async () => {
     if (!threadId) return;
 
@@ -441,11 +458,13 @@ export default function MentorChatScreen() {
     if (!latestIncomingMessageId) return;
 
     try {
+      await markThreadReadLocally(threadId, latestIncomingMessageId);
       await markThreadRead(threadId, latestIncomingMessageId);
+      await loadThreadMembershipState();
     } catch (error) {
       console.warn('Failed to mark visible messages as read', error);
     }
-  }, [messages, threadId]);
+  }, [loadThreadMembershipState, messages, threadId]);
 
   useEffect(() => {
     if (!threadId) return;

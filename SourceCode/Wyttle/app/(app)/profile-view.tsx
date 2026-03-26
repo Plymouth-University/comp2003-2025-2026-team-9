@@ -21,7 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { font } from '../../src/lib/fonts';
-import { seedSessionRequestMessage } from '../../src/lib/sessions';
+import { requestSession } from '../../src/lib/sessions';
 import type { Profile } from '../../src/lib/supabase';
 import {
   blockUser,
@@ -281,48 +281,7 @@ export default function ProfileViewScreen() {
         return;
       }
 
-      // 1) Create a mentorship thread
-      const { data: thread, error: threadError } = await supabase
-        .from('threads')
-        .insert({ type: 'mentorship' })
-        .select('id')
-        .single();
-
-      if (threadError || !thread) {
-        console.error('Failed to create thread', threadError);
-        setBookingError(threadError?.message ?? 'Failed to create booking thread');
-        setBookingLoading(false);
-        return;
-      }
-
-      // 2) Create mentor request with status 'requested' so mentor can accept/decline
-      const rate: number = profile.mentor_session_rate ?? 0;
-
-      const { data: req, error: reqError } = await supabase
-        .from('mentor_requests')
-        .insert({
-          mentee: me.id,
-          mentor: userId,
-          thread_id: thread.id,
-          status: 'requested',
-          scheduled_start: scheduledStart.toISOString(),
-          scheduled_end: scheduledEnd.toISOString(),
-          tokens_cost: rate,
-          description: bookingDescription.trim() || null,
-        })
-        .select('id')
-        .single();
-
-      if (reqError || !req) {
-        console.error('Failed to create mentor request', reqError);
-        setBookingError(reqError?.message ?? 'Failed to create booking');
-        setBookingLoading(false);
-        return;
-      }
-
-      await seedSessionRequestMessage(thread.id, bookingDescription);
-
-      // Calendar entry + video link are created when the mentor accepts
+      await requestSession(me.id, userId, bookingDescription, scheduledStart);
 
       setBookingModalVisible(false);
       setBookingDate('');

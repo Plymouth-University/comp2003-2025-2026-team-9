@@ -18,10 +18,14 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
-  fetchUserThreadMembershipMap,
-  hasCursorReachedMessage,
-  markThreadDelivered,
+  markThreadRead,
 } from '../../../src/lib/chat-receipts';
+import {
+  getLastReadMessageIdMap,
+  hasLocalReadReached,
+  markThreadReadLocally,
+  subscribeToLocalReadUpdates,
+} from '../../../src/lib/chat-read-state';
 import { font } from '../../../src/lib/fonts';
 import { useMenteeBottomNavHeight } from '../../../src/lib/mentee-bottom-nav-height';
 import { fetchBlockedUserIds, supabase } from '../../../src/lib/supabase';
@@ -45,6 +49,7 @@ type ChatItem = {
   statusLabel?: string | null;
   statusTone?: 'neutral' | 'warning' | 'success';
   scheduledStart?: string | null;
+  lastMessageId?: string | null;
   lastMessageSender: string | null;
   lastMessage: string | null;
   lastMessageAt: string | null;
@@ -213,9 +218,13 @@ export default function MenteeConnectionsScreen() {
   const [expandedMentorIds, setExpandedMentorIds] = useState<Record<string, boolean>>({});
   const [bottomNavHeight, setBottomNavHeight] = useState(140);
   const { registerOnHeightChange } = useMenteeBottomNavHeight();
+  const isScreenFocusedRef = useRef(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (options?: { quiet?: boolean }) => {
+    const quiet = options?.quiet ?? false;
+    if (!quiet) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const {
@@ -291,6 +300,7 @@ export default function MenteeConnectionsScreen() {
               statusLabel: null,
               statusTone: 'neutral',
               scheduledStart: null,
+              lastMessageId: null,
               lastMessageSender: null,
               lastMessage: null,
               lastMessageAt: null,
@@ -340,6 +350,7 @@ export default function MenteeConnectionsScreen() {
         statusLabel: getMentorshipStatusLabel(request.status, request.scheduled_start),
         statusTone: getMentorshipStatusTone(request.status, request.scheduled_start),
         scheduledStart: request.scheduled_start ?? null,
+        lastMessageId: null,
         lastMessageSender: null,
         lastMessage: null,
         lastMessageAt: null,
@@ -375,46 +386,27 @@ export default function MenteeConnectionsScreen() {
         });
       }
 
-      const membershipMap =
-        threadIds.length > 0 ? await fetchUserThreadMembershipMap(threadIds, user.id) : {};
+      const localReadMap =
+        threadIds.length > 0 ? await getLastReadMessageIdMap(threadIds) : {};
 
       const chatsWithMessages = chatsResultUnsorted.map((chat) => {
         const last = lastByThread[chat.threadId];
-        const membership = membershipMap[chat.threadId];
         const unread = !!(
           last?.id &&
           last?.sender &&
           last.sender !== user.id &&
-          !hasCursorReachedMessage(membership?.last_read_message_id, last.id)
+          !hasLocalReadReached(localReadMap[chat.threadId], last.id)
         );
 
         return {
           ...chat,
+          lastMessageId: last?.id ?? null,
           lastMessageSender: last?.sender ?? null,
           lastMessage: last?.body ?? null,
           lastMessageAt: last?.inserted_at ?? null,
           unread,
         };
       });
-
-      const deliveredUpdates = chatsResultUnsorted.flatMap((chat) => {
-        const last = lastByThread[chat.threadId];
-        const membership = membershipMap[chat.threadId];
-
-        if (!last?.id || !last.sender || last.sender === user.id) {
-          return [];
-        }
-
-        if (hasCursorReachedMessage(membership?.last_delivered_message_id, last.id)) {
-          return [];
-        }
-
-        return [markThreadDelivered(chat.threadId, last.id)];
-      });
-
-      if (deliveredUpdates.length > 0) {
-        await Promise.allSettled(deliveredUpdates);
-      }
 
       const collapsedChats = collapseMentorshipChats(chatsWithMessages);
 
@@ -430,7 +422,9 @@ export default function MenteeConnectionsScreen() {
       console.error('Failed to load mentee connections', err);
       setError(err.message ?? 'Failed to load connections');
     } finally {
-      setLoading(false);
+      if (!quiet) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -449,28 +443,57 @@ export default function MenteeConnectionsScreen() {
           .channel(`mentee-connections-${user.id}`)
           .on(
             'postgres_changes',
-            { event: '*', schema: 'public', table: 'peer_matches' },
+            {
+              event: '*',
+              schema: 'public',
+              table: 'peer_matches',
+              filter: `member_a=eq.${user.id}`,
+            },
             () => {
-              if (isMounted) {
-                load();
+              if (isMounted && isScreenFocusedRef.current) {
+                void load({ quiet: true });
               }
             },
           )
           .on(
             'postgres_changes',
-            { event: 'INSERT', schema: 'public', table: 'messages' },
+            {
+              event: '*',
+              schema: 'public',
+              table: 'peer_matches',
+              filter: `member_b=eq.${user.id}`,
+            },
             () => {
-              if (isMounted) {
-                load();
+              if (isMounted && isScreenFocusedRef.current) {
+                void load({ quiet: true });
               }
             },
           )
           .on(
             'postgres_changes',
-            { event: '*', schema: 'public', table: 'mentor_requests' },
+            {
+              event: '*',
+              schema: 'public',
+              table: 'mentor_requests',
+              filter: `mentee=eq.${user.id}`,
+            },
             () => {
-              if (isMounted) {
-                load();
+              if (isMounted && isScreenFocusedRef.current) {
+                void load({ quiet: true });
+              }
+            },
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'thread_memberships',
+              filter: `user_id=eq.${user.id}`,
+            },
+            () => {
+              if (isMounted && isScreenFocusedRef.current) {
+                void load({ quiet: true });
               }
             },
           )
@@ -480,7 +503,7 @@ export default function MenteeConnectionsScreen() {
       }
     };
 
-    load();
+    void load();
     setupRealtime();
 
     return () => {
@@ -491,11 +514,31 @@ export default function MenteeConnectionsScreen() {
     };
   }, [load]);
 
+  useEffect(() => {
+    const unsubscribe = subscribeToLocalReadUpdates(() => {
+      if (isScreenFocusedRef.current) {
+        void load({ quiet: true });
+      }
+    });
+
+    return unsubscribe;
+  }, [load]);
+
   useFocusEffect(
     useCallback(() => {
+      isScreenFocusedRef.current = true;
       registerOnHeightChange(setBottomNavHeight);
-      load();
-      return () => registerOnHeightChange(undefined);
+      void load({ quiet: true });
+      const pollInterval = setInterval(() => {
+        if (isScreenFocusedRef.current) {
+          void load({ quiet: true });
+        }
+      }, 3000);
+      return () => {
+        isScreenFocusedRef.current = false;
+        clearInterval(pollInterval);
+        registerOnHeightChange(undefined);
+      };
     }, [load, registerOnHeightChange]),
   );
 
@@ -512,9 +555,56 @@ export default function MenteeConnectionsScreen() {
   const visibleChats = showEmptyChatsDropdown ? activeChats : filteredChats;
   const groupedChats = groupChatsByDate(visibleChats);
 
+  const clearThreadUnread = useCallback((threadId: number) => {
+    setChats((current) =>
+      current.map((chat) => {
+        if (chat.threadId === threadId && !chat.relatedSessions?.length) {
+          return { ...chat, unread: false };
+        }
+
+        if (!chat.relatedSessions?.length) {
+          return chat;
+        }
+
+        const nextRelatedSessions = chat.relatedSessions.map((session) =>
+          session.threadId === threadId ? { ...session, unread: false } : session,
+        );
+        const hasChanged = nextRelatedSessions.some(
+          (session, index) => session.unread !== chat.relatedSessions?.[index]?.unread,
+        );
+
+        if (!hasChanged) {
+          return chat.threadId === threadId ? { ...chat, unread: false } : chat;
+        }
+
+        const matchingSession = nextRelatedSessions.find((session) => session.threadId === threadId);
+        const shouldClearParent = chat.threadId === threadId || matchingSession?.threadId === threadId;
+
+        return {
+          ...chat,
+          unread: shouldClearParent ? nextRelatedSessions.some((session) => session.unread) : chat.unread,
+          relatedSessions: nextRelatedSessions,
+        };
+      }),
+    );
+  }, []);
+
   const openChat = async (item: MatchItem | ChatItem) => {
     try {
       if ('threadId' in item && item.threadId) {
+        if ('unread' in item && item.unread && chatFilter === 'unread') {
+          setChatFilter('all');
+        }
+
+        if ('unread' in item && item.unread && item.lastMessageId) {
+          clearThreadUnread(item.threadId);
+          void markThreadReadLocally(item.threadId, item.lastMessageId);
+          void markThreadRead(item.threadId, item.lastMessageId).catch((error) => {
+            console.warn('Failed to mark mentee chat read when opening thread', error);
+            void load({ quiet: true });
+          });
+        }
+
         router.push({
           pathname: '/(app)/Mentee/chat',
           params: {

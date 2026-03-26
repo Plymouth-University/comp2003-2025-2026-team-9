@@ -20,10 +20,14 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
-  fetchUserThreadMembershipMap,
-  hasCursorReachedMessage,
-  markThreadDelivered,
+  markThreadRead,
 } from '../../../src/lib/chat-receipts';
+import {
+  getLastReadMessageIdMap,
+  hasLocalReadReached,
+  markThreadReadLocally,
+  subscribeToLocalReadUpdates,
+} from '../../../src/lib/chat-read-state';
 import { font } from '../../../src/lib/fonts';
 import { acceptSession, declineSession } from '../../../src/lib/sessions';
 import { fetchBlockedUserIds, supabase } from '../../../src/lib/supabase';
@@ -37,6 +41,7 @@ type MentorChatItem = {
   otherUserId: string;
   name: string;
   photoUrl: string | null;
+  lastMessageId?: string | null;
   lastMessageSender: string | null;
   lastMessage: string | null;
   lastMessageAt: string | null;
@@ -128,6 +133,7 @@ function EmptyChatsDropdown({
 
       <View
         style={styles.measureContainer}
+        pointerEvents="none"
         onLayout={(event) => {
           const nextHeight = event.nativeEvent.layout.height;
           if (nextHeight > 0) {
@@ -199,6 +205,7 @@ export default function MentorConnectionsScreen() {
   const [chatFilter, setChatFilter] = useState<ChatFilter>('all');
   const [emptyChatsExpanded, setEmptyChatsExpanded] = useState(false);
   const [requestActionId, setRequestActionId] = useState<number | null>(null);
+  const isScreenFocusedRef = useRef(false);
 
   useEffect(() => {
     if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -206,8 +213,11 @@ export default function MentorConnectionsScreen() {
     }
   }, []);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (options?: { quiet?: boolean }) => {
+    const quiet = options?.quiet ?? false;
+    if (!quiet) {
+      setLoading(true);
+    }
     setError(null);
 
     try {
@@ -285,19 +295,18 @@ export default function MentorConnectionsScreen() {
         });
       }
 
-      const membershipMap =
-        threadIds.length > 0 ? await fetchUserThreadMembershipMap(threadIds, user.id) : {};
+      const localReadMap =
+        threadIds.length > 0 ? await getLastReadMessageIdMap(threadIds) : {};
 
       const chatItemsUnsorted: MentorChatItem[] = visibleRequests.map((request: any) => {
         const profile = profileMap[request.mentee] ?? { name: 'Mentee', photoUrl: null };
         const last = request.thread_id ? lastByThread[request.thread_id] : undefined;
-        const membership = request.thread_id ? membershipMap[request.thread_id] : undefined;
         const unread = !!(
           request.thread_id &&
           last?.id &&
           last?.sender &&
           last.sender !== user.id &&
-          !hasCursorReachedMessage(membership?.last_read_message_id, last.id)
+          !hasLocalReadReached(localReadMap[request.thread_id], last.id)
         );
 
         return {
@@ -306,6 +315,7 @@ export default function MentorConnectionsScreen() {
           otherUserId: request.mentee,
           name: profile.name,
           photoUrl: profile.photoUrl,
+          lastMessageId: last?.id ?? null,
           lastMessageSender: last?.sender ?? null,
           lastMessage: last?.body ?? null,
           lastMessageAt: last?.inserted_at ?? null,
@@ -316,27 +326,6 @@ export default function MentorConnectionsScreen() {
           unread,
         };
       });
-
-      const deliveredUpdates = visibleRequests.flatMap((request: any) => {
-        if (!request.thread_id) return [];
-
-        const last = lastByThread[request.thread_id];
-        const membership = membershipMap[request.thread_id];
-
-        if (!last?.id || !last.sender || last.sender === user.id) {
-          return [];
-        }
-
-        if (hasCursorReachedMessage(membership?.last_delivered_message_id, last.id)) {
-          return [];
-        }
-
-        return [markThreadDelivered(request.thread_id, last.id)];
-      });
-
-      if (deliveredUpdates.length > 0) {
-        await Promise.allSettled(deliveredUpdates);
-      }
 
       const sortedChatItems = chatItemsUnsorted.sort((a, b) => {
         const aDate = a.lastMessageAt ?? a.proposedAt ?? '';
@@ -349,7 +338,9 @@ export default function MentorConnectionsScreen() {
       console.error('Failed to load mentor connections', err);
       setError(err.message ?? 'Failed to load connections');
     } finally {
-      setLoading(false);
+      if (!quiet) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -369,19 +360,29 @@ export default function MentorConnectionsScreen() {
           .channel(`mentor-connections-${user.id}`)
           .on(
             'postgres_changes',
-            { event: '*', schema: 'public', table: 'mentor_requests' },
+            {
+              event: '*',
+              schema: 'public',
+              table: 'mentor_requests',
+              filter: `mentor=eq.${user.id}`,
+            },
             () => {
-              if (isMounted) {
-                load();
+              if (isMounted && isScreenFocusedRef.current) {
+                void load({ quiet: true });
               }
             },
           )
           .on(
             'postgres_changes',
-            { event: 'INSERT', schema: 'public', table: 'messages' },
+            {
+              event: '*',
+              schema: 'public',
+              table: 'thread_memberships',
+              filter: `user_id=eq.${user.id}`,
+            },
             () => {
-              if (isMounted) {
-                load();
+              if (isMounted && isScreenFocusedRef.current) {
+                void load({ quiet: true });
               }
             },
           )
@@ -391,7 +392,7 @@ export default function MentorConnectionsScreen() {
       }
     };
 
-    load();
+    void load();
     setupRealtime();
 
     return () => {
@@ -402,9 +403,29 @@ export default function MentorConnectionsScreen() {
     };
   }, [load]);
 
+  useEffect(() => {
+    const unsubscribe = subscribeToLocalReadUpdates(() => {
+      if (isScreenFocusedRef.current) {
+        void load({ quiet: true });
+      }
+    });
+
+    return unsubscribe;
+  }, [load]);
+
   useFocusEffect(
     useCallback(() => {
-      load();
+      isScreenFocusedRef.current = true;
+      void load({ quiet: true });
+      const pollInterval = setInterval(() => {
+        if (isScreenFocusedRef.current) {
+          void load({ quiet: true });
+        }
+      }, 3000);
+      return () => {
+        isScreenFocusedRef.current = false;
+        clearInterval(pollInterval);
+      };
     }, [load]),
   );
 
@@ -423,7 +444,26 @@ export default function MentorConnectionsScreen() {
   const visibleChats = showEmptyChatsDropdown ? activeChats : conversationChats;
   const groupedChats = groupChatsByDate(visibleChats);
 
+  const clearThreadUnread = useCallback((threadId: number) => {
+    setChats((current) =>
+      current.map((chat) => (chat.threadId === threadId ? { ...chat, unread: false } : chat)),
+    );
+  }, []);
+
   const openChat = (item: MentorChatItem) => {
+    if (item.unread && chatFilter === 'unread') {
+      setChatFilter('all');
+    }
+
+    if (item.unread && item.lastMessageId) {
+      clearThreadUnread(item.threadId);
+      void markThreadReadLocally(item.threadId, item.lastMessageId);
+      void markThreadRead(item.threadId, item.lastMessageId).catch((error) => {
+        console.warn('Failed to mark mentor chat read when opening thread', error);
+        void load({ quiet: true });
+      });
+    }
+
     router.push({
       pathname: '/(app)/Mentor/chat',
       params: {

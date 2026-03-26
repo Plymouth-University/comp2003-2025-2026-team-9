@@ -1,14 +1,15 @@
 import { router, usePathname, useGlobalSearchParams, type Href } from 'expo-router';
-import React, { JSX } from 'react';
-import { Dimensions, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
+import React, { JSX, useEffect, useRef, useState } from 'react';
+import { Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { getMenteeNavBadgeCounts } from '../../lib/nav-badges';
+import { supabase } from '../../lib/supabase';
+import { subscribeToLocalReadUpdates } from '../../lib/chat-read-state';
 import { GraduationIcon, SettingIcon, StackIcon, UsersAltIcon } from './MenteeNavIcons';
 import { NavBlankShape } from './NavBlankShape';
 
 const VIEWBOX_WIDTH = 200.27968;
-const VIEWBOX_HEIGHT = 53.78904;
-const VIEWBOX_CIRCLE_CENTER_Y = 18.258205; // 15.83455 + 2.423655 from SVG
 const NAV_SCALE = 1.3;
 const BASE_NAV_WIDTH = 390; // keep nav height based on phone-ish width
 type Props = {
@@ -22,6 +23,11 @@ export default function MenteeBottomNav({ onHeightChange }: Props) {
   const navOrigin = typeof searchParams?.navOrigin === 'string' ? searchParams.navOrigin : null;
 
   const [navWidth, setNavWidth] = React.useState(() => Dimensions.get('window').width);
+  const [badgeCounts, setBadgeCounts] = useState({
+    connections: 0,
+    mentorHub: 0,
+  });
+  const trackedThreadIdsRef = useRef<Set<number>>(new Set());
 
   const bottomInset = insets.bottom > 0 ? insets.bottom : 10;
   const bottomFillHeight = bottomInset ;
@@ -51,18 +57,12 @@ export default function MenteeBottomNav({ onHeightChange }: Props) {
   const designScale = (BASE_NAV_WIDTH / VIEWBOX_WIDTH) * NAV_SCALE;
   const scale = Math.min(widthScale, designScale);
   const CROPPED_VIEWBOX_HEIGHT = 37.91404;
-  const svgHeight = CROPPED_VIEWBOX_HEIGHT * scale;  const circleCenterOffset = (VIEWBOX_HEIGHT - VIEWBOX_CIRCLE_CENTER_Y) * scale - 45;
+  const svgHeight = CROPPED_VIEWBOX_HEIGHT * scale;
   const contentMaxWidth = Platform.OS === 'web' ? 600 : width;
   const contentWidth = Math.min(width, contentMaxWidth);
   const fillerExtra = Platform.OS === 'web' ? 50 : 0;
   const fillerWidth = Platform.OS === 'web' ? Math.max(0, (width - contentWidth) / 2 + fillerExtra) : 0;
-
-  const tabs = [
-    { key: 'connections', label: 'Connections', path: '/(app)/Mentee/connections', Icon: UsersAltIcon },
-    { key: 'discovery', label: 'Discover', path: '/(app)/Mentee/discovery', Icon: StackIcon },
-    { key: 'mentorHub', label: 'Mentor Hub', path: '/(app)/Mentee/mentor-hub', Icon: GraduationIcon },
-    { key: 'settings', label: 'Settings', path: '/(app)/Mentee/settings', Icon: SettingIcon },
-  ] as const;
+  type NavKey = 'connections' | 'discovery' | 'mentorHub' | 'settings';
 
   // Derive active tab from the last pathname segment so it works reliably
   // regardless of group segments like "(app)".
@@ -70,7 +70,7 @@ export default function MenteeBottomNav({ onHeightChange }: Props) {
   const segments = pathWithoutQuery.split('/').filter(Boolean);
   const lastSegment = segments[segments.length - 1] ?? 'connections';
 
-  let activeKey: (typeof tabs)[number]['key'] = 'connections';
+  let activeKey: NavKey = 'connections';
   switch (lastSegment) {
     case 'connections':
       activeKey = 'connections';
@@ -93,7 +93,99 @@ export default function MenteeBottomNav({ onHeightChange }: Props) {
 
   const active = activeKey;
 
-  const goTo = (path: string, key: (typeof tabs)[number]['key']) => {
+  useEffect(() => {
+    let isMounted = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+
+    const loadBadgeCounts = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user || !isMounted) return;
+
+        const counts = await getMenteeNavBadgeCounts(user.id);
+        if (isMounted) {
+          trackedThreadIdsRef.current = new Set(counts.trackedThreadIds);
+          setBadgeCounts(counts);
+        }
+      } catch (error) {
+        console.warn('Failed to load mentee nav badge counts', error);
+      }
+    };
+
+    const setupRealtime = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || !isMounted) return;
+
+      channel = supabase
+        .channel(`mentee-nav-badges-${user.id}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+          const threadId = Number((payload.new as any)?.thread_id);
+          if (trackedThreadIdsRef.current.has(threadId)) {
+            void loadBadgeCounts();
+          }
+        })
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'mentor_requests', filter: `mentee=eq.${user.id}` },
+          () => {
+            void loadBadgeCounts();
+          },
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'peer_matches', filter: `member_a=eq.${user.id}` },
+          () => {
+            void loadBadgeCounts();
+          },
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'peer_matches', filter: `member_b=eq.${user.id}` },
+          () => {
+            void loadBadgeCounts();
+          },
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'thread_memberships', filter: `user_id=eq.${user.id}` },
+          () => {
+            void loadBadgeCounts();
+          },
+        )
+        .subscribe();
+    };
+
+    void loadBadgeCounts();
+    void setupRealtime();
+    const unsubscribeLocalReceiptUpdates = subscribeToLocalReadUpdates(() => {
+      if (isMounted) {
+        void loadBadgeCounts();
+      }
+    });
+    pollInterval = setInterval(() => {
+      if (isMounted) {
+        void loadBadgeCounts();
+      }
+    }, 3000);
+
+    return () => {
+      isMounted = false;
+      unsubscribeLocalReceiptUpdates();
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, []);
+
+  const goTo = (path: string, key: NavKey) => {
     // If this tab is already active, do nothing to avoid re-running
     // the navigation animation or resetting the stack.
     if (key === active) return;
@@ -142,6 +234,7 @@ export default function MenteeBottomNav({ onHeightChange }: Props) {
             <NavItem
               Icon={UsersAltIcon}
               active={active === 'connections'}
+              badgeCount={badgeCounts.connections}
               onPress={() => goTo('/(app)/Mentee/connections', 'connections')}
             />
             <NavItem
@@ -159,6 +252,7 @@ export default function MenteeBottomNav({ onHeightChange }: Props) {
             <NavItem
               Icon={GraduationIcon}
               active={active === 'mentorHub'}
+              badgeCount={badgeCounts.mentorHub}
               onPress={() => goTo('/(app)/Mentee/mentor-hub', 'mentorHub')}
             />
             <NavItem
@@ -180,15 +274,21 @@ type NavItemIconComponent = (props: { color: string; size?: number }) => JSX.Ele
 type NavItemProps = {
   Icon: NavItemIconComponent;
   active: boolean;
+  badgeCount?: number;
   onPress: () => void;
 };
 
-function NavItem({ Icon, active, onPress }: NavItemProps) {
+function NavItem({ Icon, active, badgeCount = 0, onPress }: NavItemProps) {
   const color = active ? '#968c6c' : '#dedfe0';
 
   return (
     <TouchableOpacity style={styles.navItem} onPress={onPress}>
       <Icon color={color} size={30} />
+      {badgeCount > 0 ? (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{badgeCount > 9 ? '9+' : badgeCount}</Text>
+        </View>
+      ) : null}
     </TouchableOpacity>
   );
 }
@@ -248,6 +348,23 @@ const styles = StyleSheet.create({
   },
   navItem: {
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -10,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 999,
+    backgroundColor: '#d64545',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
+  },
 });

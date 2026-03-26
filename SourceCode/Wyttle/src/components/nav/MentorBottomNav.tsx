@@ -1,17 +1,17 @@
 import { router, usePathname, useGlobalSearchParams, type Href } from 'expo-router';
-import React, { JSX, useEffect, useState } from 'react';
-import { Dimensions, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
+import React, { JSX, useEffect, useRef, useState } from 'react';
+import { Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CalendarIcon, ChatIcon, SettingIcon, VideoIcon } from './MentorNavIcons';
 import { NavBlankShape } from './NavBlankShape';
+import { getMentorNavBadgeCounts } from '../../lib/nav-badges';
 import { supabase } from '../../lib/supabase';
-import { Text } from 'react-native';
+import { subscribeToLocalReadUpdates } from '../../lib/chat-read-state';
 import { Logo } from '@/components/Logo';
 
 const VIEWBOX_WIDTH = 200.27968;
 const VIEWBOX_HEIGHT = 53.78904;
-const VIEWBOX_CIRCLE_CENTER_Y = 18.258205;
 const NAV_SCALE = 1.3;
 const BASE_NAV_WIDTH = 390; // keep nav height based on phone-ish width
 
@@ -54,12 +54,7 @@ export default function MentorBottomNav({ onHeightChange }: Props) {
   const fillerWidth = Platform.OS === 'web' ? Math.max(0, (width - contentWidth) / 2 + fillerExtra) : 0;
   const adminButtonBottom = bottomFillHeight + svgHeight / 2 - 10 + buttonLift + largeScreenAdminLift;
 
-  const tabs = [
-    { key: 'waiting', label: 'Waiting', path: '/(app)/Mentor/waiting-room', Icon: VideoIcon },
-    { key: 'connections', label: 'Chats', path: '/(app)/Mentor/connections', Icon: ChatIcon },
-    { key: 'calendar', label: 'Calendar', path: '/(app)/Mentor/calendar', Icon: CalendarIcon },
-    { key: 'settings', label: 'Settings', path: '/(app)/Mentor/settings', Icon: SettingIcon },
-  ] as const;
+  type BaseNavKey = 'waiting' | 'connections' | 'calendar' | 'settings';
 
   // Derive active tab from the last pathname segment so it works reliably
   // regardless of group segments like "(app)".
@@ -67,7 +62,7 @@ export default function MentorBottomNav({ onHeightChange }: Props) {
   const segments = pathWithoutQuery.split('/').filter(Boolean);
   const lastSegment = segments[segments.length - 1] ?? 'connections';
 
-  let activeKey: (typeof tabs)[number]['key'] = 'connections';
+  let activeKey: BaseNavKey = 'connections';
   switch (lastSegment) {
     case 'waiting-room':
       activeKey = 'waiting';
@@ -89,12 +84,21 @@ export default function MentorBottomNav({ onHeightChange }: Props) {
   }
 
   const active = activeKey;
-  type NavKey = (typeof tabs)[number]['key'] | 'admin';
+  type NavKey = BaseNavKey | 'admin';
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [badgeCounts, setBadgeCounts] = useState({
+    connections: 0,
+    waiting: 0,
+  });
+  const trackedThreadIdsRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
+    let isMounted = true;
+    let badgeChannel: ReturnType<typeof supabase.channel> | null = null;
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+
     (async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -116,10 +120,82 @@ export default function MentorBottomNav({ onHeightChange }: Props) {
             setPendingCount(count ?? 0);
           }
         }
-      } catch (err) {
+      } catch {
         // ignore errors — default to non-admin
       }
     })();
+
+    const loadBadgeCounts = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user || !isMounted) return;
+
+        const counts = await getMentorNavBadgeCounts(user.id);
+        if (isMounted) {
+          trackedThreadIdsRef.current = new Set(counts.trackedThreadIds);
+          setBadgeCounts(counts);
+        }
+      } catch (error) {
+        console.warn('Failed to load mentor nav badge counts', error);
+      }
+    };
+
+    const setupBadgeRealtime = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || !isMounted) return;
+
+      badgeChannel = supabase
+        .channel(`mentor-nav-badges-${user.id}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+          const threadId = Number((payload.new as any)?.thread_id);
+          if (trackedThreadIdsRef.current.has(threadId)) {
+            void loadBadgeCounts();
+          }
+        })
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'mentor_requests', filter: `mentor=eq.${user.id}` },
+          () => {
+            void loadBadgeCounts();
+          },
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'thread_memberships', filter: `user_id=eq.${user.id}` },
+          () => {
+            void loadBadgeCounts();
+          },
+        )
+        .subscribe();
+    };
+
+    void loadBadgeCounts();
+    void setupBadgeRealtime();
+    const unsubscribeLocalReceiptUpdates = subscribeToLocalReadUpdates(() => {
+      if (isMounted) {
+        void loadBadgeCounts();
+      }
+    });
+    pollInterval = setInterval(() => {
+      if (isMounted) {
+        void loadBadgeCounts();
+      }
+    }, 3000);
+
+    return () => {
+      isMounted = false;
+      unsubscribeLocalReceiptUpdates();
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+      if (badgeChannel) {
+        supabase.removeChannel(badgeChannel);
+      }
+    };
   }, []);
 
   const goTo = (path: string, key: NavKey) => {
@@ -173,12 +249,14 @@ export default function MentorBottomNav({ onHeightChange }: Props) {
             <NavItem
               Icon={VideoIcon}
               active={active === 'waiting'}
+              badgeCount={badgeCounts.waiting}
               onPress={() => goTo('/(app)/Mentor/waiting-room', 'waiting')}
               size={40}
             />
             <NavItem
               Icon={ChatIcon}
               active={active === 'connections'}
+              badgeCount={badgeCounts.connections}
               onPress={() => goTo('/(app)/Mentor/connections', 'connections')}
             />
           </View>
@@ -230,16 +308,22 @@ type NavItemIconComponent = (props: { color: string; size?: number }) => JSX.Ele
 type NavItemProps = {
   Icon: NavItemIconComponent;
   active: boolean;
+  badgeCount?: number;
   onPress: () => void;
   size?: number;
 };
 
-function NavItem({ Icon, active, onPress, size = 30 }: NavItemProps) {
+function NavItem({ Icon, active, badgeCount = 0, onPress, size = 30 }: NavItemProps) {
   const color = active ? '#968c6c' : '#dedfe0';
 
   return (
     <TouchableOpacity style={styles.navItem} onPress={onPress}>
       <Icon color={color} size={size} />
+      {badgeCount > 0 ? (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{badgeCount > 9 ? '9+' : badgeCount}</Text>
+        </View>
+      ) : null}
     </TouchableOpacity>
   );
 }
@@ -301,6 +385,24 @@ const styles = StyleSheet.create({
   },
   navItem: {
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -10,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 999,
+    backgroundColor: '#d64545',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
   },
   adminCircle: {
     position: 'absolute',
