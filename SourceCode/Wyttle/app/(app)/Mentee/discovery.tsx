@@ -37,6 +37,7 @@ import { subscribeToDiscoveryRefresh } from '../../../src/lib/discovery-refresh'
 import {
   blockUser,
   fetchDiscoveryProfiles,
+  getCurrentUser,
   getLastPassSwipeId,
   likeProfile,
   Profile,
