@@ -23,6 +23,7 @@ import {
   markThreadDelivered,
 } from '../../../src/lib/chat-receipts';
 import { font } from '../../../src/lib/fonts';
+import { useMenteeBottomNavHeight } from '../../../src/lib/mentee-bottom-nav-height';
 import { fetchBlockedUserIds, supabase } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 
@@ -134,6 +135,7 @@ function EmptyChatsDropdown({
 
       <View
         style={styles.measureContainer}
+        pointerEvents="none"
         onLayout={(event) => {
           const nextHeight = event.nativeEvent.layout.height;
           if (nextHeight > 0) {
@@ -209,6 +211,8 @@ export default function MenteeConnectionsScreen() {
   const [chatFilter, setChatFilter] = useState<ChatFilter>('all');
   const [emptyChatsExpanded, setEmptyChatsExpanded] = useState(false);
   const [expandedMentorIds, setExpandedMentorIds] = useState<Record<string, boolean>>({});
+  const [bottomNavHeight, setBottomNavHeight] = useState(140);
+  const { registerOnHeightChange } = useMenteeBottomNavHeight();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -489,8 +493,10 @@ export default function MenteeConnectionsScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      registerOnHeightChange(setBottomNavHeight);
       load();
-    }, [load]),
+      return () => registerOnHeightChange(undefined);
+    }, [load, registerOnHeightChange]),
   );
 
   const filteredChats = chats.filter((chat) => {
@@ -596,7 +602,10 @@ export default function MenteeConnectionsScreen() {
         )}
       </View>
 
-      <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.listContent, { paddingBottom: bottomNavHeight + 20 }]}
+        showsVerticalScrollIndicator={false}
+      >
         {showEmptyChatsDropdown && (
           <EmptyChatsDropdown
             open={emptyChatsExpanded}
@@ -986,6 +995,7 @@ function MentorChatGroupRow({
 
       <View
         style={styles.measureContainer}
+        pointerEvents="none"
         onLayout={(event) => {
           const nextHeight = event.nativeEvent.layout.height;
           if (nextHeight > 0) {
@@ -1106,7 +1116,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingTop: 8,
-    paddingBottom: 40,
   },
   row: {
     flexDirection: 'row',
