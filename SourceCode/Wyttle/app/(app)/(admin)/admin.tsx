@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Pressable, ActivityIndicator, Alert, Image, Dimensions, TextInput, Animated, Modal } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { supabase, Profile } from '../../../src/lib/supabase';
 import { Logo } from '@/components/Logo';
@@ -42,6 +43,15 @@ type AnalyticsMetric = {
 	label: string;
 	value: number;
 	color: string;
+};
+type BugReportRow = {
+  id: number;
+  reporter_user_id: string | null;
+  reporter_name: string | null;
+  reporter_email: string | null;
+  title: string | null;
+  description: string;
+  created_at: string;
 };
 
 const ROLE_ORDER = ['admin', 'mentor', 'member'] as const;
@@ -86,6 +96,10 @@ export default function AdminPanel() {
 	const [approvalFilter, setApprovalFilter] = useState<ApprovalFilter>('all');
 	const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
 	const scrollY = useRef(new Animated.Value(0)).current;
+
+	const [showBugReportsModal, setShowBugReportsModal] = useState(false);
+	const [bugReportsLoading, setBugReportsLoading] = useState(false);
+	const [bugReports, setBugReports] = useState<BugReportRow[]>([]);
 
 	const colorScheme = useColorScheme();
 	const theme = Colors[colorScheme ?? 'light'];
@@ -136,7 +150,12 @@ export default function AdminPanel() {
 			if (matchError) console.warn('Failed to load match analytics', matchError);
 			if (sessionError) console.warn('Failed to load session analytics', sessionError);
 
-			setProfiles((profileData ?? []) as Profile[]);
+			const normalizedProfiles = ((profileData ?? []) as any[]).map((p) => ({
+				...p,
+				industry: p.industry ?? null,
+				erience: p.erience ?? null,
+			}));
+			setProfiles(normalizedProfiles as Profile[]);
 			setApplications((applicationData ?? []) as ApplicationRow[]);
 			setMessages((messageData ?? []) as MessageRow[]);
 			setPeerMatches((matchData ?? []) as MatchRow[]);
@@ -147,6 +166,42 @@ export default function AdminPanel() {
 			setLoading(false);
 		}
 	}
+
+	function formatBugReportDate(value: string) {
+		const date = new Date(value);
+		return date.toLocaleString([], {
+			year: 'numeric',
+			month: 'short',
+			day: '2-digit',
+			hour: '2-digit',
+			minute: '2-digit',
+		});
+	}
+
+	async function loadBugReports() {
+		try {
+			setBugReportsLoading(true);
+
+			const { data, error } = await supabase
+			.from('bug_reports')
+			.select('id, reporter_user_id, reporter_name, reporter_email, title, description, created_at')
+			.order('created_at', { ascending: false });
+
+			if (error) throw error;
+			setBugReports((data ?? []) as BugReportRow[]);
+		} catch (e: any) {
+			showToast(e?.message ?? 'Failed to load bug reports', 'error');
+		} finally {
+			setBugReportsLoading(false);
+		}
+	}
+
+	async function openBugReportsModal() {
+		setShowBugReportsModal(true);
+		await loadBugReports();
+	}
+
+
 
 	const pendingProfiles = profiles.filter((p) => p.approval_status === 'pending');
 	const getEffectiveRole = (profile: Profile) => (profile.account_type ? 'admin' : (profile.role ?? 'member'));
@@ -825,6 +880,22 @@ export default function AdminPanel() {
 					</TouchableOpacity>
 				</View>
 
+				<TouchableOpacity
+					style={[
+						styles.bugReportsButton,
+						{ backgroundColor: colorScheme === 'dark' ? '#232b40' : '#f3ede2' },
+					]}
+					onPress={openBugReportsModal}
+					activeOpacity={0.85}
+					>
+					<Ionicons name="bug-outline" size={18} color="#c43b3b" />
+					<Text style={[styles.bugReportsButtonText, { color: theme.text }]}>
+						View Bug Reports
+					</Text>
+				</TouchableOpacity>
+
+
+
 				{loading ? (
 					<ActivityIndicator size="large" style={{ marginTop: 24 }} />
 				) : tab === 'pending' ? (
@@ -986,14 +1057,99 @@ export default function AdminPanel() {
 			</View>
 
 			{/* include main app nav so admins can navigate like other users */}
-			<MentorBottomNav />
+            <MentorBottomNav />
 
-			<Modal
-				visible={selectedUser != null}
-				transparent
-				animationType="fade"
-				onRequestClose={closeUserActions}
-			>
+            <Modal
+                visible={showBugReportsModal}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowBugReportsModal(false)}
+            >
+                <Pressable
+                    style={styles.userModalBackdrop}
+                    onPress={() => setShowBugReportsModal(false)}
+                >
+                    <Pressable
+                        style={[
+                            styles.bugReportsModalCard,
+                            {
+                                backgroundColor: surfaceColor,
+                                borderColor: colorScheme === 'dark' ? '#ffffff14' : '#e4dacb',
+                            },
+                        ]}
+                        onPress={(event) => event.stopPropagation()}
+                    >
+                        <View style={styles.bugReportsModalHeader}>
+                            <Text style={[styles.bugReportsModalTitle, { color: theme.text }]}>
+                                Bug Reports
+                            </Text>
+                            <TouchableOpacity onPress={() => setShowBugReportsModal(false)}>
+                                <Text style={styles.bugReportsCloseText}>Close</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {bugReportsLoading ? (
+                            <ActivityIndicator size="small" style={{ marginTop: 12 }} />
+                        ) : bugReports.length === 0 ? (
+                            <View style={styles.inlineEmptyState}>
+                                <Text style={styles.emptyText}>No bug reports yet</Text>
+                            </View>
+                        ) : (
+                            <FlatList
+                                data={bugReports}
+                                keyExtractor={(item) => String(item.id)}
+                                showsVerticalScrollIndicator={false}
+                                contentContainerStyle={{ paddingBottom: 8 }}
+                                renderItem={({ item }) => {
+                                    const reporter =
+                                        item.reporter_name?.trim() ||
+                                        item.reporter_email?.trim() ||
+                                        item.reporter_user_id ||
+                                        'Unknown user';
+
+                                    return (
+                                        <View
+                                            style={[
+                                                styles.bugReportRow,
+                                                {
+                                                    borderColor: colorScheme === 'dark' ? '#ffffff12' : '#e4dacb',
+                                                    backgroundColor: colorScheme === 'dark' ? '#1a2234' : '#ffffff',
+                                                },
+                                            ]}
+                                        >
+                                            <View style={styles.bugReportTopRow}>
+                                                <Text style={[styles.bugReportDate, { color: theme.text }]}>
+                                                    {formatBugReportDate(item.created_at)}
+                                                </Text>
+                                                <Text style={styles.bugReportReporter} numberOfLines={1}>
+                                                    {reporter}
+                                                </Text>
+                                            </View>
+
+                                            {item.title ? (
+                                                <Text style={[styles.bugReportTitle, { color: theme.text }]}>
+                                                    {item.title}
+                                                </Text>
+                                            ) : null}
+
+                                            <Text style={styles.bugReportDescription}>
+                                                {item.description}
+                                            </Text>
+                                        </View>
+                                    );
+                                }}
+                            />
+                        )}
+                    </Pressable>
+                </Pressable>
+            </Modal>
+
+            <Modal
+                visible={selectedUser != null}
+                transparent
+                animationType="fade"
+                onRequestClose={closeUserActions}
+            >
 				<Pressable style={styles.userModalBackdrop} onPress={closeUserActions}>
 					<Pressable
 						style={[
@@ -1567,5 +1723,83 @@ const styles = StyleSheet.create({
 	userModalCloseButtonText: {
 		fontSize: 14,
 		fontWeight: '600',
+	},
+	bugReportsButton: {
+		marginHorizontal: 16,
+		marginBottom: 10,
+		borderRadius: 12,
+		paddingVertical: 12,
+		paddingHorizontal: 14,
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'center',
+		gap: 8,
+		borderWidth: 1,
+		borderColor: '#dfd5c3',
+	},
+	bugReportsButtonText: {
+		fontSize: 14,
+		fontWeight: '700',
+	},
+	bugReportsModalCard: {
+		width: '100%',
+		maxWidth: 420,
+		maxHeight: '78%',
+		borderRadius: 20,
+		paddingHorizontal: 14,
+		paddingVertical: 14,
+		borderWidth: 1,
+	},
+	bugReportsModalHeader: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		marginBottom: 10,
+		paddingBottom: 10,
+		borderBottomWidth: 1,
+		borderBottomColor: 'rgba(150, 140, 108, 0.2)',
+	},
+	bugReportsModalTitle: {
+		fontSize: 20,
+		fontWeight: '700',
+	},
+	bugReportsCloseText: {
+		fontSize: 14,
+		fontWeight: '700',
+		color: '#4f6b9a',
+	},
+	bugReportRow: {
+		borderWidth: 1,
+		borderRadius: 14,
+		paddingHorizontal: 12,
+		paddingVertical: 10,
+		marginBottom: 10,
+	},
+	bugReportTopRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		gap: 10,
+		marginBottom: 6,
+	},
+	bugReportDate: {
+		fontSize: 12,
+		fontWeight: '700',
+	},
+	bugReportReporter: {
+		fontSize: 12,
+		color: '#7d7d7d',
+		flexShrink: 1,
+		textAlign: 'right',
+	},
+	bugReportTitle: {
+		fontSize: 14,
+		fontWeight: '700',
+		marginBottom: 4,
+	},
+	bugReportDescription: {
+		fontSize: 13,
+		color: '#7d7d7d',
+		lineHeight: 18,
 	},
 });
