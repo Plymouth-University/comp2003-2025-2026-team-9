@@ -29,6 +29,7 @@ import {
   subscribeToLocalReadUpdates,
 } from '../../../src/lib/chat-read-state';
 import { font } from '../../../src/lib/fonts';
+import { setMentorBadgeState } from '../../../src/lib/nav-badge-state';
 import { acceptSession, declineSession } from '../../../src/lib/sessions';
 import { fetchBlockedUserIds, supabase } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
@@ -227,6 +228,7 @@ export default function MentorConnectionsScreen() {
 
       if (!user) {
         setChats([]);
+        setMentorBadgeState({ connections: 0 });
         return;
       }
 
@@ -245,6 +247,7 @@ export default function MentorConnectionsScreen() {
 
       if (visibleRequests.length === 0) {
         setChats([]);
+        setMentorBadgeState({ connections: 0 });
         return;
       }
 
@@ -334,6 +337,9 @@ export default function MentorConnectionsScreen() {
       });
 
       setChats(sortedChatItems);
+      setMentorBadgeState({
+        connections: sortedChatItems.filter((chat) => chat.status === 'requested' || chat.unread).length,
+      });
     } catch (err: any) {
       console.error('Failed to load mentor connections', err);
       setError(err.message ?? 'Failed to load connections');
@@ -386,6 +392,19 @@ export default function MentorConnectionsScreen() {
               }
             },
           )
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'messages',
+            },
+            () => {
+              if (isMounted && isScreenFocusedRef.current) {
+                void load({ quiet: true });
+              }
+            },
+          )
           .subscribe();
       } catch (err) {
         console.warn('Failed to set up realtime for mentor connections', err);
@@ -417,14 +436,8 @@ export default function MentorConnectionsScreen() {
     useCallback(() => {
       isScreenFocusedRef.current = true;
       void load({ quiet: true });
-      const pollInterval = setInterval(() => {
-        if (isScreenFocusedRef.current) {
-          void load({ quiet: true });
-        }
-      }, 3000);
       return () => {
         isScreenFocusedRef.current = false;
-        clearInterval(pollInterval);
       };
     }, [load]),
   );

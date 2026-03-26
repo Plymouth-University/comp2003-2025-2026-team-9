@@ -105,7 +105,9 @@ export default function MenteeChatScreen() {
   const displayName = otherProfile?.full_name ?? fallbackName;
   const conversationSubtitle =
     otherProfile?.role === 'mentor' ? 'Mentor conversation' : 'Peer match conversation';
-  const otherMembership = getOtherParticipantMembership(threadMemberships, meId);
+  const otherMembership = otherId
+    ? threadMemberships.find((membership) => membership.user_id === otherId) ?? null
+    : getOtherParticipantMembership(threadMemberships, meId);
 
   const measureRootInWindow = useCallback(() => {
     const node = findNodeHandle(rootRef.current);

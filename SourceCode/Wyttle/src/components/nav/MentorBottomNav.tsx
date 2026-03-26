@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CalendarIcon, ChatIcon, SettingIcon, VideoIcon } from './MentorNavIcons';
 import { NavBlankShape } from './NavBlankShape';
 import { getMentorNavBadgeCounts } from '../../lib/nav-badges';
+import { subscribeToMentorBadgeState } from '../../lib/nav-badge-state';
 import { supabase } from '../../lib/supabase';
 import { subscribeToLocalReadUpdates } from '../../lib/chat-read-state';
 import { Logo } from '@/components/Logo';
@@ -97,7 +98,6 @@ export default function MentorBottomNav({ onHeightChange }: Props) {
   useEffect(() => {
     let isMounted = true;
     let badgeChannel: ReturnType<typeof supabase.channel> | null = null;
-    let pollInterval: ReturnType<typeof setInterval> | null = null;
 
     (async () => {
       try {
@@ -180,18 +180,18 @@ export default function MentorBottomNav({ onHeightChange }: Props) {
         void loadBadgeCounts();
       }
     });
-    pollInterval = setInterval(() => {
-      if (isMounted) {
-        void loadBadgeCounts();
-      }
-    }, 3000);
+    const unsubscribeBadgeState = subscribeToMentorBadgeState((nextState) => {
+      if (!isMounted) return;
+      setBadgeCounts((current) => ({
+        connections: nextState.connections ?? current.connections,
+        waiting: nextState.waiting ?? current.waiting,
+      }));
+    });
 
     return () => {
       isMounted = false;
       unsubscribeLocalReceiptUpdates();
-      if (pollInterval) {
-        clearInterval(pollInterval);
-      }
+      unsubscribeBadgeState();
       if (badgeChannel) {
         supabase.removeChannel(badgeChannel);
       }

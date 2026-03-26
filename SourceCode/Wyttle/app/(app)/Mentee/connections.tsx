@@ -28,6 +28,7 @@ import {
 } from '../../../src/lib/chat-read-state';
 import { font } from '../../../src/lib/fonts';
 import { useMenteeBottomNavHeight } from '../../../src/lib/mentee-bottom-nav-height';
+import { setMenteeBadgeState } from '../../../src/lib/nav-badge-state';
 import { fetchBlockedUserIds, supabase } from '../../../src/lib/supabase';
 import { commonStyles } from '../../../src/styles/common';
 
@@ -233,6 +234,7 @@ export default function MenteeConnectionsScreen() {
       if (!user) {
         setMatches([]);
         setChats([]);
+        setMenteeBadgeState({ connections: 0, mentorHub: 0 });
         return;
       }
 
@@ -416,8 +418,19 @@ export default function MenteeConnectionsScreen() {
         return aDate < bDate ? 1 : aDate > bDate ? -1 : 0;
       });
 
+      const mentorHubCount = visibleMentorRequests.filter(
+        (request: any) =>
+          request.status === 'scheduled' &&
+          request.scheduled_start &&
+          new Date(request.scheduled_start).getTime() >= Date.now() - 30 * 60 * 1000,
+      ).length;
+
       setMatches(matchesWithProfile);
       setChats(sortedChats);
+      setMenteeBadgeState({
+        connections: sortedChats.filter((chat) => chat.unread).length,
+        mentorHub: mentorHubCount,
+      });
     } catch (err: any) {
       console.error('Failed to load mentee connections', err);
       setError(err.message ?? 'Failed to load connections');
@@ -497,6 +510,19 @@ export default function MenteeConnectionsScreen() {
               }
             },
           )
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'messages',
+            },
+            () => {
+              if (isMounted && isScreenFocusedRef.current) {
+                void load({ quiet: true });
+              }
+            },
+          )
           .subscribe();
       } catch (err) {
         console.warn('Failed to set up realtime for mentee connections', err);
@@ -529,14 +555,8 @@ export default function MenteeConnectionsScreen() {
       isScreenFocusedRef.current = true;
       registerOnHeightChange(setBottomNavHeight);
       void load({ quiet: true });
-      const pollInterval = setInterval(() => {
-        if (isScreenFocusedRef.current) {
-          void load({ quiet: true });
-        }
-      }, 3000);
       return () => {
         isScreenFocusedRef.current = false;
-        clearInterval(pollInterval);
         registerOnHeightChange(undefined);
       };
     }, [load, registerOnHeightChange]),
@@ -839,12 +859,18 @@ function collapseMentorshipChats(chats: ChatItem[]) {
       return currentTime > latestTime ? current : latest;
     });
 
+    const latestStatusSource = group.reduce((latest, current) => {
+      const latestTime = latest.lastMessageAt ?? latest.createdAt ?? '';
+      const currentTime = current.lastMessageAt ?? current.createdAt ?? '';
+      return currentTime > latestTime ? current : latest;
+    });
+
     return {
       ...latestActivity,
       createdAt: latestRequest.createdAt,
-      statusLabel: latestRequest.statusLabel,
-      statusTone: latestRequest.statusTone,
-      scheduledStart: latestRequest.scheduledStart,
+      statusLabel: latestStatusSource.statusLabel,
+      statusTone: latestStatusSource.statusTone,
+      scheduledStart: latestStatusSource.scheduledStart,
       unread: group.some((chat) => chat.unread),
       sessionCount: group.length,
       relatedSessions: group.sort((a, b) => {

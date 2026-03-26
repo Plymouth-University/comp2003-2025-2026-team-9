@@ -4,6 +4,7 @@ import { Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View } from '
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getMenteeNavBadgeCounts } from '../../lib/nav-badges';
+import { subscribeToMenteeBadgeState } from '../../lib/nav-badge-state';
 import { supabase } from '../../lib/supabase';
 import { subscribeToLocalReadUpdates } from '../../lib/chat-read-state';
 import { GraduationIcon, SettingIcon, StackIcon, UsersAltIcon } from './MenteeNavIcons';
@@ -96,7 +97,6 @@ export default function MenteeBottomNav({ onHeightChange }: Props) {
   useEffect(() => {
     let isMounted = true;
     let channel: ReturnType<typeof supabase.channel> | null = null;
-    let pollInterval: ReturnType<typeof setInterval> | null = null;
 
     const loadBadgeCounts = async () => {
       try {
@@ -167,18 +167,18 @@ export default function MenteeBottomNav({ onHeightChange }: Props) {
         void loadBadgeCounts();
       }
     });
-    pollInterval = setInterval(() => {
-      if (isMounted) {
-        void loadBadgeCounts();
-      }
-    }, 3000);
+    const unsubscribeBadgeState = subscribeToMenteeBadgeState((nextState) => {
+      if (!isMounted) return;
+      setBadgeCounts((current) => ({
+        connections: nextState.connections ?? current.connections,
+        mentorHub: nextState.mentorHub ?? current.mentorHub,
+      }));
+    });
 
     return () => {
       isMounted = false;
       unsubscribeLocalReceiptUpdates();
-      if (pollInterval) {
-        clearInterval(pollInterval);
-      }
+      unsubscribeBadgeState();
       if (channel) {
         supabase.removeChannel(channel);
       }

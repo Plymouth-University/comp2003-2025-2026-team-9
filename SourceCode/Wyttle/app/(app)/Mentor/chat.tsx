@@ -114,7 +114,9 @@ export default function MentorChatScreen() {
   const pendingScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const displayName = otherProfile?.full_name ?? fallbackName;
-  const otherMembership = getOtherParticipantMembership(threadMemberships, meId);
+  const otherMembership = otherId
+    ? threadMemberships.find((membership) => membership.user_id === otherId) ?? null
+    : getOtherParticipantMembership(threadMemberships, meId);
 
   const measureRootInWindow = useCallback(() => {
     const node = findNodeHandle(rootRef.current);
