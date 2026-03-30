@@ -10,13 +10,24 @@ const getDailyApiKey = (): string => {
 
 /**
  * Create a temporary Daily.co room for a session.
- * Room expires after 45 minutes (30-min session + 15-min buffer).
+ * Room expires shortly after the scheduled session ends.
  * Returns the full room URL (e.g. https://your-domain.daily.co/wyttle-123).
  */
-export async function createDailyRoom(sessionId: number | string): Promise<string> {
+export async function createDailyRoom(
+  sessionId: number | string,
+  scheduledEndIso?: string | null,
+): Promise<string> {
   const apiKey = getDailyApiKey();
   const roomName = `wyttle-${sessionId}`;
-  const expiresInSeconds = 45 * 60; // 45 minutes
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const minLifetimeSeconds = 45 * 60; // Keep at least enough time for short-notice sessions.
+  const scheduledEndSeconds = scheduledEndIso
+    ? Math.floor(new Date(scheduledEndIso).getTime() / 1000)
+    : null;
+  const exp = Math.max(
+    nowSeconds + minLifetimeSeconds,
+    (scheduledEndSeconds ?? nowSeconds) + 15 * 60, // 15-minute post-session buffer.
+  );
 
   const headers = {
     'Content-Type': 'application/json',
@@ -27,7 +38,7 @@ export async function createDailyRoom(sessionId: number | string): Promise<strin
     name: roomName,
     privacy: 'public',
     properties: {
-      exp: Math.floor(Date.now() / 1000) + expiresInSeconds,
+      exp,
       max_participants: 2,
       enable_chat: true,
       enable_screenshare: true,

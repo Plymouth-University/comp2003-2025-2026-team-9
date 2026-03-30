@@ -114,7 +114,7 @@ export async function acceptSession(requestId: number): Promise<void> {
   if (req.status !== 'requested') throw new Error('Request is no longer pending');
 
   // 2) Create Daily.co room
-  const roomUrl = await createDailyRoom(req.id);
+  const roomUrl = await createDailyRoom(req.id, req.scheduled_end);
 
   // 3) Insert calendar event (best-effort — may fail if RLS policy is missing)
   const { error: calErr } = await supabase.from('calendar').insert({
