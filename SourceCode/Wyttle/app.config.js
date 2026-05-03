@@ -1,10 +1,63 @@
-require('dotenv/config');
+try {
+  require('dotenv/config');
+} catch {
+  // EAS can evaluate app.config.js before project dependencies are available.
+}
+const fs = require('fs');
+const path = require('path');
 const pkg = require('./package.json');
+
+const buildProfileName =
+  process.env.EAS_BUILD_PROFILE ||
+  process.env.EAS_LOCAL_BUILD_PROFILE ||
+  'production';
+
+const resolveBuildProfileEnv = (profiles, profileName, seen = new Set()) => {
+  if (!profileName || seen.has(profileName)) {
+    return {};
+  }
+
+  seen.add(profileName);
+
+  const profile = profiles?.[profileName];
+  if (!profile) {
+    return {};
+  }
+
+  const inheritedEnv = resolveBuildProfileEnv(profiles, profile.extends, seen);
+  return {
+    ...inheritedEnv,
+    ...(profile.env ?? {}),
+  };
+};
+
+const hydrateEnvFromEasProfile = () => {
+  const easJsonPath = path.join(__dirname, 'eas.json');
+
+  if (!fs.existsSync(easJsonPath)) {
+    return;
+  }
+
+  const easConfig = JSON.parse(fs.readFileSync(easJsonPath, 'utf8'));
+  const profileEnv = resolveBuildProfileEnv(easConfig.build, buildProfileName);
+
+  for (const [key, value] of Object.entries(profileEnv)) {
+    if (!process.env[key] && value) {
+      process.env[key] = value;
+    }
+  }
+};
+
+// Local EAS builds may evaluate app.config.js before .env is available in the temp workspace.
+hydrateEnvFromEasProfile();
+process.env.NODE_ENV ||= 'production';
 
 const getEnv = (name) => {
   const value = process.env[name];
   if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
+    throw new Error(
+      `Missing required environment variable: ${name}. Set it in the shell, .env, or eas.json for the "${buildProfileName}" profile.`
+    );
   }
   return value;
 };

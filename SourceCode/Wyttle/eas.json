@@ -11,7 +11,15 @@
     },
     "preview": {
       "environment": "preview",
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "NODE_ENV": "production",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://kbdzjsnovtosezribvly.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtiZHpqc25vdnRvc2V6cmlidmx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4NjQxNzAsImV4cCI6MjA3ODQ0MDE3MH0.daW44xvVNot4AKrIGBvUhwqMIIQO1krwB7_-ho8INII",
+        "DAILY_API_KEY": "a8fc18e00b3ab7a466e43e8bc3f63792e81b48356300e620cde4b2bd69eaa1e1",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_yHKdhPpSapIfDmCxttrlDNqMJcE",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_djydSEqGgwdevzrJyAlnHTZPPdy"
+      }
     },
     "production": {
       "environment": "production",
