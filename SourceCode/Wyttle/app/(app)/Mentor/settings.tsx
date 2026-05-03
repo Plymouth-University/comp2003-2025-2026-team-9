@@ -1,8 +1,9 @@
 import { router } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
+  ActivityIndicator,
   Image,
   Linking,
   Modal,
@@ -14,9 +15,12 @@ import {
   Text,
   TouchableOpacity,
   UIManager,
-  View
+  View,
+  KeyboardAvoidingView
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import * as Device from 'expo-device';
 
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -217,6 +221,20 @@ export default function MenteeSettingsScreen() {
   const [location, setLocation] = useState('');
   const [bio, setBio] = useState('');
   const [workExperience, setWorkExperience] = useState('');
+  const [mentorSessionRate, setMentorSessionRate] = useState<number>(0);
+  const [showRateRequestModal, setShowRateRequestModal] = useState(false);
+  const [requestedRate, setRequestedRate] = useState('');
+  const [rateRequestReason, setRateRequestReason] = useState('');
+  const [latestRateRequest, setLatestRateRequest] = useState<{
+    id: number;
+    current_rate: number | null;
+    requested_rate: number;
+    reason: string | null;
+    status: 'pending' | 'approved' | 'rejected' | null;
+    created_at: string;
+  } | null>(null);
+  const [isSubmittingRateRequest, setIsSubmittingRateRequest] = useState(false);
+  const [loadingRateRequest, setLoadingRateRequest] = useState(false);
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   const passwordIconColor = colorScheme === 'dark' ? '#cfd3ff' : '#333f5c';
@@ -228,9 +246,13 @@ export default function MenteeSettingsScreen() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showAcknowledgementsModal, setShowAcknowledgementsModal] = useState(false);
   const [showBugReportModal, setShowBugReportModal] = useState(false);
+  
   const [bugReportTitle, setBugReportTitle] = useState('');
   const [bugReportDescription, setBugReportDescription] = useState('');
+  const [bugReportDeviceBrand, setBugReportDeviceBrand] = useState('');
+  const [bugReportDeviceModel, setBugReportDeviceModel] = useState('');
   const [isSubmittingBugReport, setIsSubmittingBugReport] = useState(false);
+
   const [showBlockedUsersModal, setShowBlockedUsersModal] = useState(false);
   const [isPasswordSectionOpen, setIsPasswordSectionOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -259,12 +281,13 @@ export default function MenteeSettingsScreen() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('photo_url, tokens_balance')
+        .select('photo_url, tokens_balance, mentor_session_rate')
         .eq('id', user.id)
         .maybeSingle();
       const prefs = await getNotificationPreferences(user.id);
 
       setPhotoUrl(profile?.photo_url ?? null);
+      setMentorSessionRate(profile?.mentor_session_rate ?? 0);
       //setTokensBalance(profile?.tokens_balance ?? null);
       setNotificationPrefs(prefs);
     })();
@@ -345,7 +368,7 @@ export default function MenteeSettingsScreen() {
   
         const { data: profile, error } = await supabase
           .from('profiles')
-          .select('title, industry, location, bio, skills, work_experience, looking_for')
+          .select('title, industry, location, bio, skills, work_experience, looking_for, mentor_session_rate')
           .eq('id', user.id)
           .maybeSingle();
   
@@ -361,6 +384,7 @@ export default function MenteeSettingsScreen() {
         setBio(profile?.bio ?? '');
         setWorkExperience(profile?.work_experience ?? '');  
         setSkills(profile?.skills ?? []);
+        setMentorSessionRate(profile?.mentor_session_rate ?? 0);
         // mentors: ignore the "looking_for" field in this settings screen
       } catch (err) {
         console.warn('Error fetching profile for edit', err);
@@ -448,6 +472,79 @@ export default function MenteeSettingsScreen() {
     } finally {
       // close editor after save
       setIsEditingProfile(false);
+    }
+  };
+
+  const loadLatestRateRequest = useCallback(async () => {
+    try {
+      setLoadingRateRequest(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('mentor_rate_change_requests')
+        .select('id, current_rate, requested_rate, reason, status, created_at')
+        .eq('mentor_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.warn('Failed to load rate request status', error);
+        return;
+      }
+
+      setLatestRateRequest(data as typeof latestRateRequest);
+    } catch (error) {
+      console.warn('Failed to load latest rate request', error);
+    } finally {
+      setLoadingRateRequest(false);
+    }
+  }, []);
+
+  const handleOpenRateRequestModal = async () => {
+    setRequestedRate(String(Math.max(mentorSessionRate + 1, 1)));
+    setRateRequestReason('');
+    setShowRateRequestModal(true);
+    await loadLatestRateRequest();
+  };
+
+  const handleSubmitRateRequest = async () => {
+    const parsedRate = Number(requestedRate);
+    if (!Number.isFinite(parsedRate) || parsedRate <= mentorSessionRate) {
+      Alert.alert('Invalid rate', 'Enter a token price higher than your current rate.');
+      return;
+    }
+
+    try {
+      setIsSubmittingRateRequest(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('You need to be signed in to submit a request.');
+
+      if (latestRateRequest?.status === 'pending') {
+        Alert.alert('Request pending', 'You already have a token price request awaiting review.');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('mentor_rate_change_requests')
+        .insert({
+          mentor_id: user.id,
+          current_rate: mentorSessionRate,
+          requested_rate: parsedRate,
+          reason: rateRequestReason.trim().length > 0 ? rateRequestReason.trim() : null,
+          status: 'pending',
+        });
+
+      if (error) throw error;
+
+      setShowRateRequestModal(false);
+      Alert.alert('Request sent', 'Your token price request has been sent to the admin team for review.');
+      await loadLatestRateRequest();
+    } catch (error: any) {
+      Alert.alert('Request failed', error?.message ?? 'Unable to submit your token price request right now.');
+    } finally {
+      setIsSubmittingRateRequest(false);
     }
   };
  
@@ -603,11 +700,15 @@ export default function MenteeSettingsScreen() {
         appVersion: getAppVersion(),
         context: {
           entry_point: 'acknowledgements_modal',
+          device_brand: bugReportDeviceBrand || Device.brand || 'Unknown',
+          device_model: bugReportDeviceModel || Device.modelName || 'Unknown',
         },
       });
 
       setBugReportTitle('');
       setBugReportDescription('');
+      setBugReportDeviceBrand('');
+      setBugReportDeviceModel('');
       setShowBugReportModal(false);
       Alert.alert('Thanks', 'Bug report submitted.');
     } catch (error: any) {
@@ -692,6 +793,10 @@ export default function MenteeSettingsScreen() {
     });
   }, [isTwoFactorSectionOpen]);
 
+  useEffect(() => {
+    void loadLatestRateRequest();
+  }, [loadLatestRateRequest]);
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <KeyboardAwareScrollView
@@ -748,6 +853,28 @@ export default function MenteeSettingsScreen() {
             { flex: 1 },
           ]}>Edit profile</ThemedText>
           <Ionicons name={isEditingProfile ? 'chevron-up' : 'chevron-down'} size={18} color={theme.text} style={{ opacity: 0.4 }} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.itemRow}
+          onPress={handleOpenRateRequestModal}
+        >
+          <View style={{ flex: 1 }}>
+            <ThemedText darkColor="#cfd3ff" style={[
+              styles.itemText,
+              font('GlacialIndifference', '400'),
+            ]}>Request token price increase</ThemedText>
+            <Text style={styles.itemSubMetaText}>
+              Current rate: {mentorSessionRate} tokens/session
+            </Text>
+            {loadingRateRequest ? (
+              <Text style={styles.itemSubMetaText}>Checking latest request...</Text>
+            ) : latestRateRequest ? (
+              <Text style={styles.itemSubMetaText}>
+                Latest request: {latestRateRequest.requested_rate} tokens/session ({latestRateRequest.status ?? 'pending'})
+              </Text>
+            ) : null}
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.text} style={{ opacity: 0.4 }} />
         </TouchableOpacity>
           {isEditingProfile && (
             <View style={styles.profileDetailsSection}>
@@ -1352,6 +1479,86 @@ export default function MenteeSettingsScreen() {
       )}
       </KeyboardAwareScrollView>
       <Modal
+        visible={showRateRequestModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowRateRequestModal(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowRateRequestModal(false)}>
+          <Pressable
+            style={[styles.modalCard, { backgroundColor: theme.background }]}
+            onPress={(event) => event.stopPropagation()}
+          >
+            <ThemedText
+              style={[styles.modalTitle, { color: theme.text }, font('GlacialIndifference', '400')]}
+            >
+              Request Token Price Increase
+            </ThemedText>
+
+            <Text style={[styles.rateRequestInfoText, { color: theme.text }]}>
+              Current rate: {mentorSessionRate} tokens/session
+            </Text>
+            {latestRateRequest ? (
+              <Text style={[styles.rateRequestInfoText, { color: theme.text }]}>
+                Latest request: {latestRateRequest.requested_rate} tokens/session ({latestRateRequest.status ?? 'pending'})
+              </Text>
+            ) : null}
+
+            <TextInput
+              value={requestedRate}
+              onChangeText={setRequestedRate}
+              placeholder="Requested token price"
+              placeholderTextColor={theme.placeholder}
+              keyboardType="number-pad"
+              style={[
+                styles.bugReportInput,
+                { color: theme.text, borderColor: theme.border, backgroundColor: theme.background },
+              ]}
+            />
+
+            <TextInput
+              value={rateRequestReason}
+              onChangeText={setRateRequestReason}
+              placeholder="Why should your rate be increased? (optional)"
+              placeholderTextColor={theme.placeholder}
+              style={[
+                styles.bugReportTextArea,
+                { color: theme.text, borderColor: theme.border, backgroundColor: theme.background },
+              ]}
+              multiline
+              textAlignVertical="top"
+              maxLength={600}
+            />
+
+            <View style={styles.bugReportActions}>
+              <TouchableOpacity
+                style={styles.bugReportCancelButton}
+                onPress={() => setShowRateRequestModal(false)}
+                disabled={isSubmittingRateRequest}
+              >
+                <Text style={[styles.bugReportCancelButtonText, { color: theme.text }]}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.bugReportSubmitButton,
+                  isSubmittingRateRequest ? { opacity: 0.6 } : null,
+                ]}
+                onPress={handleSubmitRateRequest}
+                disabled={isSubmittingRateRequest}
+              >
+                {isSubmittingRateRequest ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.bugReportSubmitButtonText}>Submit request</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
         visible={showBlockedUsersModal}
         transparent
         animationType="fade"
@@ -1477,69 +1684,106 @@ export default function MenteeSettingsScreen() {
         onRequestClose={() => setShowBugReportModal(false)}
       >
         <Pressable style={styles.modalBackdrop} onPress={() => setShowBugReportModal(false)}>
-          <Pressable
-            style={[styles.modalCard, { backgroundColor: theme.background }]}
-            onPress={(event) => event.stopPropagation()}
+          <KeyboardAwareScrollView 
+            contentContainerStyle={{ justifyContent: 'center', flex: 1 }}
+            keyboardShouldPersistTaps="handled"
+            enableOnAndroid={true}
+            enableAutomaticScroll={true}
           >
-            <ThemedText
-              style={[styles.modalTitle, { color: theme.text }, font('GlacialIndifference', '400')]}
+            <Pressable
+              style={[styles.modalCard, { backgroundColor: theme.background }]}
+              onPress={(event) => event.stopPropagation()}
             >
-              Report a Bug
-            </ThemedText>
-
-            <TextInput
-              value={bugReportTitle}
-              onChangeText={setBugReportTitle}
-              placeholder="Short title (optional)"
-              placeholderTextColor={theme.placeholder}
-              style={[
-                styles.bugReportInput,
-                { color: theme.text, borderColor: theme.border, backgroundColor: theme.background },
-              ]}
-              maxLength={120}
-            />
-
-            <TextInput
-              value={bugReportDescription}
-              onChangeText={setBugReportDescription}
-              placeholder="What happened? What did you expect?"
-              placeholderTextColor={theme.placeholder}
-              style={[
-                styles.bugReportTextArea,
-                { color: theme.text, borderColor: theme.border, backgroundColor: theme.background },
-              ]}
-              multiline
-              textAlignVertical="top"
-              maxLength={1200}
-            />
-
-            <Text style={[styles.bugReportHint, { color: theme.placeholder }]}>
-              Basic report only. No follow-up inbox inside the app yet.
-            </Text>
-
-            <View style={styles.bugReportActions}>
-              <TouchableOpacity
-                style={styles.bugReportCancelButton}
-                onPress={() => setShowBugReportModal(false)}
-                disabled={isSubmittingBugReport}
+              <ThemedText
+                style={[styles.modalTitle, { color: theme.text }, font('GlacialIndifference', '400')]}
               >
-                <Text style={[styles.bugReportCancelButtonText, { color: theme.text }]}>Cancel</Text>
-              </TouchableOpacity>
+                Report a Bug
+              </ThemedText>
 
-              <TouchableOpacity
+              <TextInput
+                value={bugReportTitle}
+                onChangeText={setBugReportTitle}
+                placeholder="Short title (optional)"
+                placeholderTextColor={theme.placeholder}
                 style={[
-                  styles.bugReportSubmitButton,
-                  isSubmittingBugReport ? { opacity: 0.6 } : null,
+                  styles.bugReportInput,
+                  { color: theme.text, borderColor: theme.border, backgroundColor: theme.background },
                 ]}
-                onPress={handleSubmitBugReport}
-                disabled={isSubmittingBugReport}
-              >
-                <Text style={styles.bugReportSubmitButtonText}>
-                  {isSubmittingBugReport ? 'Submitting...' : 'Submit'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
+                maxLength={120}
+              />
+
+              <TextInput
+                value={bugReportDescription}
+                onChangeText={setBugReportDescription}
+                placeholder="What happened? What did you expect?"
+                placeholderTextColor={theme.placeholder}
+                style={[
+                  styles.bugReportTextArea,
+                  { color: theme.text, borderColor: theme.border, backgroundColor: theme.background },
+                ]}
+                multiline
+                textAlignVertical="top"
+                maxLength={1200}
+              />
+
+
+              {/* Auto-detected device info - not editable anymore, was unnecessary*/}
+              {/* 
+              <Text style={[styles.fieldLabel, { color: theme.text }]}>Device Brand</Text>
+              <TextInput
+                value={bugReportDeviceBrand}
+                onChangeText={setBugReportDeviceBrand}
+                placeholder="Auto-detected..."
+                placeholderTextColor={theme.placeholder}
+                style={[
+                  styles.bugReportInput,
+                  { color: theme.text, borderColor: theme.border, backgroundColor: theme.background },
+                ]}
+                editable={!isSubmittingBugReport}
+              />
+
+              <Text style={[styles.fieldLabel, { color: theme.text }]}>Device Model</Text>
+              <TextInput
+                value={bugReportDeviceModel}
+                onChangeText={setBugReportDeviceModel}
+                placeholder="Auto-detected..."
+                placeholderTextColor={theme.placeholder}
+                style={[
+                  styles.bugReportInput,
+                  { color: theme.text, borderColor: theme.border, backgroundColor: theme.background },
+                ]}
+                editable={!isSubmittingBugReport}
+              />
+              */}
+
+              <Text style={[styles.bugReportHint, { color: theme.placeholder }]}>
+                Basic report only. No follow-up inbox inside the app yet.
+              </Text>
+
+              <View style={styles.bugReportActions}>
+                <TouchableOpacity
+                  style={styles.bugReportCancelButton}
+                  onPress={() => setShowBugReportModal(false)}
+                  disabled={isSubmittingBugReport}
+                >
+                  <Text style={[styles.bugReportCancelButtonText, { color: theme.text }]}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.bugReportSubmitButton,
+                    isSubmittingBugReport ? { opacity: 0.6 } : null,
+                  ]}
+                  onPress={handleSubmitBugReport}
+                  disabled={isSubmittingBugReport}
+                >
+                  <Text style={styles.bugReportSubmitButtonText}>
+                    {isSubmittingBugReport ? 'Submitting...' : 'Submit'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </KeyboardAwareScrollView>
         </Pressable>
       </Modal>
 
@@ -1719,6 +1963,11 @@ const styles = StyleSheet.create({
   itemSubText: {
     marginLeft: 'auto',
     fontSize: 13,
+  },
+  itemSubMetaText: {
+    fontSize: 12,
+    color: '#7f8186',
+    marginTop: 4,
   },
   itemRowWithSwitch: {
     paddingVertical: 14,
@@ -2083,6 +2332,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     marginTop: -6,
+  },
+  rateRequestInfoText: {
+    fontSize: 13,
+    lineHeight: 18,
   },
   bugReportActions: {
     flexDirection: 'row',

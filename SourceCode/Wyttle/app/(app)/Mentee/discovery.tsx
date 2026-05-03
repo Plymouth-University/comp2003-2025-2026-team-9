@@ -100,12 +100,14 @@ export default function DiscoveryStackScreen() {
 
       const { data } = await supabase
         .from('profiles')
-        .select('id, full_name, title, industry, bio, photo_url, role')
+        .select('id, full_name, title, industry, bio, photo_url, role, hidden')
         .eq('id', lastId)
         .maybeSingle();
 
-      if (data) {
+      if (data && !(data as Profile).hidden) {
         setLastPass({ profile: data as Profile, index: 0 });
+      } else {
+        setLastPass(null);
       }
     } catch (err) {
       console.warn('Failed to refresh last pass', err);
@@ -135,7 +137,7 @@ export default function DiscoveryStackScreen() {
         const user = await getCurrentUser();
         const { data, error } = await supabase
           .from('profiles')
-          .select('id, full_name, title, industry, bio, photo_url, role')
+          .select('id, full_name, title, industry, bio, photo_url, role, hidden')
           .eq('id', user.id)
           .single();
         if (!cancelled && !error && data) {
@@ -210,11 +212,11 @@ export default function DiscoveryStackScreen() {
 
         const { data } = await supabase
           .from('profiles')
-          .select('id, full_name, title, industry, bio, photo_url, role')
+          .select('id, full_name, title, industry, bio, photo_url, role, hidden')
           .eq('id', swipedId)
           .maybeSingle();
 
-        if (!data) return;
+        if (!data || (data as Profile).hidden) return;
 
         const insertAt = Math.max(index - 1, 0);
 

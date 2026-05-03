@@ -54,16 +54,17 @@ export default function MentorWaitingRoomScreen() {
       const menteeIds = [...new Set(visibleSessions.map((s: any) => s.mentee))];
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, full_name, photo_url')
+        .select('id, full_name, photo_url, hidden')
         .in('id', menteeIds);
 
       const profileMap: Record<string, { name: string; photo: string | null }> = {};
       (profiles ?? []).forEach((p: any) => {
+        if (p.hidden) return;
         profileMap[p.id] = { name: p.full_name ?? 'Mentee', photo: p.photo_url ?? null };
       });
 
       setSessions(
-        visibleSessions.map((s: any) => ({
+        visibleSessions.filter((s: any) => Boolean(profileMap[s.mentee])).map((s: any) => ({
           requestId: s.id,
           menteeName: profileMap[s.mentee]?.name ?? 'Mentee',
           menteePhoto: profileMap[s.mentee]?.photo ?? null,

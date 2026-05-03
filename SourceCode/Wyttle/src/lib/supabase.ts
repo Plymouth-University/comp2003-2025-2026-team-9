@@ -51,6 +51,7 @@ export type Profile = {
   distance_miles?: number | null;
   tokens_balance?: number | null;
   mentor_session_rate?: number | null;
+  hidden?: boolean | null; // for admin use to hide profiles without deleting them
 };
 
 export async function getLastPassSwipeId(): Promise<string | null> {
@@ -139,7 +140,7 @@ export async function fetchDiscoveryProfiles(maxDistanceMiles: number | null = n
   if (error) throw error;
   const profiles = (data ?? []) as Profile[];
   const blockedIds = new Set(await fetchBlockedUserIds());
-  return profiles.filter((profile) => !blockedIds.has(profile.id));
+  return profiles.filter((profile) => !profile.hidden && !blockedIds.has(profile.id));
 }
 
 

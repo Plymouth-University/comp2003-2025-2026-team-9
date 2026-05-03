@@ -94,10 +94,36 @@ export default function MentorBottomNav({ onHeightChange }: Props) {
     waiting: 0,
   });
   const trackedThreadIdsRef = useRef<Set<number>>(new Set());
+  const isAdminRef = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
     let badgeChannel: ReturnType<typeof supabase.channel> | null = null;
+
+    const loadAdminPendingCount = async (userId: string) => {
+      const [{ count: pendingProfilesCount }, { count: pendingRateRequestsCount }, { count: bugReportsCount }] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id', { count: 'exact', head: true })
+          .eq('approval_status', 'pending'),
+        supabase
+          .from('mentor_rate_change_requests')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending'),
+        supabase
+          .from('bug_reports')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'new'),
+      ]);
+
+      if (isMounted) {
+        setPendingCount(
+          (pendingProfilesCount ?? 0) +
+          (pendingRateRequestsCount ?? 0) +
+          (bugReportsCount ?? 0),
+        );
+      }
+    };
 
     (async () => {
       try {
@@ -111,13 +137,10 @@ export default function MentorBottomNav({ onHeightChange }: Props) {
         if (!error && data) {
           const admin = !!data.account_type || data.role === 'admin';
           setIsAdmin(admin);
+          isAdminRef.current = admin;
 
           if (admin) {
-            const { count } = await supabase
-              .from('profiles')
-              .select('id', { count: 'exact', head: true })
-              .eq('approval_status', 'pending');
-            setPendingCount(count ?? 0);
+            await loadAdminPendingCount(user.id);
           }
         }
       } catch {
@@ -168,6 +191,33 @@ export default function MentorBottomNav({ onHeightChange }: Props) {
           { event: '*', schema: 'public', table: 'thread_memberships', filter: `user_id=eq.${user.id}` },
           () => {
             void loadBadgeCounts();
+          },
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'profiles' },
+          () => {
+            if (isAdminRef.current) {
+              void loadAdminPendingCount(user.id);
+            }
+          },
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'mentor_rate_change_requests' },
+          () => {
+            if (isAdminRef.current) {
+              void loadAdminPendingCount(user.id);
+            }
+          },
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'bug_reports' },
+          () => {
+            if (isAdminRef.current) {
+              void loadAdminPendingCount(user.id);
+            }
           },
         )
         .subscribe();

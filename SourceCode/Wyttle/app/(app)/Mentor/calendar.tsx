@@ -235,9 +235,14 @@ export default function MentorCalendarScreen() {
       // Look up mentee profile
       const { data: profile } = await supabase
         .from('profiles')
-        .select('full_name, photo_url')
+        .select('full_name, photo_url, hidden')
         .eq('id', event.mentee_id)
         .single();
+
+      if (profile?.hidden) {
+        setSessionModalOpen(false);
+        return;
+      }
 
       setSessionDetail({
         menteeName: profile?.full_name ?? 'Mentee',

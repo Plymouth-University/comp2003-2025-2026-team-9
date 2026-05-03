@@ -32,7 +32,7 @@ module.exports = {
     newArchEnabled: true,
     ios: {
       supportsTablet: false,
-      buildNumber: '29',
+      buildNumber: '31',
       bundleIdentifier: 'com.wyttle.wyttleapp',
       usesAppleSignIn: true,
       infoPlist: {
@@ -52,7 +52,7 @@ module.exports = {
       predictiveBackGestureEnabled: false,
       softwareKeyboardLayoutMode: 'resize',
       package: 'com.wyttle.wyttleapp',
-      versionCode: 29,
+      versionCode: 31,
       permissions: [
         'com.android.vending.BILLING',
         'android.permission.POST_NOTIFICATIONS',

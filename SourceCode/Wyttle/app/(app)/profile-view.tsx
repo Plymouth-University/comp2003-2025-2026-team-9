@@ -93,7 +93,7 @@ export default function ProfileViewScreen() {
         const { data, error: profileError } = await supabase
           .from('profiles')
           .select(
-            'id, full_name, title, industry, bio, photo_url, role, location, skills, interests, looking_for, work_experience, mentor_session_rate',
+            'id, full_name, title, industry, bio, photo_url, role, location, skills, interests, looking_for, work_experience, mentor_session_rate, hidden',
           )
           .eq('id', userId)
           .single();
@@ -101,6 +101,11 @@ export default function ProfileViewScreen() {
         if (profileError) {
           console.error('Failed to load profile', profileError);
           setError(profileError.message ?? 'Failed to load profile');
+          return;
+        }
+        if ((data as Profile | null)?.hidden) {
+          setProfile(null);
+          setError('This profile is unavailable.');
           return;
         }
         setProfile(data as unknown as Profile);

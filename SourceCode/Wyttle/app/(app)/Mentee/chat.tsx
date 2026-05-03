@@ -65,9 +65,11 @@ type Message = {
 type AppTheme = typeof Colors[keyof typeof Colors];
 
 const GAP_ABOVE_KEYBOARD = 6;
-const EXTRA_LIST_GAP = 16;
+const EXTRA_LIST_GAP = -26;
 const SCROLL_DELAY = 80;
 const NEAR_BOTTOM_THRESHOLD = 140;
+
+const KEYBOARD_VISIBLE_LIFT = 24;  //THIS IS THE KEY TO MAKING TEXTBOX SIT ON KEYBOARD (android)
 
 export default function MenteeChatScreen() {
   const params = useLocalSearchParams<{ threadId?: string; otherId?: string; name?: string }>();
@@ -122,12 +124,29 @@ export default function MenteeChatScreen() {
   const screenBottom = screenY + screenHeight;
   const keyboardVisible = keyboardTop !== null;
 
+
+  ////////////////////////////////////////////////////////////////////////////
+  //This area below is how the textbox sits on the keyboard (ANDROID ONLY).///
+  const NAV_BUTTONS_THRESHOLD = 25;
+  const androidHasNavButtons = Platform.OS === 'android' && insets.bottom >= NAV_BUTTONS_THRESHOLD;
+  const KEYBOARD_VISIBLE_LIFT_BASE = 24;
+  const KEYBOARD_VISIBLE_LIFT = KEYBOARD_VISIBLE_LIFT_BASE + (androidHasNavButtons ? 25 : 0);
+
   const closedBottomOffset = Platform.OS === 'android' ? 92 : 70;
+  
   const composerBottom = keyboardVisible
     ? Platform.OS === 'android'
-      ? Math.max(GAP_ABOVE_KEYBOARD, keyboardHeight + GAP_ABOVE_KEYBOARD)
-      : Math.max(0, screenBottom - keyboardTop + GAP_ABOVE_KEYBOARD)
+      ? Math.max(
+          GAP_ABOVE_KEYBOARD,
+          keyboardHeight + GAP_ABOVE_KEYBOARD + KEYBOARD_VISIBLE_LIFT
+        )
+      : Math.max(
+          0,
+          screenBottom - keyboardTop + GAP_ABOVE_KEYBOARD
+        )
     : closedBottomOffset + Math.max(insets.bottom, 8);
+  ////////////////////////////////////////////////////////////////////////////
+
 
   const listBottomSpacer = composerHeight + composerBottom + EXTRA_LIST_GAP;
 
@@ -779,60 +798,60 @@ export default function MenteeChatScreen() {
             ) : null}
             {!blockedNotice ? (
               <>
-            {replyingToMessage ? (
-              <View style={styles.replyPreview}>
-                <View style={styles.replyAccent} />
-                <View style={styles.replyTextWrap}>
-                  <Text style={[styles.replyLabel, { color: theme.text }]}>Replying to</Text>
-                  <Text numberOfLines={1} style={[styles.replySnippet, { color: theme.text }]}>
-                    {replyingToMessage.text}
-                  </Text>
+                {replyingToMessage ? (
+                  <View style={styles.replyPreview}>
+                    <View style={styles.replyAccent} />
+                    <View style={styles.replyTextWrap}>
+                      <Text style={[styles.replyLabel, { color: theme.text }]}>Replying to</Text>
+                      <Text numberOfLines={1} style={[styles.replySnippet, { color: theme.text }]}>
+                        {replyingToMessage.text}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setReplyingToMessage(null)}
+                      style={styles.replyDismiss}
+                    >
+                      <Text style={styles.replyDismissText}>x</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+
+                <View style={styles.composerRow}>
+                  <TextInput
+                    style={[styles.input, { color: theme.text }]}
+                    placeholder={
+                      editingMessageId
+                        ? 'Edit message...'
+                        : replyingToMessage
+                          ? 'Write a reply...'
+                          : 'Message...'
+                    }
+                    placeholderTextColor="#7f8186"
+                    value={input}
+                    onChangeText={setInput}
+                    multiline
+                    maxLength={2000}
+                    returnKeyType="default"
+                    textAlignVertical="top"
+                    onFocus={() => {
+                      isNearBottomRef.current = true;
+                      measureRootInWindow();
+                      scrollToBottom(false, 80, true);
+                    }}
+                    onContentSizeChange={handleInputContentSizeChange}
+                  />
+
+                  <TouchableOpacity
+                    style={[styles.sendButton, { opacity: input.trim() ? 1 : 0.5 }]}
+                    activeOpacity={0.8}
+                    onPress={handleSend}
+                    disabled={!input.trim()}
+                  >
+                    <Text style={styles.sendButtonText}>
+                      {editingMessageId ? 'Save' : 'Send'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                  onPress={() => setReplyingToMessage(null)}
-                  style={styles.replyDismiss}
-                >
-                  <Text style={styles.replyDismissText}>x</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-
-            <View style={styles.composerRow}>
-              <TextInput
-                style={[styles.input, { color: theme.text }]}
-                placeholder={
-                  editingMessageId
-                    ? 'Edit message...'
-                    : replyingToMessage
-                      ? 'Write a reply...'
-                      : 'Message...'
-                }
-                placeholderTextColor="#7f8186"
-                value={input}
-                onChangeText={setInput}
-                multiline
-                maxLength={2000}
-                returnKeyType="default"
-                textAlignVertical="top"
-                onFocus={() => {
-                  isNearBottomRef.current = true;
-                  measureRootInWindow();
-                  scrollToBottom(false, 80, true);
-                }}
-                onContentSizeChange={handleInputContentSizeChange}
-              />
-
-              <TouchableOpacity
-                style={[styles.sendButton, { opacity: input.trim() ? 1 : 0.5 }]}
-                activeOpacity={0.8}
-                onPress={handleSend}
-                disabled={!input.trim()}
-              >
-                <Text style={styles.sendButtonText}>
-                  {editingMessageId ? 'Save' : 'Send'}
-                </Text>
-              </TouchableOpacity>
-            </View>
               </>
             ) : null}
           </View>

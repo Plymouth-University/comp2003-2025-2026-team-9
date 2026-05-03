@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Pressable, ActivityIndicator, Alert, Image, Dimensions, TextInput, Animated, Modal } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Pressable, ActivityIndicator, Alert, Image, Dimensions, TextInput, Animated, Modal, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { supabase, Profile } from '../../../src/lib/supabase';
@@ -52,6 +52,25 @@ type BugReportRow = {
   title: string | null;
   description: string;
   created_at: string;
+  status: string | null;
+  context?: {
+    entry_point?: string;
+    device_brand?: string;
+    device_model?: string;
+    [key: string]: any;
+  } | null;
+};
+type MentorRateChangeRequestRow = {
+	id: number;
+	mentor_id: string;
+	current_rate: number | null;
+	requested_rate: number;
+	reason: string | null;
+	status: 'pending' | 'approved' | 'rejected' | null;
+	created_at: string;
+	reviewed_at?: string | null;
+	reviewed_by?: string | null;
+	admin_notes?: string | null;
 };
 
 const ROLE_ORDER = ['admin', 'mentor', 'member'] as const;
@@ -100,6 +119,14 @@ export default function AdminPanel() {
 	const [showBugReportsModal, setShowBugReportsModal] = useState(false);
 	const [bugReportsLoading, setBugReportsLoading] = useState(false);
 	const [bugReports, setBugReports] = useState<BugReportRow[]>([]);
+	const [dismissingBugReportId, setDismissingBugReportId] = useState<number | null>(null);
+	const [showRateRequestsModal, setShowRateRequestsModal] = useState(false);
+	const [rateRequestsLoading, setRateRequestsLoading] = useState(false);
+	const [rateRequests, setRateRequests] = useState<MentorRateChangeRequestRow[]>([]);
+	const [processingRateRequestId, setProcessingRateRequestId] = useState<number | null>(null);
+	const [showPendingRateRequests, setShowPendingRateRequests] = useState(true);
+	const [showApprovedRateRequests, setShowApprovedRateRequests] = useState(false);
+	const [showRejectedRateRequests, setShowRejectedRateRequests] = useState(false);
 
 	const colorScheme = useColorScheme();
 	const theme = Colors[colorScheme ?? 'light'];
@@ -109,11 +136,50 @@ export default function AdminPanel() {
 
 	useEffect(() => {
 		fetchProfiles();
+		void loadBugReports();
+		void loadRateRequests();
 	}, []);
 
 	useEffect(() => {
 		scrollY.setValue(0);
 	}, [scrollY, tab]);
+
+	useEffect(() => {
+		let isMounted = true;
+
+		const adminChannel = supabase
+			.channel('admin-panel-live-counts')
+			.on(
+				'postgres_changes',
+				{ event: '*', schema: 'public', table: 'profiles' },
+				() => {
+					if (!isMounted) return;
+					void fetchProfiles();
+				},
+			)
+			.on(
+				'postgres_changes',
+				{ event: '*', schema: 'public', table: 'mentor_rate_change_requests' },
+				() => {
+					if (!isMounted) return;
+					void loadRateRequests();
+				},
+			)
+			.on(
+				'postgres_changes',
+				{ event: '*', schema: 'public', table: 'bug_reports' },
+				() => {
+					if (!isMounted) return;
+					void loadBugReports();
+				},
+			)
+			.subscribe();
+
+		return () => {
+			isMounted = false;
+			supabase.removeChannel(adminChannel);
+		};
+	}, []);
 
 	async function fetchProfiles() {
 		setLoading(true);
@@ -128,7 +194,7 @@ export default function AdminPanel() {
 				await Promise.all([
 					supabase
 						.from('profiles')
-						.select('id, full_name, role, title, photo_url, bio, created_at, approval_status, tokens_balance, account_type')
+						.select('id, full_name, role, title, photo_url, bio, created_at, approval_status, tokens_balance, account_type, hidden')
 						.order('created_at', { ascending: false }),
 					supabase
 						.from('applications')
@@ -178,13 +244,24 @@ export default function AdminPanel() {
 		});
 	}
 
+	function formatDateTime(value: string) {
+		const date = new Date(value);
+		return date.toLocaleString([], {
+			year: 'numeric',
+			month: 'short',
+			day: '2-digit',
+			hour: '2-digit',
+			minute: '2-digit',
+		});
+	}
+
 	async function loadBugReports() {
 		try {
 			setBugReportsLoading(true);
 
 			const { data, error } = await supabase
 			.from('bug_reports')
-			.select('id, reporter_user_id, reporter_name, reporter_email, title, description, created_at')
+			.select('id, reporter_user_id, reporter_name, reporter_email, title, description, created_at, status, context')
 			.order('created_at', { ascending: false });
 
 			if (error) throw error;
@@ -201,9 +278,212 @@ export default function AdminPanel() {
 		await loadBugReports();
 	}
 
+	async function dismissBugReport(reportId: number) {
+		try {
+			setDismissingBugReportId(reportId);
+			const { data, error } = await supabase
+				.from('bug_reports')
+				.update({ status: 'dismissed' })
+				.eq('id', reportId)
+				.select('id, status')
+				.maybeSingle();
+
+			if (error) {
+				console.error('Failed to dismiss bug report', {
+					reportId,
+					message: error.message,
+					details: (error as any).details ?? null,
+					hint: (error as any).hint ?? null,
+					code: (error as any).code ?? null,
+				});
+				throw error;
+			}
+
+			let dismissed = data?.status === 'dismissed';
+			if (!dismissed) {
+				const { data: latest, error: latestError } = await supabase
+					.from('bug_reports')
+					.select('id, status')
+					.eq('id', reportId)
+					.maybeSingle();
+
+				if (latestError) {
+					console.error('Failed to verify dismissed bug report', {
+						reportId,
+						message: latestError.message,
+						details: (latestError as any).details ?? null,
+						hint: (latestError as any).hint ?? null,
+						code: (latestError as any).code ?? null,
+					});
+				}
+
+				dismissed = latest?.status === 'dismissed';
+			}
+
+			if (!dismissed) {
+				throw new Error('Bug report status did not update');
+			}
+
+			setBugReports((current) =>
+				current.map((report) =>
+					report.id === reportId ? { ...report, status: 'dismissed' } : report,
+				),
+			);
+			showToast('Bug report dismissed', 'success');
+		} catch (e: any) {
+			showToast(e?.message ?? 'Failed to dismiss bug report', 'error');
+		} finally {
+			setDismissingBugReportId(null);
+		}
+	}
+
+	async function loadRateRequests() {
+		try {
+			setRateRequestsLoading(true);
+			const { data, error } = await supabase
+				.from('mentor_rate_change_requests')
+				.select('id, mentor_id, current_rate, requested_rate, reason, status, created_at, reviewed_at, reviewed_by, admin_notes')
+				.order('created_at', { ascending: false });
+
+			if (error) throw error;
+			setRateRequests((data ?? []) as MentorRateChangeRequestRow[]);
+		} catch (e: any) {
+			showToast(e?.message ?? 'Failed to load rate requests', 'error');
+		} finally {
+			setRateRequestsLoading(false);
+		}
+	}
+
+	async function openRateRequestsModal() {
+		setShowRateRequestsModal(true);
+		await loadRateRequests();
+	}
+
+	function renderRateRequestSection(
+		title: string,
+		items: MentorRateChangeRequestRow[],
+		expanded: boolean,
+		onToggle: () => void,
+		emptyText: string,
+	) {
+		return (
+			<View style={styles.rateRequestSection} key={title}>
+				<TouchableOpacity
+					style={[
+						styles.rateRequestSectionHeader,
+						{
+							backgroundColor: colorScheme === 'dark' ? '#232b40' : '#f3ede2',
+							borderColor: colorScheme === 'dark' ? '#ffffff14' : '#dfd5c3',
+						},
+					]}
+					onPress={onToggle}
+					activeOpacity={0.85}
+				>
+					<Text style={[styles.rateRequestSectionTitle, { color: theme.text }]}>
+						{title} ({items.length})
+					</Text>
+					<Ionicons
+						name={expanded ? 'chevron-up' : 'chevron-down'}
+						size={18}
+						color={colorScheme === 'dark' ? '#d8deef' : '#6b6249'}
+					/>
+				</TouchableOpacity>
+
+				{expanded ? (
+					items.length === 0 ? (
+						<View style={styles.inlineEmptyState}>
+							<Text style={styles.emptyText}>{emptyText}</Text>
+						</View>
+					) : (
+						<View style={styles.rateRequestSectionContent}>
+							{items.map((item) => {
+								const mentorProfile = profiles.find((profile) => profile.id === item.mentor_id);
+								const isPending = item.status === 'pending';
+								const isProcessing = processingRateRequestId === item.id;
+
+								return (
+									<View
+										key={item.id}
+										style={[
+											styles.bugReportRow,
+											styles.rateRequestCard,
+											{
+												borderColor: colorScheme === 'dark' ? '#ffffff12' : '#e4dacb',
+												backgroundColor: colorScheme === 'dark' ? '#1a2234' : '#ffffff',
+											},
+										]}
+									>
+										<View style={styles.rateRequestHeaderRow}>
+											<Text style={[styles.bugReportDate, { color: theme.text }]}>
+												{mentorProfile?.full_name ?? 'Unknown mentor'}
+											</Text>
+											<Text style={styles.rateRequestStatus}>
+												{(item.status ?? 'pending').toUpperCase()}
+											</Text>
+										</View>
+
+										<Text style={styles.bugReportReporter}>
+											Submitted {formatDateTime(item.created_at)}
+										</Text>
+										<Text style={[styles.bugReportTitle, { color: theme.text }]}>
+											{`${item.current_rate ?? 0} -> ${item.requested_rate} tokens/session`}
+										</Text>
+										{item.reason ? (
+											<Text style={styles.bugReportDescription}>{item.reason}</Text>
+										) : (
+											<Text style={styles.bugReportDescription}>No reason provided.</Text>
+										)}
+
+										{!isPending && item.reviewed_at ? (
+											<Text style={styles.rateRequestReviewedText}>
+												Reviewed {formatDateTime(item.reviewed_at)}
+											</Text>
+										) : null}
+
+										{isPending ? (
+											<View style={styles.rateRequestActions}>
+												<TouchableOpacity
+													style={[
+														styles.rateApproveButton,
+														isProcessing ? { opacity: 0.6 } : null,
+													]}
+													onPress={() => updateRateRequest(item, 'approved')}
+													disabled={isProcessing}
+												>
+													<Text style={styles.rateApproveButtonText}>
+														{isProcessing ? 'Working...' : 'Approve'}
+													</Text>
+												</TouchableOpacity>
+												<TouchableOpacity
+													style={[
+														styles.rateRejectButton,
+														isProcessing ? { opacity: 0.6 } : null,
+													]}
+													onPress={() => updateRateRequest(item, 'rejected')}
+													disabled={isProcessing}
+												>
+													<Text style={styles.rateRejectButtonText}>Reject</Text>
+												</TouchableOpacity>
+											</View>
+										) : null}
+									</View>
+								);
+							})}
+						</View>
+					)
+				) : null}
+			</View>
+		);
+	}
+
 
 
 	const pendingProfiles = profiles.filter((p) => p.approval_status === 'pending');
+	const pendingRateRequests = rateRequests.filter((request) => request.status === 'pending');
+	const approvedRateRequests = rateRequests.filter((request) => request.status === 'approved');
+	const rejectedRateRequests = rateRequests.filter((request) => request.status === 'rejected');
+	const newBugReports = bugReports.filter((report) => (report.status ?? 'new') === 'new');
+	const dismissedBugReports = bugReports.filter((report) => report.status === 'dismissed');
 	const getEffectiveRole = (profile: Profile) => (profile.account_type ? 'admin' : (profile.role ?? 'member'));
 	const animatedHeaderPaddingTop = scrollY.interpolate({
 		inputRange: [0, 140],
@@ -275,19 +555,27 @@ export default function AdminPanel() {
 		});
 	}, [allUsersBase, approvalFilter, roleFilter, userSearch]);
 	const hasActiveUserFilters = userSearch.trim().length > 0 || roleFilter !== 'all' || approvalFilter !== 'all';
+	const filteredVisibleUsers = useMemo(
+		() => filteredAllUsers.filter((profile) => !profile.hidden),
+		[filteredAllUsers],
+	);
+	const filteredHiddenUsers = useMemo(
+		() => filteredAllUsers.filter((profile) => Boolean(profile.hidden)),
+		[filteredAllUsers],
+	);
 
 	// Group profiles by role for the grid view
 	// Admins are always shown (regardless of approval_status); others must be approved
 	const groupedByRole = useMemo(() => {
 		const groups: { role: string; label: string; users: Profile[] }[] = [];
 		for (const r of ROLE_ORDER) {
-			const users = filteredAllUsers.filter((p) => getEffectiveRole(p) === r);
+			const users = filteredVisibleUsers.filter((p) => getEffectiveRole(p) === r);
 			if (users.length > 0) {
 				groups.push({ role: r, label: r.charAt(0).toUpperCase() + r.slice(1) + 's', users });
 			}
 		}
 		return groups;
-	}, [filteredAllUsers]);
+	}, [filteredVisibleUsers]);
 
 	const analytics = useMemo(() => {
 		const now = new Date();
@@ -324,6 +612,7 @@ export default function AdminPanel() {
 		const approvedProfiles = profiles.filter((p) => p.approval_status === 'approved').length;
 		const pendingCount = profiles.filter((p) => p.approval_status === 'pending').length;
 		const rejectedCount = profiles.filter((p) => p.approval_status === 'rejected').length;
+		const hiddenCount = profiles.filter((p) => p.hidden).length;
 		const totalMessages = messages.length;
 		const messagesLast7Days = messages.filter((item) => withinDays(item.inserted_at, 6)).length;
 		const activeThreadsLast7Days = new Set(
@@ -386,6 +675,7 @@ export default function AdminPanel() {
 			approvedProfiles,
 			pendingCount,
 			rejectedCount,
+			hiddenCount,
 			roleMetrics,
 			approvalMetrics,
 			applicationTypeMetrics,
@@ -514,6 +804,79 @@ export default function AdminPanel() {
 		}
 	}
 
+	async function setHiddenState(userId: string, hidden: boolean) {
+		try {
+			const { error } = await supabase.from('profiles').update({ hidden }).eq('id', userId);
+			if (error) throw error;
+			showToast(hidden ? 'User hidden' : 'User unhidden', 'success');
+			await fetchProfiles();
+		} catch (e: any) {
+			showToast(e?.message ?? `Failed to ${hidden ? 'hide' : 'unhide'} user`, 'error');
+		}
+	}
+
+	async function updateRateRequest(
+		request: MentorRateChangeRequestRow,
+		nextStatus: 'approved' | 'rejected',
+	) {
+		try {
+			setProcessingRateRequestId(request.id);
+			const adminUser = (await supabase.auth.getUser()).data.user;
+			const reviewedAt = new Date().toISOString();
+
+			const { error: requestError } = await supabase
+				.from('mentor_rate_change_requests')
+				.update({
+					status: nextStatus,
+					reviewed_at: reviewedAt,
+					reviewed_by: adminUser?.id ?? null,
+				})
+				.eq('id', request.id);
+
+			if (requestError) throw requestError;
+
+			if (nextStatus === 'approved') {
+				const { error: profileError } = await supabase
+					.from('profiles')
+					.update({ mentor_session_rate: request.requested_rate })
+					.eq('id', request.mentor_id);
+
+				if (profileError) throw profileError;
+			}
+
+			await supabase.from('notification_events').insert({
+				event_type:
+					nextStatus === 'approved'
+						? 'mentor_rate_change_approved'
+						: 'mentor_rate_change_rejected',
+				recipient_user_id: request.mentor_id,
+				title:
+					nextStatus === 'approved'
+						? 'Token rate approved'
+						: 'Token rate request declined',
+				body:
+					nextStatus === 'approved'
+						? `Your token price increase to ${request.requested_rate} tokens/session has been approved.`
+						: `Your token price increase request for ${request.requested_rate} tokens/session was not approved.`,
+				payload: {
+					route: '/(app)/Mentor/settings',
+					request_id: String(request.id),
+					requested_rate: String(request.requested_rate),
+				},
+			});
+
+			showToast(
+				nextStatus === 'approved' ? 'Rate request approved' : 'Rate request rejected',
+				'success',
+			);
+			await Promise.all([fetchProfiles(), loadRateRequests()]);
+		} catch (e: any) {
+			showToast(e?.message ?? `Failed to ${nextStatus} rate request`, 'error');
+		} finally {
+			setProcessingRateRequestId(null);
+		}
+	}
+
 	async function deleteProfile(userId: string) {
 		try {
 			const { error } = await supabase.from('profiles').delete().eq('id', userId);
@@ -563,12 +926,26 @@ export default function AdminPanel() {
 		confirmDelete(userId, name);
 	}
 
+	function handleHiddenStateFromModal(userId: string, hidden: boolean) {
+		closeUserActions();
+		setHiddenState(userId, hidden);
+	}
+
 	function roleColor(role: string | null | undefined) {
 		switch (role) {
 			case 'admin': return '#e74c3c';
 			case 'mentor': return '#968c6c';
 			default: return '#333f5c';
 		}
+	}
+
+	function getAccountTypeLabel(profile: Profile) {
+		return profile.account_type ? 'Admin account' : 'Standard account';
+	}
+
+	function getRoleLabel(profile: Profile) {
+		const role = getEffectiveRole(profile);
+		return role.charAt(0).toUpperCase() + role.slice(1);
 	}
 
 	function renderPendingItem({ item }: { item: Profile }) {
@@ -579,7 +956,8 @@ export default function AdminPanel() {
 						{item.photo_url ? <Image source={{ uri: item.photo_url }} style={styles.avatar} /> : <View style={[styles.avatar, styles.avatarPlaceholder]} />}
 						<View style={styles.cardInfo}>
 							<ThemedText style={styles.name}>{item.full_name ?? '—'}</ThemedText>
-							<Text style={styles.meta}>Wants to join as {getEffectiveRole(item)}</Text>
+							<Text style={styles.meta}>Role: {getRoleLabel(item)}</Text>
+							<Text style={styles.meta}>Account type: {getAccountTypeLabel(item)}</Text>
 						</View>
 					</View>
 					{item.bio ? <Text style={styles.bio} numberOfLines={3}>{item.bio}</Text> : null}
@@ -597,8 +975,11 @@ export default function AdminPanel() {
 		);
 	}
 
-	function renderGridCard(item: Profile, index: number, totalInSection: number) {
+	function renderGridCard(item: Profile) {
 		const role = getEffectiveRole(item);
+		const badgeLabel = item.hidden ? 'Hidden' : role.charAt(0).toUpperCase() + role.slice(1);
+		const badgeColor = item.hidden ? '#7d7d7d' : roleColor(role);
+		const metaLabel = `${getRoleLabel(item)} • ${item.account_type ? 'Admin acct' : 'Standard acct'}`;
 
 		return (
 			<Pressable
@@ -606,7 +987,7 @@ export default function AdminPanel() {
 				onPress={() => viewProfile(item.id)}
 				onLongPress={() => showUserActions(item)}
 				accessibilityRole="button"
-				style={[styles.gridCard, { width: GRID_CARD_WIDTH }]}
+				style={[styles.gridCard, { width: GRID_CARD_WIDTH, opacity: item.hidden ? 0.72 : 1 }]}
 			>
 				{item.photo_url ? (
 					<Image source={{ uri: item.photo_url }} style={styles.gridAvatar} />
@@ -620,9 +1001,12 @@ export default function AdminPanel() {
 				<Text style={[styles.gridName, { color: theme.text }]} numberOfLines={1}>
 					{item.full_name ?? '—'}
 				</Text>
-				<View style={[styles.gridRoleBadge, { backgroundColor: roleColor(role) }]}>
+				<Text style={styles.gridAccountTypeText} numberOfLines={1}>
+					{metaLabel}
+				</Text>
+				<View style={[styles.gridRoleBadge, { backgroundColor: badgeColor }]}>
 					<Text style={styles.gridRoleBadgeText}>
-						{role.charAt(0).toUpperCase() + role.slice(1)}
+						{badgeLabel}
 					</Text>
 				</View>
 			</Pressable>
@@ -758,6 +1142,7 @@ export default function AdminPanel() {
 					{renderMetricCard('Pending reviews', String(analytics.pendingCount), '#c3a76d')}
 					{renderMetricCard('Approved', String(analytics.approvedProfiles), '#4d9b6e')}
 					{renderMetricCard('Applications', String(analytics.totalApplications), '#7d89d6')}
+					{renderMetricCard('Hidden accounts', String(analytics.hiddenCount), '#7d7d7d')}
 					{renderMetricCard('Messages (7d)', String(analytics.messagesLast7Days), '#4f6b9a')}
 					{renderMetricCard('Active chats (7d)', String(analytics.activeThreadsLast7Days), '#7d89d6')}
 					{renderMetricCard('New matches (30d)', String(analytics.matchesLast30Days), '#968c6c')}
@@ -890,7 +1275,21 @@ export default function AdminPanel() {
 					>
 					<Ionicons name="bug-outline" size={18} color="#c43b3b" />
 					<Text style={[styles.bugReportsButtonText, { color: theme.text }]}>
-						View Bug Reports
+						Bug Reports ({newBugReports.length})
+					</Text>
+				</TouchableOpacity>
+
+				<TouchableOpacity
+					style={[
+						styles.bugReportsButton,
+						{ backgroundColor: colorScheme === 'dark' ? '#232b40' : '#f3ede2' },
+					]}
+					onPress={openRateRequestsModal}
+					activeOpacity={0.85}
+				>
+					<Ionicons name="cash-outline" size={18} color="#968c6c" />
+					<Text style={[styles.bugReportsButtonText, { color: theme.text }]}>
+						Rate Requests ({pendingRateRequests.length})
 					</Text>
 				</TouchableOpacity>
 
@@ -1017,7 +1416,7 @@ export default function AdminPanel() {
 							</View>
 							<View style={styles.filterFooter}>
 								<Text style={styles.filterSummary}>
-									Showing {filteredAllUsers.length} user{filteredAllUsers.length === 1 ? '' : 's'}
+									Showing {filteredVisibleUsers.length} visible and {filteredHiddenUsers.length} hidden
 								</Text>
 								{hasActiveUserFilters ? (
 									<TouchableOpacity
@@ -1033,22 +1432,47 @@ export default function AdminPanel() {
 							</View>
 						</View>
 						<Text style={styles.gridHint}>Long-press a profile for admin actions</Text>
-						{groupedByRole.length === 0 ? (
+						{groupedByRole.length === 0 && filteredHiddenUsers.length === 0 ? (
 							<View style={styles.inlineEmptyState}>
 								<Text style={styles.emptyText}>No users found for the current filters</Text>
 							</View>
 						) : (
-							groupedByRole.map((group) => (
-								<View key={group.role} style={styles.gridSection}>
-									<Text style={[styles.gridSectionHeader, { color: theme.text }]}>
-										{group.label} ({group.users.length})
-									</Text>
-									<View style={styles.gridInner}>
-										{group.users.map((user, idx) => renderGridCard(user, idx, group.users.length))}
-										{renderGridPlaceholders(group.users.length)}
+							<>
+								{groupedByRole.map((group) => (
+									<View key={group.role} style={styles.gridSection}>
+										<Text style={[styles.gridSectionHeader, { color: theme.text }]}>
+											{group.label} ({group.users.length})
+										</Text>
+										<View style={styles.gridInner}>
+											{group.users.map((user) => renderGridCard(user))}
+											{renderGridPlaceholders(group.users.length)}
+										</View>
 									</View>
+								))}
+								<View style={styles.gridSection}>
+									<Text style={[styles.gridSectionHeader, { color: theme.text }]}>
+										Hidden Accounts ({filteredHiddenUsers.length})
+									</Text>
+									{filteredHiddenUsers.length === 0 ? (
+										<View
+											style={[
+												styles.hiddenEmptyState,
+												{
+													borderColor: colorScheme === 'dark' ? '#ffffff12' : '#dfd5c3',
+													backgroundColor: colorScheme === 'dark' ? '#1a2234' : '#f6f2ea',
+												},
+											]}
+										>
+											<Text style={styles.emptyText}>No hidden accounts match the current filters</Text>
+										</View>
+									) : (
+										<View style={styles.gridInner}>
+											{filteredHiddenUsers.map((user) => renderGridCard(user))}
+											{renderGridPlaceholders(filteredHiddenUsers.length)}
+										</View>
+									)}
 								</View>
-							))
+							</>
 						)}
 					</Animated.ScrollView>
 				) : (
@@ -1060,16 +1484,17 @@ export default function AdminPanel() {
             <MentorBottomNav />
 
             <Modal
-                visible={showBugReportsModal}
+                visible={showRateRequestsModal}
                 transparent
                 animationType="fade"
-                onRequestClose={() => setShowBugReportsModal(false)}
+                onRequestClose={() => setShowRateRequestsModal(false)}
             >
-                <Pressable
-                    style={styles.userModalBackdrop}
-                    onPress={() => setShowBugReportsModal(false)}
-                >
+                <View style={styles.userModalBackdrop}>
                     <Pressable
+                        style={StyleSheet.absoluteFillObject}
+                        onPress={() => setShowRateRequestsModal(false)}
+                    />
+                    <View
                         style={[
                             styles.bugReportsModalCard,
                             {
@@ -1077,7 +1502,77 @@ export default function AdminPanel() {
                                 borderColor: colorScheme === 'dark' ? '#ffffff14' : '#e4dacb',
                             },
                         ]}
-                        onPress={(event) => event.stopPropagation()}
+                    >
+                        <View style={styles.bugReportsModalHeader}>
+                            <Text style={[styles.bugReportsModalTitle, { color: theme.text }]}>
+                                Mentor Rate Requests
+                            </Text>
+                            <TouchableOpacity onPress={() => setShowRateRequestsModal(false)}>
+                                <Text style={styles.bugReportsCloseText}>Close</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.bugReportsModalBody}>
+                            {rateRequestsLoading ? (
+                                <ActivityIndicator size="small" style={{ marginTop: 12 }} />
+                            ) : rateRequests.length === 0 ? (
+                                <View style={styles.inlineEmptyState}>
+                                    <Text style={styles.emptyText}>No rate requests yet</Text>
+                                </View>
+                            ) : (
+                                <ScrollView
+                                    style={styles.bugReportsScroll}
+                                    showsVerticalScrollIndicator={false}
+                                    contentContainerStyle={styles.bugReportsScrollContent}
+                                    nestedScrollEnabled
+                                >
+                                    {renderRateRequestSection(
+                                        'Pending',
+                                        pendingRateRequests,
+                                        showPendingRateRequests,
+                                        () => setShowPendingRateRequests((current) => !current),
+                                        'No pending rate requests',
+                                    )}
+                                    {renderRateRequestSection(
+                                        'Approved',
+                                        approvedRateRequests,
+                                        showApprovedRateRequests,
+                                        () => setShowApprovedRateRequests((current) => !current),
+                                        'No approved rate requests',
+                                    )}
+                                    {renderRateRequestSection(
+                                        'Denied',
+                                        rejectedRateRequests,
+                                        showRejectedRateRequests,
+                                        () => setShowRejectedRateRequests((current) => !current),
+                                        'No denied rate requests',
+                                    )}
+                                </ScrollView>
+                            )}
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            <Modal
+                visible={showBugReportsModal}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowBugReportsModal(false)}
+            >
+                <View style={styles.userModalBackdrop}>
+                    <Pressable
+                        style={StyleSheet.absoluteFillObject}
+                        onPress={() => setShowBugReportsModal(false)}
+                    />
+                    <View
+                        style={[
+                            styles.bugReportsModalCard,
+                            {
+                                backgroundColor: surfaceColor,
+                                borderColor: colorScheme === 'dark' ? '#ffffff14' : '#e4dacb',
+                            },
+                        ]}
                     >
                         <View style={styles.bugReportsModalHeader}>
                             <Text style={[styles.bugReportsModalTitle, { color: theme.text }]}>
@@ -1088,60 +1583,158 @@ export default function AdminPanel() {
                             </TouchableOpacity>
                         </View>
 
-                        {bugReportsLoading ? (
-                            <ActivityIndicator size="small" style={{ marginTop: 12 }} />
-                        ) : bugReports.length === 0 ? (
-                            <View style={styles.inlineEmptyState}>
-                                <Text style={styles.emptyText}>No bug reports yet</Text>
-                            </View>
-                        ) : (
-                            <FlatList
-                                data={bugReports}
-                                keyExtractor={(item) => String(item.id)}
-                                showsVerticalScrollIndicator={false}
-                                contentContainerStyle={{ paddingBottom: 8 }}
-                                renderItem={({ item }) => {
-                                    const reporter =
-                                        item.reporter_name?.trim() ||
-                                        item.reporter_email?.trim() ||
-                                        item.reporter_user_id ||
-                                        'Unknown user';
-
-                                    return (
-                                        <View
-                                            style={[
-                                                styles.bugReportRow,
-                                                {
-                                                    borderColor: colorScheme === 'dark' ? '#ffffff12' : '#e4dacb',
-                                                    backgroundColor: colorScheme === 'dark' ? '#1a2234' : '#ffffff',
-                                                },
-                                            ]}
-                                        >
-                                            <View style={styles.bugReportTopRow}>
-                                                <Text style={[styles.bugReportDate, { color: theme.text }]}>
-                                                    {formatBugReportDate(item.created_at)}
-                                                </Text>
-                                                <Text style={styles.bugReportReporter} numberOfLines={1}>
-                                                    {reporter}
-                                                </Text>
-                                            </View>
-
-                                            {item.title ? (
-                                                <Text style={[styles.bugReportTitle, { color: theme.text }]}>
-                                                    {item.title}
-                                                </Text>
-                                            ) : null}
-
-                                            <Text style={styles.bugReportDescription}>
-                                                {item.description}
-                                            </Text>
+                        <View style={styles.bugReportsModalBody}>
+                            {bugReportsLoading ? (
+                                <ActivityIndicator size="small" style={{ marginTop: 12 }} />
+                            ) : bugReports.length === 0 ? (
+                                <View style={styles.inlineEmptyState}>
+                                    <Text style={styles.emptyText}>No bug reports yet</Text>
+                                </View>
+                            ) : (
+                                <ScrollView
+                                    style={styles.bugReportsScroll}
+                                    showsVerticalScrollIndicator={false}
+                                    contentContainerStyle={styles.bugReportsScrollContent}
+                                    nestedScrollEnabled
+                                >
+                                    <Text style={[styles.bugReportSectionTitle, { color: theme.text }]}>
+                                        New Reports ({newBugReports.length})
+                                    </Text>
+                                    {newBugReports.length === 0 ? (
+                                        <View style={styles.inlineEmptyState}>
+                                            <Text style={styles.emptyText}>No new bug reports</Text>
                                         </View>
-                                    );
-                                }}
-                            />
-                        )}
-                    </Pressable>
-                </Pressable>
+                                    ) : (
+                                        newBugReports.map((item) => {
+                                            const reporter =
+                                                item.reporter_name?.trim() ||
+                                                item.reporter_email?.trim() ||
+                                                item.reporter_user_id ||
+                                                'Unknown user';
+                                            const isDismissing = dismissingBugReportId === item.id;
+
+                                            return (
+                                                <View
+                                                    key={item.id}
+                                                    style={[
+                                                        styles.bugReportRow,
+                                                        {
+                                                            borderColor: colorScheme === 'dark' ? '#ffffff12' : '#e4dacb',
+                                                            backgroundColor: colorScheme === 'dark' ? '#1a2234' : '#ffffff',
+                                                        },
+                                                    ]}
+                                                >
+                                                    <View style={styles.bugReportTopRow}>
+                                                        <Text style={[styles.bugReportDate, { color: theme.text }]}>
+                                                            {formatBugReportDate(item.created_at)}
+                                                        </Text>
+                                                        <Text style={styles.bugReportReporter} numberOfLines={1}>
+                                                            {reporter}
+                                                        </Text>
+                                                    </View>
+
+                                                    {item.title ? (
+                                                        <Text style={[styles.bugReportTitle, { color: theme.text }]}>
+                                                            {item.title}
+                                                        </Text>
+                                                    ) : null}
+
+                                                    <Text style={styles.bugReportDescription}>
+                                                        {item.description}
+                                                    </Text>
+
+													{item.context?.device_brand || item.context?.device_model ? (
+													<View style={[styles.bugReportDeviceInfo, { borderTopColor: theme.border }]}>
+														<Text style={[styles.bugReportDeviceLabel, { color: theme.placeholder }]}>Device</Text>
+														<Text style={[styles.bugReportDeviceValue, { color: theme.text }]}>
+														{item.context.device_brand} {item.context.device_model}
+														</Text>
+													</View>
+													) : null}
+
+                                                    <View style={styles.bugReportActionsRow}>
+                                                        <TouchableOpacity
+                                                            style={[
+                                                                styles.dismissBugReportButton,
+                                                                isDismissing ? { opacity: 0.6 } : null,
+                                                            ]}
+                                                            onPress={() => dismissBugReport(item.id)}
+                                                            disabled={isDismissing}
+                                                        >
+                                                            <Text style={styles.dismissBugReportButtonText}>
+                                                                {isDismissing ? 'Dismissing...' : 'Dismiss'}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                </View>
+                                            );
+                                        })
+                                    )}
+
+                                    <Text style={[styles.bugReportSectionTitle, { color: theme.text }]}>
+                                        Dismissed Log ({dismissedBugReports.length})
+                                    </Text>
+                                    {dismissedBugReports.length === 0 ? (
+                                        <View style={styles.inlineEmptyState}>
+                                            <Text style={styles.emptyText}>No dismissed reports</Text>
+                                        </View>
+                                    ) : (
+                                        dismissedBugReports.map((item) => {
+                                        const reporter =
+                                            item.reporter_name?.trim() ||
+                                            item.reporter_email?.trim() ||
+                                            item.reporter_user_id ||
+                                            'Unknown user';
+
+                                        return (
+                                            <View
+                                                key={item.id}
+                                                style={[
+                                                    styles.bugReportRow,
+                                                    {
+                                                        borderColor: colorScheme === 'dark' ? '#ffffff12' : '#e4dacb',
+                                                        backgroundColor: colorScheme === 'dark' ? '#1a2234' : '#ffffff',
+                                                    },
+                                                ]}
+                                            >
+                                                <View style={styles.bugReportTopRow}>
+                                                    <Text style={[styles.bugReportDate, { color: theme.text }]}>
+                                                        {formatBugReportDate(item.created_at)}
+                                                    </Text>
+                                                    <Text style={styles.bugReportReporter} numberOfLines={1}>
+                                                        {reporter}
+                                                    </Text>
+                                                </View>
+
+                                                {item.title ? (
+                                                    <Text style={[styles.bugReportTitle, { color: theme.text }]}>
+                                                        {item.title}
+                                                    </Text>
+                                                ) : null}
+
+                                                <Text style={styles.bugReportDescription}>
+                                                    {item.description}
+                                                </Text>
+												
+
+												{item.context?.device_brand || item.context?.device_model ? (
+													<View style={[styles.bugReportDeviceInfo, { borderTopColor: theme.border }]}>
+														<Text style={[styles.bugReportDeviceLabel, { color: theme.placeholder }]}>Device</Text>
+														<Text style={[styles.bugReportDeviceValue, { color: theme.text }]}>
+														{item.context.device_brand} {item.context.device_model}
+														</Text>
+													</View>
+												) : null}
+
+                                            </View>
+                                        );
+                                    })
+                                    )}
+                                </ScrollView>
+                            )}
+                        </View>
+                    </View>
+                </View>
             </Modal>
 
             <Modal
@@ -1178,20 +1771,44 @@ export default function AdminPanel() {
 											{selectedUser.full_name ?? 'This user'}
 										</Text>
 										<Text style={styles.userModalSubtitle}>
-											Role: {getEffectiveRole(selectedUser).charAt(0).toUpperCase() + getEffectiveRole(selectedUser).slice(1)}
+											Role: {getRoleLabel(selectedUser)}
 										</Text>
 										<Text style={styles.userModalStatus}>
 											Status: {(selectedUser.approval_status ?? 'pending').charAt(0).toUpperCase() + (selectedUser.approval_status ?? 'pending').slice(1)}
+										</Text>
+										<Text style={styles.userModalStatus}>
+											Account type: {getAccountTypeLabel(selectedUser)}
+										</Text>
+										<Text style={styles.userModalStatus}>
+											Visibility: {selectedUser.hidden ? 'Hidden' : 'Visible'}
 										</Text>
 									</View>
 								</View>
 
 								<View style={styles.userModalActions}>
+									{!selectedUser.hidden ? (
+										<TouchableOpacity
+											style={[styles.userModalActionButton, styles.userModalPrimaryButton]}
+											onPress={() => handleViewProfileFromModal(selectedUser.id)}
+										>
+											<Text style={styles.userModalPrimaryButtonText}>View profile</Text>
+										</TouchableOpacity>
+									) : null}
+
 									<TouchableOpacity
-										style={[styles.userModalActionButton, styles.userModalPrimaryButton]}
-										onPress={() => handleViewProfileFromModal(selectedUser.id)}
+										style={[
+											styles.userModalActionButton,
+											styles.userModalSecondaryButton,
+											{
+												backgroundColor: colorScheme === 'dark' ? '#1a2234' : '#f3ede2',
+												borderColor: colorScheme === 'dark' ? '#2a3550' : '#dfd5c3',
+											},
+										]}
+										onPress={() => handleHiddenStateFromModal(selectedUser.id, !selectedUser.hidden)}
 									>
-										<Text style={styles.userModalPrimaryButtonText}>View profile</Text>
+										<Text style={[styles.userModalSecondaryButtonText, { color: theme.text }]}>
+											{selectedUser.hidden ? 'Unhide account' : 'Hide account'}
+										</Text>
 									</TouchableOpacity>
 
 									{getEffectiveRole(selectedUser) !== 'admin' ? (
@@ -1457,6 +2074,12 @@ const styles = StyleSheet.create({
 		paddingVertical: 28,
 		alignItems: 'center',
 	},
+	hiddenEmptyState: {
+		paddingVertical: 20,
+		alignItems: 'center',
+		borderRadius: 16,
+		borderWidth: 1,
+	},
 	gridSection: {
 		width: '100%',
 		marginBottom: 8,
@@ -1498,6 +2121,12 @@ const styles = StyleSheet.create({
 		fontSize: 12,
 		textAlign: 'center',
 		marginBottom: 3,
+	},
+	gridAccountTypeText: {
+		fontSize: 10,
+		textAlign: 'center',
+		color: '#8b8578',
+		marginBottom: 4,
 	},
 	gridRoleBadge: {
 		paddingHorizontal: 8,
@@ -1741,14 +2370,98 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		fontWeight: '700',
 	},
+	rateRequestHeaderRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		gap: 12,
+	},
+	rateRequestStatus: {
+		fontSize: 12,
+		fontWeight: '700',
+		color: '#968c6c',
+	},
+	rateRequestReviewedText: {
+		fontSize: 12,
+		color: '#7d7d7d',
+		marginTop: 8,
+	},
+	rateRequestActions: {
+		flexDirection: 'row',
+		gap: 10,
+		marginTop: 12,
+	},
+	rateApproveButton: {
+		flex: 1,
+		borderRadius: 10,
+		paddingVertical: 10,
+		alignItems: 'center',
+		backgroundColor: '#2ecc71',
+	},
+	rateApproveButtonText: {
+		color: '#fff',
+		fontWeight: '700',
+	},
+	rateRejectButton: {
+		flex: 1,
+		borderRadius: 10,
+		paddingVertical: 10,
+		alignItems: 'center',
+		backgroundColor: '#fbe6e3',
+		borderWidth: 1,
+		borderColor: '#efb6ae',
+	},
+	rateRejectButtonText: {
+		color: '#b23b2a',
+		fontWeight: '700',
+	},
 	bugReportsModalCard: {
 		width: '100%',
 		maxWidth: 420,
-		maxHeight: '78%',
+		height: '78%',
+		maxHeight: 640,
 		borderRadius: 20,
+		flexDirection: 'column',
 		paddingHorizontal: 14,
 		paddingVertical: 14,
 		borderWidth: 1,
+		overflow: 'hidden',
+	},
+	bugReportsModalBody: {
+		flex: 1,
+		minHeight: 0,
+	},
+	bugReportsScroll: {
+		flex: 1,
+		minHeight: 220,
+	},
+	bugReportsScrollContent: {
+		paddingBottom: 8,
+	},
+	rateRequestSection: {
+		marginBottom: 12,
+	},
+	rateRequestSectionHeader: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		paddingVertical: 10,
+		paddingHorizontal: 12,
+		borderRadius: 12,
+		backgroundColor: '#f3ede2',
+		borderWidth: 1,
+		borderColor: '#dfd5c3',
+	},
+	rateRequestSectionTitle: {
+		fontSize: 14,
+		fontWeight: '700',
+	},
+	rateRequestSectionContent: {
+		gap: 10,
+		paddingTop: 10,
+	},
+	rateRequestCard: {
+		marginTop: 0,
 	},
 	bugReportsModalHeader: {
 		flexDirection: 'row',
@@ -1773,6 +2486,11 @@ const styles = StyleSheet.create({
 		borderRadius: 14,
 		paddingHorizontal: 12,
 		paddingVertical: 10,
+		marginBottom: 10,
+	},
+	bugReportSectionTitle: {
+		fontSize: 16,
+		fontWeight: '700',
 		marginBottom: 10,
 	},
 	bugReportTopRow: {
@@ -1801,5 +2519,39 @@ const styles = StyleSheet.create({
 		fontSize: 13,
 		color: '#7d7d7d',
 		lineHeight: 18,
+	},
+	bugReportActionsRow: {
+		flexDirection: 'row',
+		justifyContent: 'flex-end',
+		marginTop: 8,
+	},
+	dismissBugReportButton: {
+		borderRadius: 10,
+		paddingVertical: 8,
+		paddingHorizontal: 12,
+		backgroundColor: '#f3ede2',
+		borderWidth: 1,
+		borderColor: '#dfd5c3',
+	},
+	dismissBugReportButtonText: {
+		fontSize: 13,
+		fontWeight: '700',
+		color: '#6b6249',
+	},
+	dismissedBugReportRow: {
+		opacity: 0.75,
+	},
+	bugReportDeviceInfo: {
+		marginTop: 8,
+		paddingTop: 8,
+		borderTopWidth: 1,
+	},
+	bugReportDeviceLabel: {
+		fontSize: 11,
+		fontWeight: '600',
+		marginBottom: 2,
+	},
+	bugReportDeviceValue: {
+		fontSize: 12,
 	},
 });

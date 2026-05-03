@@ -67,6 +67,24 @@ async function getUnreadThreadIds(threadIds: number[], userId: string): Promise<
   return unreadThreadIds;
 }
 
+async function getVisibleProfileIds(userIds: string[]): Promise<Set<string>> {
+  const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
+  if (uniqueIds.length === 0) return new Set<string>();
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, hidden')
+    .in('id', uniqueIds);
+
+  if (error) throw error;
+
+  return new Set(
+    (data ?? [])
+      .filter((profile: any) => !profile.hidden)
+      .map((profile: any) => profile.id as string),
+  );
+}
+
 export async function getMenteeNavBadgeCounts(userId: string): Promise<MenteeNavBadgeCounts> {
   const blockedIds = new Set(await fetchBlockedUserIds());
 
@@ -77,9 +95,15 @@ export async function getMenteeNavBadgeCounts(userId: string): Promise<MenteeNav
 
   if (peerMatchesError) throw peerMatchesError;
 
+  const visiblePeerIds = await getVisibleProfileIds(
+    (peerMatches ?? []).map((match: any) => (
+      match.member_a === userId ? match.member_b : match.member_a
+    )),
+  );
+
   const visiblePeerMatches = (peerMatches ?? []).filter((match: any) => {
     const otherUserId = match.member_a === userId ? match.member_b : match.member_a;
-    return !blockedIds.has(otherUserId);
+    return !blockedIds.has(otherUserId) && visiblePeerIds.has(otherUserId);
   });
 
   const peerThreadIds = visiblePeerMatches
@@ -95,8 +119,12 @@ export async function getMenteeNavBadgeCounts(userId: string): Promise<MenteeNav
 
   if (mentorRequestsError) throw mentorRequestsError;
 
+  const visibleMentorIds = await getVisibleProfileIds(
+    (mentorRequests ?? []).map((request: any) => request.mentor),
+  );
+
   const visibleMentorRequests = (mentorRequests ?? []).filter(
-    (request: any) => !blockedIds.has(request.mentor),
+    (request: any) => !blockedIds.has(request.mentor) && visibleMentorIds.has(request.mentor),
   );
 
   const mentorThreadIds = visibleMentorRequests
@@ -139,7 +167,13 @@ export async function getMentorNavBadgeCounts(userId: string): Promise<MentorNav
 
   if (requestsError) throw requestsError;
 
-  const visibleRequests = (requests ?? []).filter((request: any) => !blockedIds.has(request.mentee));
+  const visibleMenteeIds = await getVisibleProfileIds(
+    (requests ?? []).map((request: any) => request.mentee),
+  );
+
+  const visibleRequests = (requests ?? []).filter(
+    (request: any) => !blockedIds.has(request.mentee) && visibleMenteeIds.has(request.mentee),
+  );
   const threadIds = visibleRequests
     .map((request: any) => request.thread_id)
     .filter((threadId: number | null): threadId is number => threadId != null);

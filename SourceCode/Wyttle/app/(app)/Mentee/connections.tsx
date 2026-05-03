@@ -268,7 +268,7 @@ export default function MenteeConnectionsScreen() {
       if (peerUserIds.length > 0) {
         const { data: profiles, error: profileError } = await supabase
           .from('profiles')
-          .select('id, full_name, photo_url')
+          .select('id, full_name, photo_url, hidden')
           .in('id', peerUserIds);
 
         if (profileError) throw profileError;
@@ -277,17 +277,20 @@ export default function MenteeConnectionsScreen() {
 
       const nameById: Record<string, { name: string; photoUrl: string | null }> = {};
       peerProfiles.forEach((profile: any) => {
+        if (profile.hidden) return;
         nameById[profile.id] = {
           name: profile.full_name ?? 'Member',
           photoUrl: profile.photo_url ?? null,
         };
       });
 
-      const matchesWithProfile: MatchItem[] = enrichedMatches.map((match) => ({
-        ...match,
-        name: nameById[match.otherUserId]?.name ?? 'Member',
-        photoUrl: nameById[match.otherUserId]?.photoUrl ?? null,
-      }));
+      const matchesWithProfile: MatchItem[] = enrichedMatches
+        .filter((match) => Boolean(nameById[match.otherUserId]))
+        .map((match) => ({
+          ...match,
+          name: nameById[match.otherUserId]?.name ?? 'Member',
+          photoUrl: nameById[match.otherUserId]?.photoUrl ?? null,
+        }));
 
       const peerChats: ChatItem[] = await Promise.all(
         matchesWithProfile
@@ -328,7 +331,7 @@ export default function MenteeConnectionsScreen() {
       if (mentorIds.length > 0) {
         const { data: profiles, error: mentorProfileError } = await supabase
           .from('profiles')
-          .select('id, full_name, photo_url')
+          .select('id, full_name, photo_url, hidden')
           .in('id', mentorIds);
 
         if (mentorProfileError) throw mentorProfileError;
@@ -337,13 +340,14 @@ export default function MenteeConnectionsScreen() {
 
       const mentorProfileMap: Record<string, { name: string; photoUrl: string | null }> = {};
       mentorProfiles.forEach((profile: any) => {
+        if (profile.hidden) return;
         mentorProfileMap[profile.id] = {
           name: profile.full_name ?? 'Mentor',
           photoUrl: profile.photo_url ?? null,
         };
       });
 
-      const mentorshipChats: ChatItem[] = visibleMentorRequests.map((request: any) => ({
+      const mentorshipChats: ChatItem[] = visibleMentorRequests.filter((request: any) => Boolean(mentorProfileMap[request.mentor])).map((request: any) => ({
         threadId: request.thread_id,
         otherUserId: request.mentor,
         name: mentorProfileMap[request.mentor]?.name ?? 'Mentor',

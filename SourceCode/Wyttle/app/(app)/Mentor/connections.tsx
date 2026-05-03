@@ -255,13 +255,14 @@ export default function MentorConnectionsScreen() {
 
       const { data: profiles, error: profileError } = await supabase
         .from('profiles')
-        .select('id, full_name, photo_url')
+        .select('id, full_name, photo_url, hidden')
         .in('id', menteeIds);
 
       if (profileError) throw profileError;
 
       const profileMap: Record<string, { name: string; photoUrl: string | null }> = {};
       (profiles ?? []).forEach((profile: any) => {
+        if (profile.hidden) return;
         profileMap[profile.id] = {
           name: profile.full_name ?? 'Mentee',
           photoUrl: profile.photo_url ?? null,
@@ -301,7 +302,7 @@ export default function MentorConnectionsScreen() {
       const localReadMap =
         threadIds.length > 0 ? await getLastReadMessageIdMap(threadIds) : {};
 
-      const chatItemsUnsorted: MentorChatItem[] = visibleRequests.map((request: any) => {
+      const chatItemsUnsorted: MentorChatItem[] = visibleRequests.filter((request: any) => Boolean(profileMap[request.mentee])).map((request: any) => {
         const profile = profileMap[request.mentee] ?? { name: 'Mentee', photoUrl: null };
         const last = request.thread_id ? lastByThread[request.thread_id] : undefined;
         const unread = !!(

@@ -119,7 +119,7 @@ export default function MentorHub() {
   const { width: screenWidth } = useWindowDimensions();
   const { registerOnHeightChange } = useMenteeBottomNavHeight();
 
-  const COLUMNS = screenWidth < 400 ? 2 : 3; //ISSUE LINE MAYBE
+  const COLUMNS = screenWidth >= 360 ? 3 : 2; //ISSUE LINE MAYBE
 
   //Distance filter state (null = no distance filter)
   //const [selectedDistance, setSelectedDistance] = useState<number | null>(null);
@@ -165,16 +165,17 @@ export default function MentorHub() {
       const mentorIds = [...new Set(visibleSessions.map((s: any) => s.mentor))];
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, full_name, photo_url')
+        .select('id, full_name, photo_url, hidden')
         .in('id', mentorIds);
 
       const profileMap: Record<string, { name: string; photo: string | null }> = {};
       (profiles ?? []).forEach((p: any) => {
+        if (p.hidden) return;
         profileMap[p.id] = { name: p.full_name ?? 'Mentor', photo: p.photo_url ?? null };
       });
 
       setUpcomingSessions(
-        visibleSessions.map((s: any) => ({
+        visibleSessions.filter((s: any) => Boolean(profileMap[s.mentor])).map((s: any) => ({
           requestId: s.id,
           mentorId: s.mentor,
           mentorName: profileMap[s.mentor]?.name ?? 'Mentor',
@@ -215,13 +216,17 @@ export default function MentorHub() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, title, industry, photo_url, mentor_session_rate')
+        .select('id, full_name, title, industry, photo_url, mentor_session_rate, hidden')
         .eq('role', 'mentor');
 
       if (error) {
         console.error('Error loading mentors', error);
       } else {
-        setMentors(((data as Mentor[]) ?? []).filter((mentor) => !blockedIds.has(mentor.id)));
+        setMentors(
+          ((data as (Mentor & { hidden?: boolean | null })[]) ?? []).filter(
+            (mentor) => !mentor.hidden && !blockedIds.has(mentor.id),
+          ),
+        );
       }
 
       setLoading(false);

@@ -15,11 +15,14 @@ import {
   Text,
   TouchableOpacity,
   UIManager,
-  View
+  View,
+  KeyboardAvoidingView
 } from 'react-native';
 import Purchases from 'react-native-purchases';
 import { PAYWALL_RESULT } from 'react-native-purchases-ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import * as Device from 'expo-device';
 
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -225,8 +228,11 @@ export default function MenteeSettingsScreen() {
     onehundred_tokens_v2: 100,
     twohundred_tokens_monthly: 200,
     twohundred_tokens_monthly_v2: 200,
-    'twohundred_tokens_monthly:twohundred-tokens-monthly-base-plan-id': 200,
+    "twohundred_tokens_monthly:twohundred-tokens-monthly-base-plan-id": 200,
   };
+
+
+
 
   const LAST_PROCESSED_TX_KEY_PREFIX = 'rc:last-token-tx:';
 
@@ -246,9 +252,13 @@ export default function MenteeSettingsScreen() {
   const [tokensBalance, setTokensBalance] = useState<number | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showBugReportModal, setShowBugReportModal] = useState(false);
+
   const [bugReportTitle, setBugReportTitle] = useState('');
   const [bugReportDescription, setBugReportDescription] = useState('');
+  const [bugReportDeviceBrand, setBugReportDeviceBrand] = useState('');
+  const [bugReportDeviceModel, setBugReportDeviceModel] = useState('');
   const [isSubmittingBugReport, setIsSubmittingBugReport] = useState(false);
+
   const [showAcknowledgementsModal, setShowAcknowledgementsModal] = useState(false);
   const [showBlockedUsersModal, setShowBlockedUsersModal] = useState(false);
   const [isPasswordSectionOpen, setIsPasswordSectionOpen] = useState(false);
@@ -444,6 +454,109 @@ export default function MenteeSettingsScreen() {
     }
   };
 
+
+  async function creditLatestTokenPurchase(
+    userId: string,
+    currentBalance: number,
+    purchaseStartedAtMs: number
+  ): Promise<number> {
+    const customerInfo = await Purchases.getCustomerInfo();
+
+    // Small time buffer for clock drift / SDK timing
+    const earliestAllowedMs = purchaseStartedAtMs - 2 * 60 * 1000;
+
+    type Candidate = {
+      productId: string;
+      purchaseDateMs: number;
+      uniqueKey: string;
+      credit: number;
+      source: 'subscription' | 'non_subscription';
+    };
+
+    const candidates: Candidate[] = [];
+
+    // 1) Active subscriptions
+    for (const productId of customerInfo.activeSubscriptions ?? []) {
+      const credit = TOKEN_CREDIT_BY_PRODUCT_ID[productId];
+      if (credit == null) continue;
+
+      const purchaseDateRaw = customerInfo.allPurchaseDates?.[productId];
+      const purchaseDateMs = purchaseDateRaw ? new Date(purchaseDateRaw).getTime() : 0;
+
+      if (!purchaseDateMs || purchaseDateMs < earliestAllowedMs) continue;
+
+      candidates.push({
+        productId,
+        purchaseDateMs,
+        uniqueKey: `${LAST_PROCESSED_TX_KEY_PREFIX}${userId}:sub:${productId}:${purchaseDateMs}`,
+        credit,
+        source: 'subscription',
+      });
+    }
+
+    // 2) One-off / non-subscription purchases
+    for (const tx of customerInfo.nonSubscriptionTransactions ?? []) {
+      const credit = TOKEN_CREDIT_BY_PRODUCT_ID[tx.productIdentifier];
+      if (credit == null) continue;
+
+      const purchaseDateMs = new Date(tx.purchaseDate).getTime();
+      if (!purchaseDateMs || purchaseDateMs < earliestAllowedMs) continue;
+
+      candidates.push({
+        productId: tx.productIdentifier,
+        purchaseDateMs,
+        uniqueKey: `${LAST_PROCESSED_TX_KEY_PREFIX}${userId}:tx:${tx.transactionIdentifier}`,
+        credit,
+        source: 'non_subscription',
+      });
+    }
+
+    // Pick the most recent mapped purchase from THIS purchase attempt
+    candidates.sort((a, b) => b.purchaseDateMs - a.purchaseDateMs);
+
+    console.log(
+      'TOKEN CREDIT CANDIDATES:',
+      candidates.map((c) => ({
+        productId: c.productId,
+        purchaseDate: new Date(c.purchaseDateMs).toISOString(),
+        credit: c.credit,
+        source: c.source,
+      }))
+    );
+
+    const latest = candidates[0];
+    if (!latest) return 0;
+
+    const alreadyProcessed = await AsyncStorage.getItem(latest.uniqueKey);
+    if (alreadyProcessed) return 0;
+
+    const newBalance = currentBalance + latest.credit;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ tokens_balance: newBalance })
+      .eq('id', userId);
+
+    if (error) throw error;
+
+    await AsyncStorage.setItem(latest.uniqueKey, '1');
+    setTokensBalance(newBalance);
+
+    console.log('TOKEN CREDIT APPLIED:', {
+      productId: latest.productId,
+      credit: latest.credit,
+      source: latest.source,
+    });
+
+    return latest.credit;
+  }
+
+
+
+
+
+  //----------------------------OLD FUNCTION
+  /*
   async function creditLatestTokenPurchase(userId: string, currentBalance: number): Promise<number> {
     const customerInfo = await Purchases.getCustomerInfo();
     const txs = [...(customerInfo.nonSubscriptionTransactions ?? [])].sort(
@@ -476,7 +589,7 @@ export default function MenteeSettingsScreen() {
 
     setTokensBalance(newBalance);
     return credit;
-  }
+  }*/
  
   
   async function handleBuyTokens() {
@@ -492,6 +605,8 @@ export default function MenteeSettingsScreen() {
     const liveBalance = profile?.tokens_balance ?? 0;
     setTokensBalance(liveBalance);
 
+
+    const purchaseStartedAtMs = Date.now();
     const paywallResult = await presentPaywall(liveBalance);
 
     if (
@@ -499,12 +614,12 @@ export default function MenteeSettingsScreen() {
       paywallResult === PAYWALL_RESULT.RESTORED
     ) {
       try {
-        const credited = await creditLatestTokenPurchase(user.id, liveBalance);
+        const credited = await creditLatestTokenPurchase(user.id, liveBalance, purchaseStartedAtMs);
 
         if (credited > 0) {
           Alert.alert('Purchase complete', `${credited} tokens added to your account.`);
         } else {
-          Alert.alert('Purchase complete', 'No token mapping matched the purchased product ID.');
+          Alert.alert('Purchase complete', 'Purchase succeeded, but no recent mapped purchase was found to credit.');
         }
       } catch (err: any) {
         Alert.alert('Credit failed', err?.message ?? 'Purchase succeeded but crediting failed.');
@@ -698,11 +813,15 @@ export default function MenteeSettingsScreen() {
         appVersion: getAppVersion(),
         context: {
           entry_point: 'acknowledgements_modal',
+          device_brand: bugReportDeviceBrand || Device.brand || 'Unknown',
+          device_model: bugReportDeviceModel || Device.modelName || 'Unknown',
         },
       });
 
       setBugReportTitle('');
       setBugReportDescription('');
+      setBugReportDeviceBrand('');
+      setBugReportDeviceModel('');
       setShowBugReportModal(false);
       Alert.alert('Thanks', 'Bug report submitted.');
     } catch (error: any) {
@@ -1614,69 +1733,106 @@ export default function MenteeSettingsScreen() {
         onRequestClose={() => setShowBugReportModal(false)}
       >
         <Pressable style={styles.modalBackdrop} onPress={() => setShowBugReportModal(false)}>
-          <Pressable
-            style={[styles.modalCard, { backgroundColor: theme.background }]}
-            onPress={(event) => event.stopPropagation()}
+          <KeyboardAwareScrollView
+            contentContainerStyle={{ justifyContent: 'center', flex: 1 }}
+            keyboardShouldPersistTaps="handled"
+            enableOnAndroid={true}
+            enableAutomaticScroll={true}
           >
-            <ThemedText
-              style={[styles.modalTitle, { color: theme.text }, font('GlacialIndifference', '400')]}
+            <Pressable
+              style={[styles.modalCard, { backgroundColor: theme.background }]}
+              onPress={(event) => event.stopPropagation()}
             >
-              Report a Bug
-            </ThemedText>
-
-            <TextInput
-              value={bugReportTitle}
-              onChangeText={setBugReportTitle}
-              placeholder="Short title (optional)"
-              placeholderTextColor={theme.placeholder}
-              style={[
-                styles.bugReportInput,
-                { color: theme.text, borderColor: theme.border, backgroundColor: theme.background },
-              ]}
-              maxLength={120}
-            />
-
-            <TextInput
-              value={bugReportDescription}
-              onChangeText={setBugReportDescription}
-              placeholder="What happened? What did you expect?"
-              placeholderTextColor={theme.placeholder}
-              style={[
-                styles.bugReportTextArea,
-                { color: theme.text, borderColor: theme.border, backgroundColor: theme.background },
-              ]}
-              multiline
-              textAlignVertical="top"
-              maxLength={1200}
-            />
-
-            <Text style={[styles.bugReportHint, { color: theme.placeholder }]}>
-              Basic report only. No follow-up inbox inside the app yet.
-            </Text>
-
-            <View style={styles.bugReportActions}>
-              <TouchableOpacity
-                style={styles.bugReportCancelButton}
-                onPress={() => setShowBugReportModal(false)}
-                disabled={isSubmittingBugReport}
+              <ThemedText
+                style={[styles.modalTitle, { color: theme.text }, font('GlacialIndifference', '400')]}
               >
-                <Text style={[styles.bugReportCancelButtonText, { color: theme.text }]}>Cancel</Text>
-              </TouchableOpacity>
+                Report a Bug
+              </ThemedText>
 
-              <TouchableOpacity
+              <TextInput
+                value={bugReportTitle}
+                onChangeText={setBugReportTitle}
+                placeholder="Short title (optional)"
+                placeholderTextColor={theme.placeholder}
                 style={[
-                  styles.bugReportSubmitButton,
-                  isSubmittingBugReport ? { opacity: 0.6 } : null,
+                  styles.bugReportInput,
+                  { color: theme.text, borderColor: theme.border, backgroundColor: theme.background },
                 ]}
-                onPress={handleSubmitBugReport}
-                disabled={isSubmittingBugReport}
-              >
-                <Text style={styles.bugReportSubmitButtonText}>
-                  {isSubmittingBugReport ? 'Submitting...' : 'Submit'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
+                maxLength={120}
+              />
+
+              <TextInput
+                value={bugReportDescription}
+                onChangeText={setBugReportDescription}
+                placeholder="What happened? What did you expect?"
+                placeholderTextColor={theme.placeholder}
+                style={[
+                  styles.bugReportTextArea,
+                  { color: theme.text, borderColor: theme.border, backgroundColor: theme.background },
+                ]}
+                multiline
+                textAlignVertical="top"
+                maxLength={1200}
+              />
+
+              {/* Auto-detected device info - not editable anymore, was unnecessary*/}
+              {/*
+              <Text style={[styles.fieldLabel, { color: theme.text }]}>Device Brand</Text>
+              <TextInput
+                value={bugReportDeviceBrand}
+                onChangeText={setBugReportDeviceBrand}
+                placeholder="Auto-detected..."
+                placeholderTextColor={theme.placeholder}
+                style={[
+                  styles.bugReportInput,
+                  { color: theme.text, borderColor: theme.border, backgroundColor: theme.background },
+                ]}
+                editable={!isSubmittingBugReport}
+              />
+
+              <Text style={[styles.fieldLabel, { color: theme.text }]}>Device Model</Text>
+              <TextInput
+                value={bugReportDeviceModel}
+                onChangeText={setBugReportDeviceModel}
+                placeholder="Auto-detected..."
+                placeholderTextColor={theme.placeholder}
+                style={[
+                  styles.bugReportInput,
+                  { color: theme.text, borderColor: theme.border, backgroundColor: theme.background },
+                ]}
+                editable={!isSubmittingBugReport}
+              />
+              */}
+
+
+              <Text style={[styles.bugReportHint, { color: theme.placeholder }]}>
+                Basic report only. No follow-up inbox inside the app yet.
+              </Text>
+
+              <View style={styles.bugReportActions}>
+                <TouchableOpacity
+                  style={styles.bugReportCancelButton}
+                  onPress={() => setShowBugReportModal(false)}
+                  disabled={isSubmittingBugReport}
+                >
+                  <Text style={[styles.bugReportCancelButtonText, { color: theme.text }]}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.bugReportSubmitButton,
+                    isSubmittingBugReport ? { opacity: 0.6 } : null,
+                  ]}
+                  onPress={handleSubmitBugReport}
+                  disabled={isSubmittingBugReport}
+                >
+                  <Text style={styles.bugReportSubmitButtonText}>
+                    {isSubmittingBugReport ? 'Submitting...' : 'Submit'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </KeyboardAwareScrollView>
         </Pressable>
       </Modal>
 

@@ -138,7 +138,29 @@ export async function acceptSession(requestId: number): Promise<void> {
       video_link: roomUrl,
     })
     .eq('id', requestId);
-  if (updateErr) throw new Error('Failed to update request status');
+  if (updateErr) {
+    console.error('Failed to update mentor request', {
+      requestId,
+      message: updateErr.message,
+      details: (updateErr as any).details ?? null,
+      hint: (updateErr as any).hint ?? null,
+      code: (updateErr as any).code ?? null,
+    });
+
+    // Some clients can see a transport/update error even after the row has
+    // already transitioned. Confirm the current state before surfacing a failure.
+    const { data: latestRequest, error: latestRequestErr } = await supabase
+      .from('mentor_requests')
+      .select('status, video_link')
+      .eq('id', requestId)
+      .maybeSingle();
+
+    if (!latestRequestErr && latestRequest?.status === 'scheduled') {
+      return;
+    }
+
+    throw new Error(updateErr.message ?? 'Failed to update request status');
+  }
 }
 
 // ── Decline ───────────────────────────────────────────────────────────

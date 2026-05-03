@@ -35,6 +35,53 @@ set +a
 
 export NODE_ENV="${NODE_ENV:-production}"
 export EAS_LOCAL_BUILD_PROFILE="$PROFILE"
+export EAS_LOCAL_BUILD_PLATFORM="$PLATFORM"
+
+if [ "$PLATFORM" = "ios" ]; then
+  export EAS_LOCAL_BUILD_SKIP_CLEANUP="${EAS_LOCAL_BUILD_SKIP_CLEANUP:-1}"
+  export EAS_VERBOSE="${EAS_VERBOSE:-1}"
+fi
+
+if [ "$PLATFORM" = "android" ]; then
+  resolve_android_sdk_dir() {
+    if [ -n "${ANDROID_HOME:-}" ] && [ -d "${ANDROID_HOME}" ]; then
+      printf '%s\n' "$ANDROID_HOME"
+      return 0
+    fi
+
+    if [ -n "${ANDROID_SDK_ROOT:-}" ] && [ -d "${ANDROID_SDK_ROOT}" ]; then
+      printf '%s\n' "$ANDROID_SDK_ROOT"
+      return 0
+    fi
+
+    if [ -f "./android/local.properties" ]; then
+      local sdk_dir
+      sdk_dir="$(sed -n 's/^sdk\.dir=//p' ./android/local.properties | tail -n 1)"
+      sdk_dir="${sdk_dir//\\:/:}"
+      sdk_dir="${sdk_dir//\\\\/\\}"
+      if [ -n "$sdk_dir" ] && [ -d "$sdk_dir" ]; then
+        printf '%s\n' "$sdk_dir"
+        return 0
+      fi
+    fi
+
+    local default_sdk="$HOME/Library/Android/sdk"
+    if [ -d "$default_sdk" ]; then
+      printf '%s\n' "$default_sdk"
+      return 0
+    fi
+
+    return 1
+  }
+
+  if ! ANDROID_SDK_DIR="$(resolve_android_sdk_dir)"; then
+    echo "Android SDK not found. Set ANDROID_HOME or ANDROID_SDK_ROOT, or update ./android/local.properties with a valid sdk.dir." >&2
+    exit 1
+  fi
+
+  export ANDROID_HOME="$ANDROID_SDK_DIR"
+  export ANDROID_SDK_ROOT="$ANDROID_SDK_DIR"
+fi
 
 ORIGINAL_EAS_JSON="$TMP_DIR/eas.json.original"
 cp ./eas.json "$ORIGINAL_EAS_JSON"
@@ -67,6 +114,7 @@ for (const key of requiredVars) {
 }
 
 const profile = process.env.EAS_LOCAL_BUILD_PROFILE;
+const platform = process.env.EAS_LOCAL_BUILD_PLATFORM;
 const eas = JSON.parse(fs.readFileSync('./eas.json', 'utf8'));
 const buildProfile = eas.build?.[profile];
 
@@ -84,7 +132,28 @@ for (const key of requiredVars) {
   buildProfile.env[key] = process.env[key];
 }
 
+if (platform === 'android') {
+  const androidSdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
+  if (!androidSdk) {
+    console.error('Missing Android SDK path for local Android build.');
+    process.exit(1);
+  }
+
+  buildProfile.env.ANDROID_HOME = androidSdk;
+  buildProfile.env.ANDROID_SDK_ROOT = androidSdk;
+}
+
 fs.writeFileSync('./eas.json', `${JSON.stringify(eas, null, 2)}\n`);
 EOF
+
+if [ "${EAS_LOCAL_BUILD_SKIP_CLEANUP:-0}" = "1" ]; then
+  echo "EAS local build cleanup disabled. The temporary build workspace will be printed by EAS if the build fails."
+fi
+
+if [ "${EAS_VERBOSE:-0}" = "1" ]; then
+  echo "EAS verbose logging enabled."
+fi
+
+echo "Running local EAS build for platform=$PLATFORM profile=$PROFILE"
 
 npx eas build --local --platform "$PLATFORM" --profile "$PROFILE"
